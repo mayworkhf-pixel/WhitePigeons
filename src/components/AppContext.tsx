@@ -56,7 +56,10 @@ interface AppContextType {
   logout: () => Promise<void>;
   addNotification: (title: string, message: string, type: WebhookNotification['type']) => void;
   refreshUser: () => Promise<void>;
+  API_BASE_URL: string;
 }
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -91,7 +94,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Refresh current user session
   const refreshUser = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/auth/me', { cache: 'no-store' });
+      const res = await fetch(`${API_BASE_URL}/api/auth/me`, { cache: 'no-store' });
       const data = await res.json();
       if (data.loggedIn) {
         setUser(data.user);
@@ -113,13 +116,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Initialize Socket.io Connection
   useEffect(() => {
-    const socketInstance = io('http://localhost:5000', {
+    const socketInstance = io(API_BASE_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling']
     });
 
     socketInstance.on('connect', () => {
-      console.log('Websocket Connected to http://localhost:5000');
+      console.log(`Websocket Connected to ${API_BASE_URL}`);
     });
 
     socketInstance.on('status_update', (data: { nextInformalCountdown: number; botReady: boolean }) => {
@@ -190,13 +193,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Dev Mock Login redirect
   const loginMock = (role: string, username: string) => {
-    window.location.href = `http://localhost:5000/api/auth/login?mockRole=${role}&mockUsername=${username}`;
+    window.location.href = `${API_BASE_URL}/api/auth/login?mockRole=${role}&mockUsername=${username}`;
   };
 
   // Logout routine
   const logout = async () => {
     try {
-      await fetch('http://localhost:5000/api/auth/logout');
+      await fetch(`${API_BASE_URL}/api/auth/logout`);
       setUser(null);
       window.location.href = '/';
     } catch (e) {
@@ -218,7 +221,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       loginMock,
       logout,
       addNotification,
-      refreshUser
+      refreshUser,
+      API_BASE_URL
     }}>
       {children}
     </AppContext.Provider>

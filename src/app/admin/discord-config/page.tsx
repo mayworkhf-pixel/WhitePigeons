@@ -40,7 +40,7 @@ const channelsList: WebhookChannel[] = [
 ];
 
 export default function DiscordConfig() {
-  const { user, loading: userLoading, addNotification } = useApp();
+  const { user, loading: userLoading, addNotification, API_BASE_URL } = useApp();
 
   const [credentials, setCredentials] = useState({
     botToken: '',
@@ -65,7 +65,7 @@ export default function DiscordConfig() {
     const fetchConfig = async () => {
       setLoading(true);
       try {
-        const res = await fetch('http://localhost:5000/api/admin/discord-config');
+        const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`);
         const data = await res.json();
         
         setCredentials({
@@ -128,7 +128,7 @@ export default function DiscordConfig() {
     setStatuses(prev => ({ ...prev, [key]: 'Testing' }));
     
     try {
-      const res = await fetch('http://localhost:5000/api/admin/test-webhook', {
+      const res = await fetch(`${API_BASE_URL}/api/admin/test-webhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -166,7 +166,7 @@ export default function DiscordConfig() {
   const saveConfig = async () => {
     setSaveLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/admin/discord-config', {
+      const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,7 +192,7 @@ export default function DiscordConfig() {
     if (!confirm('Are you sure you want to clear all Discord credentials and webhooks from the server? This will wipe integration.')) return;
     
     try {
-      const res = await fetch('http://localhost:5000/api/admin/discord-config/reset', { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/api/admin/discord-config/reset`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setCredentials({ botToken: '', guildId: '', clientId: '', clientSecret: '', adminPassword: '' });

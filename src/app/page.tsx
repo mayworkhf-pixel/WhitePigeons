@@ -99,7 +99,7 @@ const formatCountdownStr = (ms: number) => {
 };
 
 export default function RootDashboard() {
-  const { user, activeTab, setActiveTab, addNotification, timers, refreshUser } = useApp();
+  const { user, activeTab, setActiveTab, addNotification, timers, refreshUser, API_BASE_URL } = useApp();
 
   // Core Data states
   const [members, setMembers] = useState<Member[]>([]);
@@ -148,30 +148,30 @@ export default function RootDashboard() {
   // Load backend data helper
   const loadDashboardData = async () => {
     try {
-      const membersRes = await fetch('http://localhost:5000/api/members');
+      const membersRes = await fetch(`${API_BASE_URL}/api/members`);
       if (membersRes.ok) setMembers(await membersRes.json());
 
-      const winsRes = await fetch('http://localhost:5000/api/wins');
+      const winsRes = await fetch(`${API_BASE_URL}/api/wins`);
       if (winsRes.ok) setWins(await winsRes.json());
 
       if (user) {
-        const ticketRes = await fetch('http://localhost:5000/api/tickets');
+        const ticketRes = await fetch(`${API_BASE_URL}/api/tickets`);
         if (ticketRes.ok) setTickets(await ticketRes.json());
 
-        const actRes = await fetch('http://localhost:5000/api/activities');
+        const actRes = await fetch(`${API_BASE_URL}/api/activities`);
         if (actRes.ok) setActivities(await actRes.json());
 
-        const bizRes = await fetch('http://localhost:5000/api/economy/bizwar-collect');
+        const bizRes = await fetch(`${API_BASE_URL}/api/economy/bizwar-collect`);
         if (bizRes.ok) setBizwarLogs(await bizRes.json());
 
-        const rpRes = await fetch('http://localhost:5000/api/economy/rp-collect');
+        const rpRes = await fetch(`${API_BASE_URL}/api/economy/rp-collect`);
         if (rpRes.ok) {
           const rpData = await rpRes.json();
           setRpLogs(rpData.logs);
           setRpTotalStock(rpData.totalCollected);
         }
 
-        const shopRes = await fetch('http://localhost:5000/api/shop/items');
+        const shopRes = await fetch(`${API_BASE_URL}/api/shop/items`);
         if (shopRes.ok) {
           const shopData = await shopRes.json();
           setShopItems(shopData.items);
@@ -180,7 +180,7 @@ export default function RootDashboard() {
       }
 
       if (isLeaderOrAdmin) {
-        const orderRes = await fetch('http://localhost:5000/api/shop/orders');
+        const orderRes = await fetch(`${API_BASE_URL}/api/shop/orders`);
         if (orderRes.ok) setOrders(await orderRes.json());
       }
     } catch (e) {
@@ -193,10 +193,10 @@ export default function RootDashboard() {
   // Poll event signups
   const loadSignups = async () => {
     try {
-      const rpRes = await fetch('http://localhost:5000/api/events/signup/rp-signup');
+      const rpRes = await fetch(`${API_BASE_URL}/api/events/signup/rp-signup`);
       if (rpRes.ok) setRpSignups(await rpRes.json());
 
-      const infRes = await fetch('http://localhost:5000/api/events/signup/informal-signup');
+      const infRes = await fetch(`${API_BASE_URL}/api/events/signup/informal-signup`);
       if (infRes.ok) setInformalSignups(await infRes.json());
     } catch (e) {}
   };
@@ -233,7 +233,7 @@ export default function RootDashboard() {
       return;
     }
     try {
-      const res = await fetch('http://localhost:5000/api/members/role-request', {
+      const res = await fetch(`${API_BASE_URL}/api/members/role-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(roleRequestForm)
@@ -252,7 +252,7 @@ export default function RootDashboard() {
     e.preventDefault();
     if (!ticketForm.subject || !ticketForm.description) return;
     try {
-      const res = await fetch('http://localhost:5000/api/tickets', {
+      const res = await fetch(`${API_BASE_URL}/api/tickets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ticketForm)
@@ -270,7 +270,7 @@ export default function RootDashboard() {
     e.preventDefault();
     if (!activityForm.description || !activityForm.mediaUrl) return;
     try {
-      const res = await fetch('http://localhost:5000/api/activities', {
+      const res = await fetch(`${API_BASE_URL}/api/activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(activityForm)
@@ -288,7 +288,7 @@ export default function RootDashboard() {
     e.preventDefault();
     if (!bizwarForm.amount) return;
     try {
-      const res = await fetch('http://localhost:5000/api/economy/bizwar-collect', {
+      const res = await fetch(`${API_BASE_URL}/api/economy/bizwar-collect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bizwarForm)
@@ -306,7 +306,7 @@ export default function RootDashboard() {
   const handleRpCollect = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:5000/api/economy/rp-collect', {
+      const res = await fetch(`${API_BASE_URL}/api/economy/rp-collect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rpCollectForm)
@@ -321,7 +321,7 @@ export default function RootDashboard() {
   // Purchase item
   const handlePurchaseItem = async (itemId: string) => {
     try {
-      const res = await fetch('http://localhost:5000/api/shop/purchase', {
+      const res = await fetch(`${API_BASE_URL}/api/shop/purchase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId })
@@ -341,7 +341,7 @@ export default function RootDashboard() {
   const handleRoleReview = async (memberId: string, status: 'approved' | 'rejected') => {
     const fields = roleReviewForm[memberId] || { nickname: '', roleToGrant: 'Member', reason: '' };
     try {
-      const res = await fetch('http://localhost:5000/api/members/role-review', {
+      const res = await fetch(`${API_BASE_URL}/api/members/role-review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memberId, status, ...fields })
@@ -358,7 +358,7 @@ export default function RootDashboard() {
     e.preventDefault();
     if (!strikeForm.memberId || !strikeForm.reason) return;
     try {
-      const res = await fetch('http://localhost:5000/api/discipline/strike', {
+      const res = await fetch(`${API_BASE_URL}/api/discipline/strike`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(strikeForm)
@@ -376,7 +376,7 @@ export default function RootDashboard() {
     const response = ticketResolveForm[ticketId] || '';
     if (!response) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/tickets/${ticketId}/resolve`, {
+      const res = await fetch(`${API_BASE_URL}/api/tickets/${ticketId}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ response })
@@ -392,7 +392,7 @@ export default function RootDashboard() {
   const handleBonusApproval = async (ticketId: string, status: 'approved' | 'rejected') => {
     const fields = bonusApprovalForm[ticketId] || { finalAmount: '0', comment: '' };
     try {
-      const res = await fetch(`http://localhost:5000/api/economy/bonus-approval/${ticketId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/economy/bonus-approval/${ticketId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, ...fields })
@@ -408,7 +408,7 @@ export default function RootDashboard() {
   // Admin audit: Complete Order
   const handleCompleteOrder = async (orderId: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/shop/orders/${orderId}/complete`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/api/shop/orders/${orderId}/complete`, { method: 'POST' });
       if (res.ok) {
         addNotification('Order Completed', 'Inventory items dispatched to client.', 'success');
         loadDashboardData();
@@ -420,7 +420,7 @@ export default function RootDashboard() {
   const handleReviewActivity = async (activityId: string, status: 'approved' | 'rejected') => {
     const fields = activityReviewForm[activityId] || { points: '150', reason: '' };
     try {
-      const res = await fetch(`http://localhost:5000/api/activities/${activityId}/review`, {
+      const res = await fetch(`${API_BASE_URL}/api/activities/${activityId}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, ...fields })
@@ -436,7 +436,7 @@ export default function RootDashboard() {
   // Event signup execution
   const handleEventSignup = async (eventId: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/events/signup/${eventId}`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/api/events/signup/${eventId}`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
         if (data.action === 'confirmed') addNotification('Roster Joined', 'Spot confirmed in tactical team!', 'success');
@@ -452,7 +452,7 @@ export default function RootDashboard() {
   // Open active signup channel
   const handleTriggerSignupWindow = async (eventId: string, title: string, desc: string) => {
     try {
-      const res = await fetch('http://localhost:5000/api/events/trigger', {
+      const res = await fetch(`${API_BASE_URL}/api/events/trigger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId, title, description: desc })
@@ -468,7 +468,7 @@ export default function RootDashboard() {
   const handleClearSignupRoster = async (eventId: string) => {
     if (!confirm('Are you sure you want to flush the signed up player roster?')) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/events/clear/${eventId}`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/api/events/clear/${eventId}`, { method: 'POST' });
       if (res.ok) {
         addNotification('Roster Cleared', 'Roster lists reset successfully.', 'info');
         loadSignups();
@@ -481,7 +481,7 @@ export default function RootDashboard() {
     e.preventDefault();
     if (!winForm.title || !winForm.description) return;
     try {
-      const res = await fetch('http://localhost:5000/api/wins', {
+      const res = await fetch(`${API_BASE_URL}/api/wins`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(winForm)
