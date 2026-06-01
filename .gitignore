@@ -42,3 +42,6 @@ next-env.d.ts
 
 # database file containing config credentials, webhooks, and passwords
 backend/data/db.json
+
+# Firebase temporary build folders
+.firebase/
