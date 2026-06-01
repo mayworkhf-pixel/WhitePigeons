@@ -1,36 +1,11 @@
-const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
-const path = require('path');
-
-const db = require('./database');
+const app = require('./app');
 const botService = require('./bot');
 
-const authRoutes = require('./routes/auth');
-const adminRoutes = require('./routes/admin');
-const apiRoutes = require('./routes/api');
-
-const app = express();
 const server = http.createServer(app);
 
-// CORS configuration (allow Next.js frontend port 3000)
-app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-
-// Mount Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api', apiRoutes);
-
-// Socket.io integration
+// Socket.io integration (allow Next.js frontend port 3000)
 const io = socketIo(server, {
   cors: {
     origin: 'http://localhost:3000',
@@ -41,15 +16,6 @@ const io = socketIo(server, {
 
 // Give botService reference to IO
 botService.setIo(io);
-
-// Server status endpoint
-app.get('/api/status', (req, res) => {
-  res.json({
-    status: 'online',
-    botConnected: botService.isReady ? botService.isReady() : false,
-    timestamp: new Date().toISOString()
-  });
-});
 
 // Socket connection listener
 io.on('connection', (socket) => {

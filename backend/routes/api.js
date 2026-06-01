@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 const botService = require('../bot');
+const axios = require('axios');
 
 // Session helper middlewares
 function requireMember(req, res, next) {
@@ -39,8 +40,8 @@ function requireAdmin(req, res, next) {
 // -------------------------------------------------------------
 // MEMBER ROSTER
 // -------------------------------------------------------------
-router.get('/members', requireMember, (req, res) => {
-  res.json(db.getMembers());
+router.get('/members', requireMember, async (req, res) => {
+  res.json(await db.getMembers());
 });
 
 // Submit role request
@@ -80,7 +81,7 @@ router.post('/members/role-review', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Member ID and decision status are required.' });
   }
 
-  const member = db.getMember(memberId);
+  const member = await db.getMember(memberId);
   if (!member) {
     return res.status(404).json({ error: 'Member not found.' });
   }
@@ -106,7 +107,7 @@ router.post('/members/role-review', requireAdmin, async (req, res) => {
     if (roleToGrant && !currentRoles.includes(roleToGrant)) {
       currentRoles.push(roleToGrant);
     }
-    db.updateMember(memberId, {
+    await db.updateMember(memberId, {
       nickname: nickname || member.nickname,
       roles: currentRoles,
       isTop10: roleToGrant === 'Top-10' || roleToGrant === 'Top 10' ? true : member.isTop10
@@ -132,7 +133,7 @@ router.post('/discipline/strike', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Member ID and strike reason are required.' });
   }
 
-  const member = db.getMember(memberId);
+  const member = await db.getMember(memberId);
   if (!member) {
     return res.status(404).json({ error: 'Member not found.' });
   }
@@ -150,7 +151,7 @@ router.post('/discipline/strike', requireAdmin, async (req, res) => {
   const rolesToGrant = [];
   if (strikeRole) rolesToGrant.push(strikeRole);
 
-  db.updateMember(memberId, { strikes });
+  await db.updateMember(memberId, { strikes });
 
   // Webhook notification
   const embed = {
@@ -173,8 +174,8 @@ router.post('/discipline/strike', requireAdmin, async (req, res) => {
 });
 
 // Tickets
-router.get('/tickets', requireMember, (req, res) => {
-  const tickets = db.getTickets();
+router.get('/tickets', requireMember, async (req, res) => {
+  const tickets = await db.getTickets();
   const isLead = req.user.roles && (req.user.roles.includes('Leadership') || req.user.roles.includes('Admin'));
   
   if (isLead) {
@@ -192,7 +193,7 @@ router.post('/tickets', requireMember, async (req, res) => {
     return res.status(400).json({ error: 'Type, subject, and description are required.' });
   }
 
-  const ticket = db.createTicket({
+  const ticket = await db.createTicket({
     memberId: user.discordId,
     username: user.username,
     type,
@@ -225,7 +226,7 @@ router.post('/tickets/:id/resolve', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Written response is required to resolve tickets.' });
   }
 
-  const ticket = db.updateTicket(id, { status: 'reviewed', response });
+  const ticket = await db.updateTicket(id, { status: 'reviewed', response });
   if (!ticket) {
     return res.status(404).json({ error: 'Ticket not found.' });
   }
@@ -251,8 +252,8 @@ router.post('/tickets/:id/resolve', requireAdmin, async (req, res) => {
 // ECONOMY & TRACKING
 // -------------------------------------------------------------
 // Get personal balance dashboard data
-router.get('/economy/balance', requireMember, (req, res) => {
-  const member = db.getMember(req.user.discordId);
+router.get('/economy/balance', requireMember, async (req, res) => {
+  const member = await db.getMember(req.user.discordId);
   return res.json({
     balance: member ? member.balance : 0,
     discordId: req.user.discordId,
@@ -261,8 +262,8 @@ router.get('/economy/balance', requireMember, (req, res) => {
 });
 
 // Log BizWar Collect profits
-router.get('/economy/bizwar-collect', requireMember, (req, res) => {
-  res.json(db.getBizWarLogs());
+router.get('/economy/bizwar-collect', requireMember, async (req, res) => {
+  res.json(await db.getBizWarLogs());
 });
 
 router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
@@ -274,7 +275,7 @@ router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
   }
 
   const numericAmount = parseFloat(amount);
-  const log = db.createBizWarLog({
+  const log = await db.createBizWarLog({
     memberId: user.discordId,
     username: user.username,
     businessName,
@@ -283,9 +284,9 @@ router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
   });
 
   // Fetch member from database to update their balance (add BizWar collected amount)
-  const member = db.getMember(user.discordId);
+  const member = await db.getMember(user.discordId);
   const currentBalance = member ? member.balance : 0;
-  db.updateMember(user.discordId, { balance: currentBalance + numericAmount });
+  await db.updateMember(user.discordId, { balance: currentBalance + numericAmount });
 
   const embed = {
     title: '💲 BIZWAR COLLECT LOGGED',
@@ -303,10 +304,10 @@ router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
 });
 
 // RP Ticket tracker
-router.get('/economy/rp-collect', requireMember, (req, res) => {
-  const stats = db.getRpTicketStats();
+router.get('/economy/rp-collect', requireMember, async (req, res) => {
+  const stats = await db.getRpTicketStats();
   res.json({
-    logs: db.getRpTicketLogs(),
+    logs: await db.getRpTicketLogs(),
     ...stats
   });
 });
@@ -320,14 +321,14 @@ router.post('/economy/rp-collect', requireMember, async (req, res) => {
   }
 
   const numTickets = parseInt(ticketsCollected);
-  const log = db.createRpTicketLog({
+  const log = await db.createRpTicketLog({
     memberId: user.discordId,
     username: user.username,
     ticketsCollected: numTickets,
     timeCollected: new Date().toISOString()
   });
 
-  const stats = db.getRpTicketStats();
+  const stats = await db.getRpTicketStats();
 
   const embed = {
     title: '🎫 RP TICKET FACTORY COLLECTION',
@@ -345,9 +346,9 @@ router.post('/economy/rp-collect', requireMember, async (req, res) => {
 });
 
 // Admin Bonus Log & Bonus Approvals
-router.get('/economy/bonus-logs', requireAdmin, (req, res) => {
+router.get('/economy/bonus-logs', requireAdmin, async (req, res) => {
   // Bonus requests are tracked under support tickets (type: bonus)
-  const tickets = db.getTickets().filter(t => t.type === 'bonus');
+  const tickets = (await db.getTickets()).filter(t => t.type === 'bonus');
   res.json(tickets);
 });
 
@@ -359,7 +360,7 @@ router.post('/economy/bonus-approval/:id', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Approval decision (status) is required.' });
   }
 
-  const ticket = db.updateTicket(id, { 
+  const ticket = await db.updateTicket(id, { 
     status: status === 'approved' ? 'reviewed' : 'closed', 
     response: comment || `Bonus Request ${status.toUpperCase()}`
   });
@@ -371,9 +372,9 @@ router.post('/economy/bonus-approval/:id', requireAdmin, async (req, res) => {
   if (status === 'approved') {
     const amount = parseFloat(finalAmount || 0);
     // Add bonus to member balance
-    const member = db.getMember(ticket.memberId);
+    const member = await db.getMember(ticket.memberId);
     if (member) {
-      db.updateMember(ticket.memberId, { balance: (member.balance || 0) + amount });
+      await db.updateMember(ticket.memberId, { balance: (member.balance || 0) + amount });
     }
 
     const approvalEmbed = {
@@ -407,8 +408,8 @@ router.post('/economy/bonus-approval/:id', requireAdmin, async (req, res) => {
 // -------------------------------------------------------------
 // LEADERBOARDS & STATS
 // -------------------------------------------------------------
-router.get('/leaderboards', (req, res) => {
-  const members = db.getMembers();
+router.get('/leaderboards', async (req, res) => {
+  const members = await db.getMembers();
   
   // All time kill list
   const longTimeKills = [...members].sort((a, b) => b.kills - a.kills);
@@ -433,8 +434,8 @@ router.get('/leaderboards', (req, res) => {
 // -------------------------------------------------------------
 // ACTIVITY SYSTEM
 // -------------------------------------------------------------
-router.get('/activities', requireMember, (req, res) => {
-  const acts = db.getActivities();
+router.get('/activities', requireMember, async (req, res) => {
+  const acts = await db.getActivities();
   const isLead = req.user.roles && (req.user.roles.includes('Leadership') || req.user.roles.includes('Admin'));
   if (isLead) {
     return res.json(acts);
@@ -450,7 +451,7 @@ router.post('/activities', requireMember, async (req, res) => {
     return res.status(400).json({ error: 'Description and verification URL/Link are required.' });
   }
 
-  const act = db.createActivity({
+  const act = await db.createActivity({
     memberId: user.discordId,
     username: user.username,
     description,
@@ -483,7 +484,7 @@ router.post('/activities/:id/review', requireAdmin, async (req, res) => {
   }
 
   const numPoints = parseInt(points || 0);
-  const act = db.updateActivity(id, {
+  const act = await db.updateActivity(id, {
     status,
     pointsAwarded: numPoints,
     reason: reason || 'Reviewed',
@@ -496,9 +497,9 @@ router.post('/activities/:id/review', requireAdmin, async (req, res) => {
 
   // Update member points in database
   if (status === 'approved' && numPoints > 0) {
-    const member = db.getMember(act.memberId);
+    const member = await db.getMember(act.memberId);
     if (member) {
-      db.updateMember(act.memberId, { 
+      await db.updateMember(act.memberId, { 
         points: (member.points || 0) + numPoints,
         activityScore: Math.min(100, (member.activityScore || 0) + 5) // Increase activity metric
       });
@@ -522,6 +523,7 @@ router.post('/activities/:id/review', requireAdmin, async (req, res) => {
 
   // If approved, notify activity points leaderboard channel
   if (status === 'approved' && numPoints > 0) {
+    const currentPoints = (await db.getMember(act.memberId))?.points || 0;
     const leaderEmbed = {
       title: '📈 ACTIVITY POINTS UPDATE',
       description: `Points granted to **${act.username}**!`,
@@ -529,7 +531,7 @@ router.post('/activities/:id/review', requireAdmin, async (req, res) => {
       fields: [
         { name: 'Player', value: `<@${act.memberId}>`, inline: true },
         { name: 'Earned Points', value: `+${numPoints} Points`, inline: true },
-        { name: 'New Total', value: `${(db.getMember(act.memberId)?.points || 0)} Points`, inline: true }
+        { name: 'New Total', value: `${currentPoints} Points`, inline: true }
       ]
     };
     await botService.sendWebhook('activity-points-leaderboard', leaderEmbed);
@@ -554,8 +556,8 @@ const shopItems = [
   { id: 'item-4', name: 'Custom License Plate Voucher', price: 3500, category: 'Vip Perks', stock: 2, image: 'https://images.unsplash.com/photo-1594008696863-bd0df46968f2?w=150' }
 ];
 
-router.get('/shop/items', requireMember, (req, res) => {
-  const member = db.getMember(req.user.discordId);
+router.get('/shop/items', requireMember, async (req, res) => {
+  const member = await db.getMember(req.user.discordId);
   const currentPoints = member ? member.points : 0;
   res.json({
     items: shopItems,
@@ -572,7 +574,7 @@ router.post('/shop/purchase', requireMember, async (req, res) => {
     return res.status(404).json({ error: 'Item not found in point shop.' });
   }
 
-  const member = db.getMember(user.discordId);
+  const member = await db.getMember(user.discordId);
   const points = member ? member.points : 0;
 
   if (points < item.price) {
@@ -580,10 +582,10 @@ router.post('/shop/purchase', requireMember, async (req, res) => {
   }
 
   // Deduct points
-  db.updateMember(user.discordId, { points: points - item.price });
+  await db.updateMember(user.discordId, { points: points - item.price });
 
   // Create order
-  const order = db.createOrder({
+  const order = await db.createOrder({
     memberId: user.discordId,
     username: user.username,
     itemId: item.id,
@@ -622,14 +624,14 @@ router.post('/shop/purchase', requireMember, async (req, res) => {
   return res.json({ success: true, order, newBalance: points - item.price });
 });
 
-router.get('/shop/orders', requireAdmin, (req, res) => {
-  res.json(db.getOrders());
+router.get('/shop/orders', requireAdmin, async (req, res) => {
+  res.json(await db.getOrders());
 });
 
 router.post('/shop/orders/:id/complete', requireAdmin, async (req, res) => {
   const { id } = req.params;
 
-  const order = db.updateOrder(id, { status: 'completed' });
+  const order = await db.updateOrder(id, { status: 'completed' });
   if (!order) {
     return res.status(404).json({ error: 'Order not found.' });
   }
@@ -654,9 +656,9 @@ router.post('/shop/orders/:id/complete', requireAdmin, async (req, res) => {
 // -------------------------------------------------------------
 // EVENTS & SIGNUPS
 // -------------------------------------------------------------
-router.get('/events/signup/:eventId', (req, res) => {
+router.get('/events/signup/:eventId', async (req, res) => {
   const { eventId } = req.params;
-  res.json(db.getSignups(eventId));
+  res.json(await db.getSignups(eventId));
 });
 
 // Member signs up
@@ -664,16 +666,15 @@ router.post('/events/signup/:eventId', requireMember, async (req, res) => {
   const { eventId } = req.params;
   const user = req.user;
 
-  const member = db.getMember(user.discordId);
+  const member = await db.getMember(user.discordId);
   const isTop10 = member ? member.isTop10 : false;
 
-  const result = db.createSignup(eventId, user.discordId, user.username, isTop10);
+  const result = await db.createSignup(eventId, user.discordId, user.username, isTop10);
   
   if (!result.success) {
     return res.status(400).json({ error: result.message });
   }
 
-  // Socket notification will be fired in server.js, but let's handle live notification here
   if (result.action === 'displaced' && result.displaced) {
     // Notify displaced user
     await botService.sendDirectMessage(
@@ -688,9 +689,9 @@ router.post('/events/signup/:eventId', requireMember, async (req, res) => {
 });
 
 // Admin clears signup list
-router.post('/events/clear/:eventId', requireAdmin, (req, res) => {
+router.post('/events/clear/:eventId', requireAdmin, async (req, res) => {
   const { eventId } = req.params;
-  db.clearSignups(eventId);
+  await db.clearSignups(eventId);
   botService.logSimulated(`Cleared signup list for event: ${eventId}`);
   return res.json({ success: true });
 });
@@ -702,7 +703,7 @@ router.post('/events/trigger', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Title is required.' });
   }
 
-  db.clearSignups(eventId); // Clear previous signups automatically
+  await db.clearSignups(eventId); // Clear previous signups automatically
   await botService.triggerEventSignup(eventId, title, description || '');
   return res.json({ success: true, message: 'Signup window opened and broadcasted to Discord.' });
 });
@@ -710,8 +711,8 @@ router.post('/events/trigger', requireAdmin, async (req, res) => {
 // -------------------------------------------------------------
 // PUBLIC WIN LOGS
 // -------------------------------------------------------------
-router.get('/wins', (req, res) => {
-  res.json(db.getWins());
+router.get('/wins', async (req, res) => {
+  res.json(await db.getWins());
 });
 
 router.post('/wins', requireAdmin, async (req, res) => {
@@ -721,7 +722,7 @@ router.post('/wins', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Title and description are required.' });
   }
 
-  const win = db.createWin({
+  const win = await db.createWin({
     type: type || 'event',
     title,
     description,
@@ -741,6 +742,74 @@ router.post('/wins', requireAdmin, async (req, res) => {
   botService.logSimulated(`Logged a win for the public records: "${title}"`);
 
   return res.json(win);
+});
+
+// -------------------------------------------------------------
+// DISCORD LIVE CHANNEL PULL ROUTE (ON-DEMAND)
+// -------------------------------------------------------------
+router.get('/discord/messages', requireMember, async (req, res) => {
+  const { channelKey } = req.query;
+  if (!channelKey) {
+    return res.status(400).json({ error: 'channelKey parameter is required.' });
+  }
+
+  try {
+    const config = await db.getConfig();
+    const webhookUrl = config.webhooks ? config.webhooks[channelKey] : null;
+
+    if (!webhookUrl) {
+      return res.json([]); // No webhook configured, return empty
+    }
+
+    // Extract webhook ID and token from URL
+    const match = webhookUrl.match(/discord\.com\/api\/webhooks\/(\d+)\/([\w-]+)/);
+    if (!match) {
+      return res.status(400).json({ error: 'Invalid Webhook URL format.' });
+    }
+
+    const webhookId = match[1];
+    const webhookToken = match[2];
+
+    // Fetch Webhook details from Discord API to resolve the channel_id
+    const webhookRes = await axios.get(`https://discord.com/api/webhooks/${webhookId}/${webhookToken}`);
+    const channelId = webhookRes.data.channel_id;
+
+    if (!channelId) {
+      return res.status(404).json({ error: 'Could not resolve channel ID.' });
+    }
+
+    // Pull messages using bot token
+    if (!config.botToken) {
+      return res.json([{
+        timestamp: new Date().toISOString(),
+        message: `[INFO] Webhook connected to channel. Configure a Discord Bot Token in Settings to display live updates.`
+      }]);
+    }
+
+    const messagesRes = await axios.get(`https://discord.com/api/v10/channels/${channelId}/messages?limit=25`, {
+      headers: {
+        Authorization: `Bot ${config.botToken}`
+      }
+    });
+
+    const messages = messagesRes.data || [];
+    
+    // Format messages in reverse order so they display oldest first (chronological)
+    const formattedLogs = messages
+      .map(msg => ({
+        timestamp: msg.timestamp,
+        message: `Message in #${channelKey} by @${msg.author.username}: "${msg.content || (msg.embeds && msg.embeds.length ? '[Embed notification]' : '[Attachment]')}"`
+      }))
+      .reverse();
+
+    return res.json(formattedLogs);
+  } catch (err) {
+    console.error(`Error resolving channel updates for #${channelKey}:`, err.message);
+    return res.json([{
+      timestamp: new Date().toISOString(),
+      message: `[SIMULATED] Log monitor linked to #${channelKey} webhook.`
+    }]);
+  }
 });
 
 module.exports = router;

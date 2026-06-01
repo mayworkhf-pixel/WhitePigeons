@@ -26,8 +26,8 @@ function requireAdmin(req, res, next) {
 }
 
 // GET current config (with masked credentials)
-router.get('/discord-config', requireAdmin, (req, res) => {
-  const config = db.getConfig();
+router.get('/discord-config', requireAdmin, async (req, res) => {
+  const config = await db.getConfig();
   
   // Mask sensitive credentials
   const responseConfig = {
@@ -56,7 +56,7 @@ router.get('/discord-config', requireAdmin, (req, res) => {
 // POST save config
 router.post('/discord-config', requireAdmin, async (req, res) => {
   const { botToken, guildId, clientId, clientSecret, adminPassword, webhooks } = req.body;
-  const currentConfig = db.getConfig();
+  const currentConfig = await db.getConfig();
 
   // If a field is sent as masked (i.e. '••••••••••••••••'), do not overwrite, keep the current value
   const finalBotToken = botToken === '••••••••••••••••' ? currentConfig.botToken : botToken;
@@ -83,7 +83,7 @@ router.post('/discord-config', requireAdmin, async (req, res) => {
     webhooks: finalWebhooks
   };
 
-  db.saveConfig(newConfig);
+  await db.saveConfig(newConfig);
 
   // Re-initialize bot client in the background
   botService.init();
@@ -94,8 +94,8 @@ router.post('/discord-config', requireAdmin, async (req, res) => {
 });
 
 // POST reset credentials
-router.post('/discord-config/reset', requireAdmin, (req, res) => {
-  db.saveConfig({
+router.post('/discord-config/reset', requireAdmin, async (req, res) => {
+  await db.saveConfig({
     botToken: '',
     guildId: '',
     clientId: '',
@@ -118,7 +118,7 @@ router.post('/test-webhook', requireAdmin, async (req, res) => {
   let urlToTest = webhookUrl;
   if (webhookUrl.startsWith('••••••••••••••••')) {
     // Find matching saved URL
-    const config = db.getConfig();
+    const config = await db.getConfig();
     // Look up webhook URL in database
     const matchingKey = Object.keys(config.webhooks).find(key => {
       const dbUrl = config.webhooks[key];

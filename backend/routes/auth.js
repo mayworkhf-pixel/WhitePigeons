@@ -5,7 +5,7 @@ const botService = require('../bot');
 const axios = require('axios');
 
 // Login endpoint (Redirects to Discord OAuth or handles Mock login)
-router.get('/login', (req, res) => {
+router.get('/login', async (req, res) => {
   const { mockRole, mockUsername } = req.query;
 
   // Handle Mock Login (extremely helpful for local development / testing)
@@ -28,9 +28,9 @@ router.get('/login', (req, res) => {
     }
 
     // Find or create member in DB
-    let member = db.getMember(id);
+    let member = await db.getMember(id);
     if (!member && roles.length > 0) {
-      member = db.updateMember(id, {
+      member = await db.updateMember(id, {
         username,
         nickname: `WP | ${username}`,
         roles,
@@ -59,7 +59,7 @@ router.get('/login', (req, res) => {
   }
 
   // Live Discord OAuth Login
-  const config = db.getConfig();
+  const config = await db.getConfig();
   if (!config.clientId) {
     return res.status(400).send('OAuth Client ID is not configured in the Admin settings.');
   }
@@ -76,7 +76,7 @@ router.get('/callback', async (req, res) => {
     return res.redirect('http://localhost:3000/?error=no_code');
   }
 
-  const config = db.getConfig();
+  const config = await db.getConfig();
   if (!config.clientId || !config.clientSecret || !config.guildId) {
     return res.status(500).send('OAuth Configuration incomplete.');
   }
@@ -115,11 +115,6 @@ router.get('/callback', async (req, res) => {
       nickname = memberData.nick || user.username;
 
       // Sync server roles.
-      // We will map role IDs or names. Since we fetch member roles as an array of role IDs,
-      // we can match them if we query the guild roles or check names.
-      // For ease and reliability, the bot.js has access to the guild role cache.
-      // Here we check if the user has specific roles by querying the guild member via bot client (if ready) or custom mapping.
-      // For fallback: we assume if they are in the guild, they are at least 'Member'.
       memberRoles = ['Member'];
       
       // Fetch details from bot client if available
@@ -132,7 +127,7 @@ router.get('/callback', async (req, res) => {
     }
 
     // 4. Save/Update user in database
-    const dbMember = db.updateMember(user.id, {
+    const dbMember = await db.updateMember(user.id, {
       username: user.username,
       nickname,
       avatar: user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150',
@@ -165,13 +160,13 @@ router.get('/callback', async (req, res) => {
 });
 
 // POST verify admin passcode
-router.post('/verify-admin', (req, res) => {
+router.post('/verify-admin', async (req, res) => {
   const { password } = req.body;
   if (!password) {
     return res.status(400).json({ success: false, error: 'Password is required.' });
   }
 
-  const config = db.getConfig();
+  const config = await db.getConfig();
   const correctPassword = config.adminPassword || 'pigeon123';
 
   if (password === correctPassword) {
@@ -199,7 +194,7 @@ router.post('/verify-admin', (req, res) => {
 });
 
 // Fetch current session details
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
   const cookie = req.cookies ? req.cookies['wp_session'] : null;
   if (!cookie) {
     return res.json({ loggedIn: false, user: null });
@@ -207,7 +202,7 @@ router.get('/me', (req, res) => {
   try {
     const session = JSON.parse(Buffer.from(cookie, 'base64').toString('utf8'));
     // Fetch live data from DB to make sure things like points, kills, strikes are in sync
-    const memberDetails = db.getMember(session.discordId);
+    const memberDetails = await db.getMember(session.discordId);
     
     return res.json({
       loggedIn: true,

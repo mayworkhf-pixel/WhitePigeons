@@ -149,6 +149,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  // Pull active channel messages from Discord REST API on tab change/periodically
+  useEffect(() => {
+    const validKeys = [
+      'role-request', 'rolereq-review', 'strikes', 'tickets', 'check-balance',
+      'bonus-approval', 'bizwar-collect', 'rp-collect', 'submit-activity',
+      'activity-results', 'activity-points-leaderboard', 'point-shop',
+      'activity-review', 'order-details', 'rp-signup', 'informal-signup',
+      'public-winlog', 'public-informallog', 'top-10-list'
+    ];
+
+    if (!validKeys.includes(activeTab)) {
+      return;
+    }
+
+    const fetchChannelLogs = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/discord/messages?channelKey=${activeTab}`, { cache: 'no-store' });
+        if (res.ok) {
+          const channelLogs = await res.json();
+          if (Array.isArray(channelLogs)) {
+            setLogs(channelLogs);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load active Discord channel logs.');
+      }
+    };
+
+    fetchChannelLogs();
+
+    // Poll logs every 15 seconds for live serverless updating
+    const interval = setInterval(fetchChannelLogs, 15000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
   // Notification Helper
   const addNotification = (title: string, message: string, type: WebhookNotification['type'] = 'info') => {
     const id = Math.random().toString(36).substring(2, 9);

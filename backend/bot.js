@@ -10,9 +10,13 @@ const botService = {
     ioInstance = io;
   },
 
+  isReady: () => {
+    return client && client.readyAt !== null;
+  },
+
   // Initialize the Discord Bot Client
   init: async () => {
-    const config = db.getConfig();
+    const config = await db.getConfig();
     if (!config.botToken || !config.guildId) {
       botService.logSimulated('Bot credentials missing. Running in Mock/Simulated Mode.');
       return false;
@@ -58,12 +62,12 @@ const botService = {
           const isTop10 = member ? member.roles.cache.some(r => r.name.toLowerCase().includes('top 10') || r.name.toLowerCase().includes('top-10')) : false;
 
           // Process signup in DB
-          const result = db.createSignup(eventId, discordId, username, isTop10);
+          const result = await db.createSignup(eventId, discordId, username, isTop10);
           
           if (result.success) {
             // Update website via Socket.io
             if (ioInstance) {
-              ioInstance.emit('signup_change', { eventId, signups: db.getSignups(eventId) });
+              ioInstance.emit('signup_change', { eventId, signups: await db.getSignups(eventId) });
               ioInstance.emit('system_notification', {
                 title: 'Discord Sign Up',
                 message: `${username} signed up via Discord!`,
@@ -136,7 +140,7 @@ const botService = {
 
   // Send an Embed message to a specific channel's configured webhook
   sendWebhook: async (channelKey, embedData) => {
-    const config = db.getConfig();
+    const config = await db.getConfig();
     const webhookUrl = config.webhooks ? config.webhooks[channelKey] : null;
 
     if (!webhookUrl) {
@@ -187,7 +191,7 @@ const botService = {
 
   // Update member nicknames and roles inside the server
   updateMemberNicknameAndRoles: async (discordId, nickname, rolesToGrant = [], rolesToRemove = []) => {
-    const config = db.getConfig();
+    const config = await db.getConfig();
     if (!client || !config.guildId) {
       botService.logSimulated(`[Roles MOCK] Update Discord ID (${discordId}): Nickname: "${nickname}", Grant Roles: [${rolesToGrant.join(', ')}], Revoke Roles: [${rolesToRemove.join(', ')}]`);
       return false;
@@ -227,7 +231,7 @@ const botService = {
         const role = guild.roles.cache.find(r => r.name.toLowerCase() === roleName.toLowerCase());
         if (role) {
           await member.roles.remove(role);
-          botService.logSimulated(`Revoked role "${role.name}" from @${member.user.username}.`);
+          botService.logSimulated(`Revoke role "${role.name}" from @${member.user.username}.`);
         }
       }
 
@@ -251,16 +255,12 @@ const botService = {
     };
 
     // If bot client is connected, we can send a rich button message
-    const config = db.getConfig();
+    const config = await db.getConfig();
     const webhookUrl = config.webhooks ? config.webhooks['rp-signup'] : null;
 
     if (client && webhookUrl) {
-      // Find the channel ID from webhook or send standard message with buttons
-      // Webhooks don't support interactions buttons directly unless we run through bot client
-      // So we use bot client to send a message to the channel if configuration is present
       try {
         const guild = await client.guilds.fetch(config.guildId);
-        // Find channel by name "rp-signup" or config
         const channel = guild.channels.cache.find(c => c.name.includes('signup'));
         if (channel) {
           const embedBuilder = new EmbedBuilder()

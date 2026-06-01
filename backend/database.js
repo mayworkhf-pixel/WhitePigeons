@@ -189,9 +189,41 @@ function writeDb(data) {
 }
 
 // Public DB API
+// Initialize Firebase Admin for Firestore
+let firebaseDb = null;
+if (process.env.NODE_ENV === 'production' || process.env.USE_FIRESTORE === 'true') {
+  try {
+    if (!admin.apps.length) {
+      admin.initializeApp();
+    }
+    firebaseDb = admin.firestore();
+    console.log('[Database] Firestore initialized successfully.');
+  } catch (err) {
+    console.error('[Database] Failed to initialize Firestore, falling back to local JSON:', err.message);
+  }
+}
+
+// Public DB API
 const db = {
   // Config
-  getConfig: () => {
+  getConfig: async () => {
+    if (firebaseDb) {
+      try {
+        const doc = await firebaseDb.collection('settings').doc('discord').get();
+        const config = doc.exists ? doc.data() : { ...initialDb.config };
+        if (config.botToken) config.botToken = decrypt(config.botToken);
+        if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
+        if (config.adminPassword) {
+          config.adminPassword = decrypt(config.adminPassword);
+        } else {
+          config.adminPassword = 'pigeon123';
+        }
+        return config;
+      } catch (err) {
+        console.error('Firestore getConfig failed, fallback to initial:', err.message);
+        return { ...initialDb.config, adminPassword: 'pigeon123' };
+      }
+    }
     const data = readDb();
     const config = { ...data.config };
     // Decrypt credentials before returning
@@ -205,8 +237,7 @@ const db = {
     return config;
   },
   
-  saveConfig: (newConfig) => {
-    const data = readDb();
+  saveConfig: async (newConfig) => {
     // Encrypt sensitive fields
     const encryptedConfig = {
       botToken: newConfig.botToken ? encrypt(newConfig.botToken) : '',
@@ -216,29 +247,89 @@ const db = {
       adminPassword: newConfig.adminPassword ? encrypt(newConfig.adminPassword) : encrypt('pigeon123'),
       webhooks: newConfig.webhooks || {}
     };
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('settings').doc('discord').set(encryptedConfig);
+        return true;
+      } catch (err) {
+        console.error('Firestore saveConfig failed:', err.message);
+      }
+    }
+    
+    const data = readDb();
     data.config = encryptedConfig;
     writeDb(data);
     return true;
   },
 
   // Members
-  getMembers: () => {
+  getMembers: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('members').get();
+        const members = snapshot.docs.map(doc => doc.data());
+        return members.length > 0 ? members : [...initialDb.members];
+      } catch (err) {
+        console.error('Firestore getMembers failed:', err.message);
+      }
+    }
     return readDb().members;
   },
   
-  getMember: (discordId) => {
+  getMember: async (discordId) => {
+    if (firebaseDb) {
+      try {
+        const doc = await firebaseDb.collection('members').doc(discordId).get();
+        return doc.exists ? doc.data() : null;
+      } catch (err) {
+        console.error('Firestore getMember failed:', err.message);
+      }
+    }
     const members = readDb().members;
     return members.find(m => m.discordId === discordId) || null;
   },
   
-  updateMember: (discordId, updateData) => {
+  updateMember: async (discordId, updateData) => {
+    if (firebaseDb) {
+      try {
+        const docRef = firebaseDb.collection('members').doc(discordId);
+        const doc = await docRef.get();
+        let currentData = {};
+        if (doc.exists) {
+          currentData = doc.data();
+        } else {
+          currentData = {
+            discordId,
+            username: updateData.username || 'Unknown',
+            nickname: updateData.nickname || `WP | ${updateData.username || 'Unknown'}`,
+            roles: updateData.roles || ['Member'],
+            kills: updateData.kills || 0,
+            weeklyKills: updateData.weeklyKills || 0,
+            balance: updateData.balance || 0,
+            strikes: updateData.strikes || [],
+            points: updateData.points || 0,
+            isTop10: updateData.isTop10 || false,
+            activityScore: updateData.activityScore || 0
+          };
+        }
+        const finalData = { ...currentData, ...updateData };
+        await docRef.set(finalData);
+        return finalData;
+      } catch (err) {
+        console.error('Firestore updateMember failed:', err.message);
+      }
+    }
+
     const data = readDb();
     const idx = data.members.findIndex(m => m.discordId === discordId);
+    let finalMember = null;
     if (idx !== -1) {
       data.members[idx] = { ...data.members[idx], ...updateData };
+      finalMember = data.members[idx];
     } else {
       // Create new member if not found
-      data.members.push({
+      finalMember = {
         discordId,
         username: updateData.username || 'Unknown',
         nickname: updateData.nickname || `WP | ${updateData.username || 'Unknown'}`,
@@ -251,32 +342,67 @@ const db = {
         isTop10: updateData.isTop10 || false,
         activityScore: updateData.activityScore || 0,
         ...updateData
-      });
+      };
+      data.members.push(finalMember);
     }
     writeDb(data);
-    return db.getMember(discordId);
+    return finalMember;
   },
 
   // Tickets
-  getTickets: () => {
+  getTickets: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('tickets').orderBy('createdAt', 'desc').get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getTickets failed:', err.message);
+      }
+    }
     return readDb().tickets;
   },
   
-  createTicket: (ticketData) => {
-    const data = readDb();
+  createTicket: async (ticketData) => {
+    const id = `tkt-${Math.floor(100 + Math.random() * 900)}`;
     const newTicket = {
-      id: `tkt-${Math.floor(100 + Math.random() * 900)}`,
+      id,
       status: 'open',
       response: '',
       createdAt: new Date().toISOString(),
       ...ticketData
     };
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('tickets').doc(id).set(newTicket);
+        return newTicket;
+      } catch (err) {
+        console.error('Firestore createTicket failed:', err.message);
+      }
+    }
+
+    const data = readDb();
     data.tickets.unshift(newTicket);
     writeDb(data);
     return newTicket;
   },
   
-  updateTicket: (id, updateData) => {
+  updateTicket: async (id, updateData) => {
+    if (firebaseDb) {
+      try {
+        const docRef = firebaseDb.collection('tickets').doc(id);
+        const doc = await docRef.get();
+        if (doc.exists) {
+          const finalData = { ...doc.data(), ...updateData };
+          await docRef.set(finalData);
+          return finalData;
+        }
+        return null;
+      } catch (err) {
+        console.error('Firestore updateTicket failed:', err.message);
+      }
+    }
+
     const data = readDb();
     const idx = data.tickets.findIndex(t => t.id === id);
     if (idx !== -1) {
@@ -288,26 +414,60 @@ const db = {
   },
 
   // Activities
-  getActivities: () => {
+  getActivities: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('activities').orderBy('createdAt', 'desc').get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getActivities failed:', err.message);
+      }
+    }
     return readDb().activities;
   },
   
-  createActivity: (actData) => {
-    const data = readDb();
+  createActivity: async (actData) => {
+    const id = `act-${Math.floor(100 + Math.random() * 900)}`;
     const newAct = {
-      id: `act-${Math.floor(100 + Math.random() * 900)}`,
+      id,
       status: 'pending',
       pointsAwarded: 0,
       reason: '',
       createdAt: new Date().toISOString(),
       ...actData
     };
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('activities').doc(id).set(newAct);
+        return newAct;
+      } catch (err) {
+        console.error('Firestore createActivity failed:', err.message);
+      }
+    }
+
+    const data = readDb();
     data.activities.unshift(newAct);
     writeDb(data);
     return newAct;
   },
   
-  updateActivity: (id, updateData) => {
+  updateActivity: async (id, updateData) => {
+    if (firebaseDb) {
+      try {
+        const docRef = firebaseDb.collection('activities').doc(id);
+        const doc = await docRef.get();
+        if (doc.exists) {
+          const finalData = { ...doc.data(), ...updateData };
+          await docRef.set(finalData);
+          return finalData;
+        }
+        return null;
+      } catch (err) {
+        console.error('Firestore updateActivity failed:', err.message);
+      }
+    }
+
     const data = readDb();
     const idx = data.activities.findIndex(a => a.id === id);
     if (idx !== -1) {
@@ -319,24 +479,58 @@ const db = {
   },
 
   // Point Shop Orders
-  getOrders: () => {
+  getOrders: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('orders').orderBy('createdAt', 'desc').get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getOrders failed:', err.message);
+      }
+    }
     return readDb().orders;
   },
   
-  createOrder: (orderData) => {
-    const data = readDb();
+  createOrder: async (orderData) => {
+    const id = `ord-${Math.floor(1000 + Math.random() * 9000)}`;
     const newOrder = {
-      id: `ord-${Math.floor(1000 + Math.random() * 9000)}`,
+      id,
       status: 'pending',
       createdAt: new Date().toISOString(),
       ...orderData
     };
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('orders').doc(id).set(newOrder);
+        return newOrder;
+      } catch (err) {
+        console.error('Firestore createOrder failed:', err.message);
+      }
+    }
+
+    const data = readDb();
     data.orders.unshift(newOrder);
     writeDb(data);
     return newOrder;
   },
   
-  updateOrder: (id, updateData) => {
+  updateOrder: async (id, updateData) => {
+    if (firebaseDb) {
+      try {
+        const docRef = firebaseDb.collection('orders').doc(id);
+        const doc = await docRef.get();
+        if (doc.exists) {
+          const finalData = { ...doc.data(), ...updateData };
+          await docRef.set(finalData);
+          return finalData;
+        }
+        return null;
+      } catch (err) {
+        console.error('Firestore updateOrder failed:', err.message);
+      }
+    }
+
     const data = readDb();
     const idx = data.orders.findIndex(o => o.id === id);
     if (idx !== -1) {
@@ -348,41 +542,79 @@ const db = {
   },
 
   // BizWar
-  getBizWarLogs: () => {
+  getBizWarLogs: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('bizwarLogs').orderBy('createdAt', 'desc').get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getBizWarLogs failed:', err.message);
+      }
+    }
     return readDb().bizwarLogs;
   },
   
-  createBizWarLog: (logData) => {
-    const data = readDb();
+  createBizWarLog: async (logData) => {
+    const id = `biz-${Math.floor(100 + Math.random() * 900)}`;
     const newLog = {
-      id: `biz-${Math.floor(100 + Math.random() * 900)}`,
+      id,
       createdAt: new Date().toISOString(),
       ...logData
     };
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('bizwarLogs').doc(id).set(newLog);
+        return newLog;
+      } catch (err) {
+        console.error('Firestore createBizWarLog failed:', err.message);
+      }
+    }
+
+    const data = readDb();
     data.bizwarLogs.unshift(newLog);
     writeDb(data);
     return newLog;
   },
 
   // RP Ticket Collect
-  getRpTicketLogs: () => {
+  getRpTicketLogs: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('rpTicketLogs').orderBy('createdAt', 'desc').get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getRpTicketLogs failed:', err.message);
+      }
+    }
     return readDb().rpTicketLogs;
   },
   
-  createRpTicketLog: (logData) => {
-    const data = readDb();
+  createRpTicketLog: async (logData) => {
+    const id = `rp-${Math.floor(100 + Math.random() * 900)}`;
     const newLog = {
-      id: `rp-${Math.floor(100 + Math.random() * 900)}`,
+      id,
       createdAt: new Date().toISOString(),
       ...logData
     };
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('rpTicketLogs').doc(id).set(newLog);
+        return newLog;
+      } catch (err) {
+        console.error('Firestore createRpTicketLog failed:', err.message);
+      }
+    }
+
+    const data = readDb();
     data.rpTicketLogs.unshift(newLog);
     writeDb(data);
     return newLog;
   },
   
-  getRpTicketStats: () => {
-    const logs = db.getRpTicketLogs();
+  getRpTicketStats: async () => {
+    const logs = await db.getRpTicketLogs();
     const totalCollected = logs.reduce((acc, curr) => acc + (curr.ticketsCollected || 0), 0);
     const lastCollect = logs.length > 0 ? logs[0] : null;
     return {
@@ -392,15 +624,21 @@ const db = {
   },
 
   // Signups
-  getSignups: (eventId) => {
+  getSignups: async (eventId) => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('signups').where('eventId', '==', eventId).get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getSignups failed:', err.message);
+      }
+    }
     const data = readDb();
     return data.signups.filter(s => s.eventId === eventId);
   },
   
-  createSignup: (eventId, memberId, username, isTop10) => {
-    const data = readDb();
-    // Filter signups for this event
-    const eventSignups = data.signups.filter(s => s.eventId === eventId);
+  createSignup: async (eventId, memberId, username, isTop10) => {
+    const eventSignups = await db.getSignups(eventId);
     
     // Check if user already signed up
     const existing = eventSignups.find(s => s.memberId === memberId);
@@ -408,6 +646,7 @@ const db = {
       return { success: false, message: 'Already signed up!' };
     }
 
+    const id = `${eventId}-${memberId}`;
     const newSignup = {
       eventId,
       memberId,
@@ -419,6 +658,16 @@ const db = {
 
     if (eventSignups.length < 25) {
       // Free slot available
+      if (firebaseDb) {
+        try {
+          await firebaseDb.collection('signups').doc(id).set(newSignup);
+          return { success: true, signup: newSignup, action: 'confirmed' };
+        } catch (err) {
+          console.error('Firestore createSignup failed:', err.message);
+        }
+      }
+      
+      const data = readDb();
       data.signups.push(newSignup);
       writeDb(data);
       return { success: true, signup: newSignup, action: 'confirmed' };
@@ -429,12 +678,31 @@ const db = {
       // Top 10 priority: find the last signed up non-Top-10 member to displace
       const nonTop10s = eventSignups
         .filter(s => !s.isTop10 && s.status === 'confirmed')
-        .sort((a, b) => new Date(b.signedUpAt) - new Date(a.signedUpAt)); // Sort descending to displace the latest one
+        .sort((a, b) => new Date(b.signedUpAt) - new Date(a.signedUpAt));
 
       if (nonTop10s.length > 0) {
         const displacedMember = nonTop10s[0];
         
-        // Update displaced member's status to 'displaced' / reserve
+        if (firebaseDb) {
+          try {
+            // Update displaced member's status to 'displaced' / reserve
+            const displacedId = `${eventId}-${displacedMember.memberId}`;
+            await firebaseDb.collection('signups').doc(displacedId).update({ status: 'displaced' });
+            
+            // Add the new Top 10 member as confirmed
+            await firebaseDb.collection('signups').doc(id).set(newSignup);
+            return { 
+              success: true, 
+              signup: newSignup, 
+              action: 'displaced', 
+              displaced: displacedMember 
+            };
+          } catch (err) {
+            console.error('Firestore createSignup top10 displace failed:', err.message);
+          }
+        }
+
+        const data = readDb();
         const displacedIdx = data.signups.findIndex(
           s => s.eventId === eventId && s.memberId === displacedMember.memberId
         );
@@ -457,12 +725,36 @@ const db = {
 
     // No non-Top-10 to displace, or this user is not Top 10. Put in reserve queue.
     newSignup.status = 'reserve';
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('signups').doc(id).set(newSignup);
+        return { success: true, signup: newSignup, action: 'reserve' };
+      } catch (err) {
+        console.error('Firestore createSignup reserve failed:', err.message);
+      }
+    }
+
+    const data = readDb();
     data.signups.push(newSignup);
     writeDb(data);
     return { success: true, signup: newSignup, action: 'reserve' };
   },
   
-  clearSignups: (eventId) => {
+  clearSignups: async (eventId) => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('signups').where('eventId', '==', eventId).get();
+        const batch = firebaseDb.batch();
+        snapshot.docs.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+        return true;
+      } catch (err) {
+        console.error('Firestore clearSignups failed:', err.message);
+      }
+    }
     const data = readDb();
     data.signups = data.signups.filter(s => s.eventId !== eventId);
     writeDb(data);
@@ -470,17 +762,36 @@ const db = {
   },
 
   // Wins Log
-  getWins: () => {
+  getWins: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('wins').orderBy('createdAt', 'desc').get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getWins failed:', err.message);
+      }
+    }
     return readDb().wins;
   },
   
-  createWin: (winData) => {
-    const data = readDb();
+  createWin: async (winData) => {
+    const id = `win-${Math.floor(100 + Math.random() * 900)}`;
     const newWin = {
-      id: `win-${Math.floor(100 + Math.random() * 900)}`,
+      id,
       createdAt: new Date().toISOString(),
       ...winData
     };
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('wins').doc(id).set(newWin);
+        return newWin;
+      } catch (err) {
+        console.error('Firestore createWin failed:', err.message);
+      }
+    }
+
+    const data = readDb();
     data.wins.unshift(newWin);
     writeDb(data);
     return newWin;
