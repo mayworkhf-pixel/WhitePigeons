@@ -7,7 +7,8 @@ import {
   Coins,
   AlertTriangle, TrendingUp,
   Plus, CheckCircle2, XCircle, Trash, Star,
-  Search, ExternalLink, Gift, RefreshCw, Shield
+  Search, ExternalLink, Gift, RefreshCw, Shield,
+  Wrench, Target, UserX, Crown, Building, CreditCard
 } from 'lucide-react';
 
 interface Strike {
@@ -1100,60 +1101,79 @@ export default function RootDashboard() {
   // -----------------------------------------------------------------
 
   const renderAboutUs = () => {
+    const RPIcon = () => (
+      <span className="text-[9px] font-mono font-black tracking-tight leading-none block select-none">RP</span>
+    );
+
     const statsGrid = [
-      { label: 'Total Family Members', value: familyStats.totalMembers, icon: Users, color: 'text-purple-300', bg: 'badge-purple', desc: 'Active Members' },
-      { label: 'Total Giveaways', value: familyStats.totalGiveaways, icon: Gift, color: 'text-rose-400', bg: 'badge-rose', desc: 'Completed' },
-      { label: 'Total Bonuses', value: `$${Number(familyStats.totalBonuses || 0).toLocaleString()}`, icon: Coins, color: 'text-emerald-400', bg: 'badge-green', desc: 'From Operations' },
-      { label: 'HC Work Done', value: familyStats.hcWorkDone, icon: CheckCircle2, color: 'text-cyan-400', bg: 'badge-cyan', desc: 'Tasks Completed' },
-      { label: 'Total Strikes', value: familyStats.totalStrikes, icon: AlertTriangle, color: 'text-purple-300', bg: 'badge-purple', desc: 'Total Issued' },
-      { label: 'Total Blacklisted', value: familyStats.totalBlacklisted, icon: XCircle, color: 'text-rose-400', bg: 'badge-rose', desc: 'Players' },
-      { label: 'RP Won', value: familyStats.rpWon, icon: Trophy, color: 'text-purple-300', bg: 'badge-purple', desc: 'Roleplay Points' },
-      { label: 'Events Won', value: familyStats.eventsWon, icon: Flame, color: 'text-amber-400', bg: 'badge-amber', desc: 'Total Victories' },
-      { label: 'Family Ranking Points', value: familyStats.familyRankingPoints, icon: Star, color: 'text-purple-300', bg: 'badge-purple', desc: 'Ranking Points' },
-      { label: 'Family Rank', value: familyStats.familyRank, icon: TrendingUp, color: 'text-blue-400', bg: 'badge-blue', desc: 'On The Server' }
+      { label: 'TOTAL FAMILY MEMBERS', value: familyStats.totalMembers, icon: Users, color: 'text-purple-300', bg: 'badge-purple', desc: 'Active Members' },
+      { label: 'TOTAL GIVEAWAYS', value: familyStats.totalGiveaways, icon: Gift, color: 'text-rose-400', bg: 'badge-rose', desc: 'Completed' },
+      { label: 'TOTAL BONUSES', value: `$${Number(familyStats.totalBonuses || 0).toLocaleString()}`, icon: Coins, color: 'text-emerald-400', bg: 'badge-green', desc: 'From Operations' },
+      { label: 'HC WORK DONE', value: familyStats.hcWorkDone, icon: Wrench, color: 'text-blue-400', bg: 'badge-blue', desc: 'Tasks Completed' },
+      { label: 'TOTAL STRIKES', value: familyStats.totalStrikes, icon: Target, color: 'text-purple-300', bg: 'badge-purple', desc: 'Total Issued' },
+      { label: 'TOTAL BLACKLISTED', value: familyStats.totalBlacklisted, icon: UserX, color: 'text-rose-400', bg: 'badge-rose', desc: 'Players' },
+      { label: 'RP WON', value: familyStats.rpWon, icon: RPIcon, color: 'text-purple-300', bg: 'badge-purple', desc: 'Roleplay Points' },
+      { label: 'EVENTS WON', value: familyStats.eventsWon, icon: Trophy, color: 'text-amber-400', bg: 'badge-amber', desc: 'Total Victories' },
+      { label: 'FAMILY RANKING POINTS', value: familyStats.familyRankingPoints, icon: Star, color: 'text-purple-300', bg: 'badge-purple', desc: 'Ranking Points' },
+      { label: 'FAMILY RANK', value: familyStats.familyRank, icon: Crown, color: 'text-cyan-400', bg: 'badge-cyan', desc: 'On The Server' }
     ];
+
+    const DoveIcon = () => (
+      <svg className="w-8 h-8 text-[#7c3aed] fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 21.5c-1.35-3-3-4.5-5.5-5.5 2.5-1 4.15-2.5 5.5-5.5 1.35 3 3 4.5 5.5 5.5-2.5 1-4.15 2.5-5.5 5.5z M2 6.5C4 5 7.5 4 10 7.5c-2.5 1.5-5 1-8-1z M22 6.5c-2-1.5-5.5-2.5-8 1c2.5 1.5 5 1 8-1z" />
+      </svg>
+    );
 
     return (
       <div className="space-y-6 max-w-5xl mx-auto font-sans">
         {/* Story Intro Card */}
-        <div className="bg-gradient-to-br from-[#08111f]/90 to-[#0c1427]/90 border border-purple-500/15 p-8 rounded-2xl relative overflow-hidden shadow-2xl flex flex-col md:flex-row justify-between items-center gap-8">
+        <div 
+          className="border rounded-2xl relative overflow-hidden shadow-2xl flex flex-col md:flex-row justify-between items-center gap-8 p-8 border-slate-300"
+          style={{
+            background: 'repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.4) 0px, rgba(255, 255, 255, 0.4) 1px, transparent 1px, transparent 8px), linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #cbd5e1 100%)',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.8)'
+          }}
+        >
           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full filter blur-3xl pointer-events-none" />
           <div className="flex-1 space-y-6 relative z-10 text-left">
             <div className="flex items-center gap-2">
-              <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider">
+              <span className="bg-purple-600/10 border border-purple-600/25 text-purple-700 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans">
                 WHO WE ARE
               </span>
             </div>
             
-            <div className="flex items-stretch gap-4">
-              <div className="w-1 bg-[#a855f7] rounded-full shadow-[0_0_12px_#a855f7]" />
-              <div className="space-y-1">
-                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-white leading-none italic">
+            <div className="flex items-center gap-4">
+              <div className="p-2.5 border border-purple-500/15 bg-purple-500/5 rounded-2xl shrink-0 flex items-center justify-center">
+                <DoveIcon />
+              </div>
+              <div className="w-[1.5px] h-12 bg-purple-500/35 self-center" />
+              <div className="space-y-0.5">
+                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-slate-900 leading-none italic">
                   WHITE PIGEONS
                 </h1>
-                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-purple-500 leading-none italic">
+                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-purple-700 leading-none italic">
                   FAMILY
                 </h1>
               </div>
             </div>
 
-            <p className="text-zinc-400 text-[12px] leading-relaxed max-w-xl font-medium">
-              Forged in city conflicts, the <strong className="text-white font-bold">White Pigeons</strong> family rises as the supreme power on the streets. 
+            <p className="text-slate-700 text-[12px] leading-relaxed max-w-xl font-medium font-sans">
+              Forged in city conflicts, the <strong className="text-slate-900 font-bold">White Pigeons</strong> family rises as the supreme power on the streets. 
               We operate with loyalty, respect, and clinical efficiency. Through turf dominance, strategic commerce collections, 
               and synchronized operations, we remain #TOP1. We stand undivided—a true brotherhood on top.
             </p>
 
-            <div className="flex flex-wrap items-center gap-6 text-zinc-400 text-[10px] font-title font-black uppercase tracking-widest">
+            <div className="flex flex-wrap items-center gap-6 text-slate-700 text-[10px] font-title font-black uppercase tracking-widest pt-1">
               <span className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-purple-400" />
+                <Shield className="w-4 h-4 text-slate-700" />
                 LOYALTY
               </span>
               <span className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-purple-400" />
+                <Users className="w-4 h-4 text-slate-700" />
                 RESPECT
               </span>
               <span className="flex items-center gap-2">
-                <Flame className="w-4 h-4 text-purple-400" />
+                <Target className="w-4 h-4 text-slate-700" />
                 POWER
               </span>
             </div>
@@ -1161,7 +1181,7 @@ export default function RootDashboard() {
           
           {/* Logo Illustration */}
           <div className="relative shrink-0 select-none flex items-center justify-center py-6">
-            <div className="absolute w-[280px] h-[4px] bg-gradient-to-r from-transparent via-[#a855f7]/60 to-transparent shadow-[0_0_20px_5px_rgba(168,85,247,0.4)] blur-xs translate-y-16" />
+            <div className="absolute w-[240px] h-[3px] bg-gradient-to-r from-transparent via-[#a855f7] to-transparent shadow-[0_0_22px_7px_rgba(168,85,247,0.85)] blur-xs translate-y-16" />
             <img 
               src="/logo.webp"
               alt="White Pigeons Original Logo" 
@@ -1173,11 +1193,14 @@ export default function RootDashboard() {
         {/* Live Metrics Embed Replica Dashboard */}
         <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 shadow-xl">
           <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3 select-none">
-            <div>
-              <h2 className="font-title font-black text-base italic text-purple-400 text-glow-magenta uppercase tracking-wide">
-                📊┃𝐖𝐡𝐢𝐭𝐞 𝐏𝐢𝐠𝐞𝐨𝐧𝐬 #𝐓𝐎𝐏𝟏 𝐅𝐚𝐦𝐢𝐥𝐲 𝐒𝐭𝐚𝐭𝐬!
-              </h2>
-              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">White Pigeons #TOP1 On Top!</p>
+            <div className="flex items-center gap-2">
+              <Building className="w-5 h-5 text-purple-400" />
+              <div>
+                <h2 className="font-title font-black text-sm text-purple-400 uppercase tracking-wider">
+                  WHITE PIGEONS #TOP1 FAMILY STATS!
+                </h2>
+                <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">WHITE PIGEONS #TOP1 ON TOP!</p>
+              </div>
             </div>
             <div className="text-[9px] text-zinc-550 font-mono flex items-center gap-1.5">
               <span>Last Synced: {familyStats.updatedAt ? new Date(familyStats.updatedAt).toLocaleTimeString() : '9:25 PM'}</span>

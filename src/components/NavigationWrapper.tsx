@@ -38,7 +38,11 @@ import {
   Loader2,
   Gauge,
   Bot,
-  Activity
+  Activity,
+  Home,
+  CreditCard,
+  Target,
+  Crown
 } from 'lucide-react';
 
 interface NavigationWrapperProps {
@@ -198,40 +202,40 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   // Main sidebar tabs definitions
   const mainSidebarTabs = [
     { category: 'MAIN', items: [
-      { id: 'about-us', label: 'About Us', icon: Info, text: 'About-Us' }
+      { id: 'about-us', label: 'ABOUT US', icon: Home, text: 'About-Us' }
     ]},
     { category: 'MEMBER MANAGEMENT', items: [
-      { id: 'role-request', label: 'Roles', icon: ClipboardList, text: 'Role-Request' },
-      { id: 'rolereq-review', label: 'Review', icon: UserCheck, text: 'RoleReq-Review', adminOnly: true },
-      { id: 'strikes', label: 'Strikes', icon: AlertTriangle, text: 'Strikes' },
-      { id: 'tickets', label: 'Tickets', icon: Ticket, text: 'Tickets' },
-      { id: 'check-balance', label: 'Balance', icon: Coins, text: 'Check-Balance' }
+      { id: 'role-request', label: 'ROLE-REQUEST', icon: Lock, text: 'Role-Request' },
+      { id: 'rolereq-review', label: 'ROLE-REQUEST REVIEW', icon: UserCheck, text: 'RoleReq-Review', adminOnly: true },
+      { id: 'strikes', label: 'STRIKES', icon: AlertTriangle, text: 'Strikes' },
+      { id: 'tickets', label: 'TICKETS', icon: Ticket, text: 'Tickets' },
+      { id: 'check-balance', label: 'CHECK-BALANCE', icon: CreditCard, text: 'Check-Balance' }
     ]},
     { category: 'ACTIVITY & LEADERBOARDS', items: [
-      { id: 'leaderboard', label: 'Leaderboard', icon: TrendingUp, text: 'Leaderboard' },
-      { id: 'long-time-kill-list', label: 'All Time Kills', icon: Flame, text: 'All Time Kills Leaderboard' },
-      { id: 'weekly-kill-list', label: 'Weekly Kills', icon: Flame, text: 'Weekly Kills Leaderboard' },
-      { id: 'submit-activity', label: 'Submit', icon: Send, text: 'submit-activity' },
-      { id: 'activity-results', label: 'Results', icon: CheckCircle, text: 'Activity-Results' },
-      { id: 'activity-points-leaderboard', label: 'Points Board', icon: Award, text: 'Activity-Points-LeaderBoard' }
+      { id: 'leaderboard', label: 'LEADERBOARD', icon: Crown, text: 'Leaderboard' },
+      { id: 'long-time-kill-list', label: 'ALL TIME KILLS LEADERBOARD', icon: Target, text: 'All Time Kills Leaderboard' },
+      { id: 'weekly-kill-list', label: 'WEEKLY KILLS LEADERBOARD', icon: Flame, text: 'Weekly Kills Leaderboard' },
+      { id: 'submit-activity', label: 'SUBMIT-ACTIVITY', icon: Send, text: 'submit-activity' },
+      { id: 'activity-results', label: 'ACTIVITY-RESULTS', icon: CheckCircle, text: 'Activity-Results' },
+      { id: 'activity-points-leaderboard', label: 'ACTIVITY-POINTS-LEADERBOARD', icon: Users, text: 'Activity-Points-LeaderBoard' }
     ]},
     { category: 'POINTS & SHOP', items: [
-      { id: 'point-shop', label: 'Shop', icon: ShoppingBag, text: 'point-shop' },
-      { id: 'activity-review', label: 'Activity Review', icon: FileCheck, text: 'Activity-Review', adminOnly: true },
-      { id: 'order-details', label: 'Orders', icon: Package, text: 'order-details' }
+      { id: 'point-shop', label: 'POINT-SHOP', icon: ShoppingBag, text: 'point-shop' },
+      { id: 'activity-review', label: 'ACTIVITY REVIEW', icon: FileCheck, text: 'Activity-Review', adminOnly: true },
+      { id: 'order-details', label: 'ORDER-DETAILS', icon: Package, text: 'order-details' }
     ]},
     { category: 'BONUS & FINANCE', items: [
-      { id: 'bonus-admin-panel', label: 'Bonus Admin', icon: Sliders, text: 'Bonus-Admin-Panel', adminOnly: true },
-      { id: 'bonus-approval', label: 'Approvals', icon: CheckSquare, text: 'Bonus-Approval', adminOnly: true },
-      { id: 'bizwar-collect', label: 'Bizwar', icon: Factory, text: 'Bizwar-Collect' },
-      { id: 'rp-collect', label: 'RP Collect', icon: Trophy, text: 'RP-Collect' },
-      { id: 'public-winlog', label: 'Wins', icon: Award, text: 'Public-Winlog' }
+      { id: 'bonus-admin-panel', label: 'BONUS ADMIN', icon: Sliders, text: 'Bonus-Admin-Panel', adminOnly: true },
+      { id: 'bonus-approval', label: 'BONUS APPROVALS', icon: CheckSquare, text: 'Bonus-Approval', adminOnly: true },
+      { id: 'bizwar-collect', label: 'BIZWAR-COLLECT', icon: Factory, text: 'Bizwar-Collect' },
+      { id: 'rp-collect', label: 'RP-COLLECT', icon: Trophy, text: 'RP-Collect' },
+      { id: 'public-winlog', label: 'PUBLIC-WINLOG', icon: Award, text: 'Public-Winlog' }
     ]},
     { category: 'EVENTS & SIGNUPS', items: [
-      { id: 'rp-signup', label: 'RP Signup', icon: Users, text: 'RP-Signup' },
-      { id: 'informal-signup', label: 'Informal', icon: Radio, text: 'Informal-Signup' },
-      { id: 'public-informallog', label: 'Informal Logs', icon: FileCheck, text: 'public-informallog' },
-      { id: 'top-10-list', label: 'Top 10', icon: Shield, text: 'Top-10-List' }
+      { id: 'rp-signup', label: 'RP-SIGNUP', icon: Users, text: 'RP-Signup' },
+      { id: 'informal-signup', label: 'INFORMAL-SIGNUP', icon: Radio, text: 'Informal-Signup' },
+      { id: 'public-informallog', label: 'PUBLIC-INFORMALLOG', icon: FileCheck, text: 'public-informallog' },
+      { id: 'top-10-list', label: 'TOP-10-LIST', icon: Shield, text: 'Top-10-List' }
     ]}
   ];
 
@@ -333,7 +337,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
             onClick={() => setIsPasscodeModalOpen(true)}
             className="w-full flex items-center gap-2.5 bg-[#08111f]/60 backdrop-blur-md border border-[#ffb84d]/40 rounded-xl p-2.5 text-[#ffb84d] hover:text-[#ffd699] hover:border-[#ffb84d]/70 transition-smooth cursor-pointer shadow-[0_0_15px_rgba(255,184,77,0.06)] animate-pulse-slow"
           >
-            <Award className="w-4 h-4 shrink-0 text-[#ffb84d]" />
+            <Crown className="w-4 h-4 shrink-0 text-[#ffb84d]" />
             <div className="flex-1 text-left">
               <div className="text-[10px] font-title font-black uppercase tracking-wider">Access Admin Console</div>
               <div className="text-[8px] text-zinc-500 mt-0.5">Administrator Access</div>
