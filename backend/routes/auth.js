@@ -159,6 +159,23 @@ router.get('/callback', async (req, res) => {
   }
 });
 
+// GET registration status for a player
+router.get('/registration-status', async (req, res) => {
+  try {
+    const { inGameId } = req.query;
+    if (!inGameId) {
+      return res.status(400).json({ error: 'inGameId is required.' });
+    }
+    const member = await db.getMember(inGameId.trim());
+    if (!member) {
+      return res.json({ status: 'none' });
+    }
+    return res.json({ status: member.status || 'approved' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST register member request
 router.post('/register', async (req, res) => {
   const { inGameId, firstName, lastName, password } = req.body;
@@ -177,6 +194,13 @@ router.post('/register', async (req, res) => {
     if (existing.status === 'approved' || !existing.status) {
       return res.status(400).json({ success: false, error: 'This account is already registered and approved. Please log in.' });
     }
+  }
+
+  // Check if password is already taken by another member
+  const members = await db.getMembers();
+  const duplicatePassword = members.find(m => m.password && m.password.trim() === password.trim());
+  if (duplicatePassword) {
+    return res.status(400).json({ success: false, error: 'This password is already in use by another member. Please choose a unique password.' });
   }
 
   // Create new member with status: pending
@@ -201,7 +225,7 @@ router.post('/register', async (req, res) => {
   });
 
   botService.logSimulated(`New registration request submitted for ${firstName} ${lastName} (In-Game ID: ${inGameId})`);
-  return res.json({ success: true, message: 'Registration request submitted successfully. Awaiting admin approval.' });
+  return res.json({ success: true, message: 'Registration has been sent and admin will review it soon' });
 });
 
 // POST login as a registered member

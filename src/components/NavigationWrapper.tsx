@@ -71,6 +71,25 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   const [gatewayError, setGatewayError] = useState<string | null>(null);
   const [gatewaySuccess, setGatewaySuccess] = useState<string | null>(null);
 
+  const [registeredInGameId, setRegisteredInGameId] = useState<string | null>(null);
+  const [registrationStatus, setRegistrationStatus] = useState<'pending' | 'approved' | 'none'>('none');
+
+  const checkRegistrationStatus = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/registration-status?inGameId=${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRegistrationStatus(data.status);
+        if (data.status === 'none') {
+          localStorage.removeItem('wp_registered_id');
+          setRegisteredInGameId(null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch registration status:', err);
+    }
+  };
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setGatewayLoading(true);
@@ -85,8 +104,14 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setGatewaySuccess(data.message || 'Registration submitted! Awaiting admin approval.');
+        setGatewaySuccess(data.message || 'Registration has been sent and admin will review it soon');
         addNotification('Registration Submitted', 'Awaiting administrator approval.', 'success');
+        
+        // Save to localStorage & state
+        localStorage.setItem('wp_registered_id', registerForm.inGameId);
+        setRegisteredInGameId(registerForm.inGameId);
+        setRegistrationStatus('pending');
+
         setRegisterForm({ inGameId: '', firstName: '', lastName: '', password: '' });
       } else {
         throw new Error(data.error || 'Registration failed.');
@@ -113,6 +138,12 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
       const data = await res.json();
       if (res.ok && data.success) {
         addNotification('Authentication Successful', `Welcome back, ${data.user.nickname}`, 'success');
+        
+        // Clear registration tracking state on successful login
+        localStorage.removeItem('wp_registered_id');
+        setRegisteredInGameId(null);
+        setRegistrationStatus('none');
+
         await refreshUser();
       } else {
         throw new Error(data.error || 'Login failed.');
@@ -125,7 +156,21 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   };
 
   useEffect(() => {
+    if (registeredInGameId) {
+      checkRegistrationStatus(registeredInGameId);
+      const interval = setInterval(() => {
+        checkRegistrationStatus(registeredInGameId);
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [registeredInGameId]);
+
+  useEffect(() => {
     setMounted(true);
+    const storedId = localStorage.getItem('wp_registered_id');
+    if (storedId) {
+      setRegisteredInGameId(storedId);
+    }
   }, []);
 
   // Admin panel tabs removed — bottom button is the sole admin entry point
@@ -299,7 +344,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
             </div>
 
             {/* Form Tabs */}
-            {(!user || user.status !== 'pending') && (
+            {(!user || user.status !== 'pending') && !registeredInGameId && (
               <div className="flex bg-[#09090f] border border-[#1c1a2a] p-1 rounded-xl mb-6">
                 <button
                   onClick={() => { setGatewayTab('register'); setGatewayError(null); setGatewaySuccess(null); }}
@@ -331,7 +376,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
                 <span>{gatewayError}</span>
               </div>
             )}
-            {gatewaySuccess && (
+            {gatewaySuccess && !registeredInGameId && (
               <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-3 text-[11px] text-emerald-400 font-sans flex items-start gap-2 mb-4">
                 <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
                 <span>{gatewaySuccess}</span>
@@ -357,6 +402,61 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
                     className="bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-title font-bold py-2 px-4 rounded-lg transition-smooth cursor-pointer"
                   >
                     Cancel & Log Out
+                  </button>
+                </div>
+              </div>
+            ) : registeredInGameId && registrationStatus === 'pending' ? (
+              /* Clean Pending Registration Message */
+              <div className="text-center py-8 space-y-5 font-sans">
+                <div className="w-14 h-14 bg-purple-950/20 border border-purple-800/35 rounded-xl flex items-center justify-center text-purple-400 mx-auto animate-pulse">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-title font-bold text-zinc-200 text-sm tracking-tight uppercase">Registration Sent</h3>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed max-w-xs mx-auto">
+                    Registration has been sent and admin will review it soon
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('wp_registered_id');
+                      setRegisteredInGameId(null);
+                      setRegistrationStatus('none');
+                      setGatewayError(null);
+                      setGatewaySuccess(null);
+                    }}
+                    className="bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-title font-bold py-2 px-4 rounded-lg transition-smooth cursor-pointer"
+                  >
+                    Cancel / Edit Request
+                  </button>
+                </div>
+              </div>
+            ) : registeredInGameId && registrationStatus === 'approved' ? (
+              /* Clean Approved Registration Message */
+              <div className="text-center py-8 space-y-5 font-sans">
+                <div className="w-14 h-14 bg-emerald-950/20 border border-emerald-800/35 rounded-xl flex items-center justify-center text-emerald-400 mx-auto">
+                  <CheckCircle className="w-7 h-7" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-title font-bold text-zinc-200 text-sm tracking-tight uppercase">Request Approved</h3>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed max-w-xs mx-auto">
+                    Your request is approved. You can log in from the Players Login.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('wp_registered_id');
+                      setRegisteredInGameId(null);
+                      setRegistrationStatus('none');
+                      setGatewayTab('login');
+                      setGatewayError(null);
+                      setGatewaySuccess(null);
+                    }}
+                    className="w-full btn-primary-gradient py-2.5 text-white text-xs font-title font-black italic tracking-wide rounded-xl shadow-[0_0_10px_rgba(168,85,247,0.15)] hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer uppercase font-bold"
+                  >
+                    Go to Players Login
                   </button>
                 </div>
               </div>
