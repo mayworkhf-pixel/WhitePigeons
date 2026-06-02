@@ -1162,36 +1162,53 @@ const db = {
 
   // Members
   getMembers: async () => {
+    let list = [];
     if (firebaseDb) {
       try {
         const snapshot = await firebaseDb.collection('members').get();
         if (snapshot.size > 0) {
-          return snapshot.docs.map(doc => doc.data());
+          list = snapshot.docs.map(doc => doc.data());
+        } else {
+          console.log('[Database] Firestore members collection is empty. Uploading local members list...');
+          const localMembers = readDb().members || [];
+          for (const member of localMembers) {
+            await firebaseDb.collection('members').doc(member.discordId).set(member);
+          }
+          list = localMembers;
         }
-        console.log('[Database] Firestore members collection is empty. Uploading local members list...');
-        const localMembers = readDb().members || [];
-        for (const member of localMembers) {
-          await firebaseDb.collection('members').doc(member.discordId).set(member);
-        }
-        return localMembers;
       } catch (err) {
         console.error('Firestore getMembers failed:', err.message);
+        list = readDb().members || [];
       }
+    } else {
+      list = readDb().members || [];
     }
-    return readDb().members;
+    return list.map(m => ({
+      ...m,
+      weeklyBonus: m.weeklyBonus || 0,
+      payoutStatus: m.payoutStatus || 'Not Paid'
+    }));
   },
   
   getMember: async (discordId) => {
+    let member = null;
     if (firebaseDb) {
       try {
         const doc = await firebaseDb.collection('members').doc(discordId).get();
-        return doc.exists ? doc.data() : null;
+        member = doc.exists ? doc.data() : null;
       } catch (err) {
         console.error('Firestore getMember failed:', err.message);
       }
     }
-    const members = readDb().members;
-    return members.find(m => m.discordId === discordId) || null;
+    if (!member) {
+      const members = readDb().members || [];
+      member = members.find(m => m.discordId === discordId) || null;
+    }
+    if (member) {
+      member.weeklyBonus = member.weeklyBonus || 0;
+      member.payoutStatus = member.payoutStatus || 'Not Paid';
+    }
+    return member;
   },
   
   updateMember: async (discordId, updateData) => {
@@ -1395,6 +1412,102 @@ const db = {
       return data.activities[idx];
     }
     return null;
+  },
+
+  // Activity Types Configuration
+  getActivityTypes: async () => {
+    const defaultTypes = [
+      { id: 'type-def-1', key: '💵 Collect businesses profit & replenish balance. (15 points)', emoji: '💵', name: 'Collect businesses profit & replenish balance.', points: '15 points', value: 15 },
+      { id: 'type-def-2', key: '🚙 Refuel car trunks with canister and repair kits. (15 points)', emoji: '🚙', name: 'Refuel car trunks with canister and repair kits.', points: '15 points', value: 15 },
+      { id: 'type-def-3', key: '♻️ Craft armors at foundry with armor plates and fabric. (10 points)', emoji: '♻️', name: 'Craft armors at foundry with armor plates and fabric.', points: '10 points', value: 10 },
+      { id: 'type-def-4', key: '📦 Move items from SWH/WWH to cars. (10 points)', emoji: '📦', name: 'Move items from SWH/WWH to cars.', points: '10 points', value: 10 },
+      { id: 'type-def-5', key: '💦 Used automatic machine (fruit WH). (6 points)', emoji: '💦', name: 'Used automatic machine (fruit WH).', points: '6 points', value: 6 },
+      { id: 'type-def-6', key: '🥤 Crafted run/animal juice in bunket. (6 points)', emoji: '🥤', name: 'Crafted run/animal juice in bunket.', points: '6 points', value: 6 },
+      { id: 'type-def-7', key: '🔬 Collect cocaine from house / 🍸 Juices (Vineyard). (4 points)', emoji: '🔬', name: 'Collect cocaine from house / 🍸 Juices (Vineyard).', points: '4 points', value: 4 },
+      { id: 'type-def-8', key: '🚒 Refuel businesseses car or juice car. (3 points)', emoji: '🚒', name: 'Refuel businesseses car or juice car.', points: '3 points', value: 3 },
+      { id: 'type-def-9', key: '📝 Assest family member full RP or Main Player Test. (3 points)', emoji: '📝', name: 'Assest family member full RP or Main Player Test.', points: '3 points', value: 3 },
+      { id: 'type-def-10', key: '📢 Set detailed announcement for Bizwar/State. (3 points)', emoji: '📢', name: 'Set detailed announcement for Bizwar/State.', points: '3 points', value: 3 },
+      { id: 'type-def-11', key: '📋 Check family logs (5 points)', emoji: '📋', name: 'Check family logs', points: '5 points', value: 5 },
+      { id: 'type-def-12', key: '🕒 Upload Auction SS. (2 points)', emoji: '🕒', name: 'Upload Auction SS.', points: '2 points', value: 2 },
+      { id: 'type-def-13', key: '🚗 Bring ammo or juice car to the event. (2 points)', emoji: '🚗', name: 'Bring ammo or juice car to the event.', points: '2 points', value: 2 },
+      { id: 'type-def-14', key: '📸 ScreenShoot of players list inside event zone. (1 points)', emoji: '📸', name: 'ScreenShoot of players list inside event zone.', points: '1 points', value: 1 },
+      { id: 'type-def-15', key: '🚙 Pay car fine & call it back in garage. (4 points)', emoji: '🚙', name: 'Pay car fine & call it back in garage.', points: '4 points', value: 4 },
+      { id: 'type-def-16', key: '📲 Upload Unofficial: Informal/Bizwar/Highway/Store. (5 points)', emoji: '📲', name: 'Upload Unofficial: Informal/Bizwar/Highway/Store.', points: '5 points', value: 5 },
+      { id: 'type-def-17', key: '🔋 Started a solar panels full new cycle. (5 points)', emoji: '🔋', name: 'Started a solar panels full new cycle.', points: '5 points', value: 5 },
+      { id: 'type-def-18', key: '🔋 Collected all solar panels. (5 points)', emoji: '🔋', name: 'Collected all solar panels.', points: '5 points', value: 5 },
+      { id: 'type-def-19', key: '🔌 Repair all solar panels at family house. (3 points)', emoji: '🔌', name: 'Repair all solar panels at family house.', points: '3 points', value: 3 },
+      { id: 'type-def-20', key: '🟥 Plant 1 solar panel (House 426 Garden). (3 points)', emoji: '🟥', name: 'Plant 1 solar panel (House 426 Garden).', points: '3 points', value: 3 },
+      { id: 'type-def-21', key: '⭕ Make 30 kills in public arena (2x/day). (10 points)', emoji: '⭕', name: 'Make 30 kills in public arena (2x/day).', points: '10 points', value: 10 },
+      { id: 'type-def-22', key: '🎮 Take the family point quest "Play for 4 hours" (4 points)', emoji: '🎮', name: 'Take the family point quest "Play for 4 hours"', points: '4 points', value: 4 },
+      { id: 'type-def-23', key: '📥 Collect RP Ticket (3 points)', emoji: '📥', name: 'Collect RP Ticket', points: '3 points', value: 3 }
+    ];
+
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('activityTypes').get();
+        if (snapshot.size > 0) {
+          return snapshot.docs.map(doc => doc.data());
+        } else {
+          // Seed Firestore
+          for (const t of defaultTypes) {
+            await firebaseDb.collection('activityTypes').doc(t.id).set(t);
+          }
+          return defaultTypes;
+        }
+      } catch (err) {
+        console.error('Firestore getActivityTypes failed, fallback to local:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.activityTypes || data.activityTypes.length === 0) {
+      data.activityTypes = defaultTypes;
+      writeDb(data);
+    } else {
+      const hasDefault = data.activityTypes.some(t => t.id && t.id.startsWith('type-def'));
+      if (!hasDefault) {
+        data.activityTypes = [...defaultTypes, ...data.activityTypes];
+        writeDb(data);
+      }
+    }
+    return data.activityTypes;
+  },
+
+  createActivityType: async (typeData) => {
+    const id = `type-${Math.floor(100 + Math.random() * 900)}`;
+    const newType = {
+      id,
+      ...typeData
+    };
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('activityTypes').doc(id).set(newType);
+        return newType;
+      } catch (err) {
+        console.error('Firestore createActivityType failed, fallback to local:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.activityTypes) data.activityTypes = [];
+    data.activityTypes.push(newType);
+    writeDb(data);
+    return newType;
+  },
+
+  deleteActivityType: async (id) => {
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('activityTypes').doc(id).delete();
+        return true;
+      } catch (err) {
+        console.error('Firestore deleteActivityType failed, fallback to local:', err.message);
+      }
+    }
+    const data = readDb();
+    if (data.activityTypes) {
+      data.activityTypes = data.activityTypes.filter(t => t.id !== id);
+      writeDb(data);
+    }
+    return true;
   },
 
   // Point Shop Orders
@@ -2126,6 +2239,160 @@ const db = {
     data.eventSchedules[eventId] = scheduleData;
     writeDb(data);
     return true;
+  },
+
+  // Win Submissions
+  getWinSubmissions: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('win_submissions').orderBy('createdAt', 'desc').get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getWinSubmissions failed:', err.message);
+      }
+    }
+    const data = readDb();
+    return data.winSubmissions || [];
+  },
+
+  createWinSubmission: async (submissionData) => {
+    const id = `win-sub-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newSubmission = {
+      id,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      ...submissionData
+    };
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('win_submissions').doc(id).set(newSubmission);
+        return newSubmission;
+      } catch (err) {
+        console.error('Firestore createWinSubmission failed:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.winSubmissions) data.winSubmissions = [];
+    data.winSubmissions.unshift(newSubmission);
+    writeDb(data);
+    return newSubmission;
+  },
+
+  updateWinSubmission: async (id, updateData) => {
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('win_submissions').doc(id).update(updateData);
+        const doc = await firebaseDb.collection('win_submissions').doc(id).get();
+        return doc.exists ? doc.data() : null;
+      } catch (err) {
+        console.error('Firestore updateWinSubmission failed:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.winSubmissions) data.winSubmissions = [];
+    const idx = data.winSubmissions.findIndex(s => s.id === id);
+    if (idx !== -1) {
+      data.winSubmissions[idx] = { ...data.winSubmissions[idx], ...updateData };
+      writeDb(data);
+      return data.winSubmissions[idx];
+    }
+    return null;
+  },
+
+  updatePayoutStatus: async (discordId, status) => {
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('members').doc(discordId).update({ payoutStatus: status });
+        return true;
+      } catch (err) {
+        console.error('Firestore updatePayoutStatus failed:', err.message);
+      }
+    }
+    const data = readDb();
+    const idx = data.members.findIndex(m => m.discordId === discordId);
+    if (idx !== -1) {
+      data.members[idx].payoutStatus = status;
+      writeDb(data);
+      return true;
+    }
+    return false;
+  },
+
+  archiveAndResetWeeklyLedger: async (weekId, closedByUsername) => {
+    const members = await db.getMembers();
+    const records = members.map(m => ({
+      discordId: m.discordId,
+      username: m.username,
+      nickname: m.nickname,
+      roles: m.roles,
+      strikesCount: m.strikes ? m.strikes.length : 0,
+      weeklyBonus: m.weeklyBonus || 0,
+      payoutStatus: m.payoutStatus || 'Not Paid'
+    }));
+
+    let totalNet = 0;
+    records.forEach(r => {
+      totalNet += r.weeklyBonus;
+    });
+
+    const archiveRecord = {
+      weekId,
+      closedAt: new Date().toISOString(),
+      closedBy: closedByUsername,
+      totalNet,
+      records
+    };
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('weekly_reports').doc(weekId).set(archiveRecord);
+        for (const member of members) {
+          await firebaseDb.collection('members').doc(member.discordId).update({
+            weeklyBonus: 0,
+            payoutStatus: 'Not Paid'
+          });
+        }
+      } catch (err) {
+        console.error('Firestore archiveAndResetWeeklyLedger failed:', err.message);
+      }
+    } else {
+      const data = readDb();
+      if (!data.weeklyReports) data.weeklyReports = [];
+      data.weeklyReports.unshift(archiveRecord);
+      data.members.forEach(m => {
+        m.weeklyBonus = 0;
+        m.payoutStatus = 'Not Paid';
+      });
+      writeDb(data);
+    }
+    return archiveRecord;
+  },
+
+  getWeeklyReports: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('weekly_reports').orderBy('closedAt', 'desc').get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getWeeklyReports failed:', err.message);
+      }
+    }
+    const data = readDb();
+    return data.weeklyReports || [];
+  },
+
+  getWeeklyReport: async (weekId) => {
+    if (firebaseDb) {
+      try {
+        const doc = await firebaseDb.collection('weekly_reports').doc(weekId).get();
+        return doc.exists ? doc.data() : null;
+      } catch (err) {
+        console.error('Firestore getWeeklyReport failed:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.weeklyReports) return null;
+    return data.weeklyReports.find(r => r.weekId === weekId) || null;
   }
 };
 

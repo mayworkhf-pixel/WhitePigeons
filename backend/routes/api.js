@@ -320,6 +320,32 @@ router.post('/discipline/strike', requireAdmin, async (req, res) => {
   return res.json({ success: true, strikes });
 });
 
+router.delete('/discipline/strike/:memberId/:strikeId', requireAdmin, async (req, res) => {
+  const { memberId, strikeId } = req.params;
+  const member = await db.getMember(memberId);
+  if (!member) {
+    return res.status(404).json({ error: 'Member not found.' });
+  }
+  
+  const strikes = (member.strikes || []).filter(s => s.id !== strikeId);
+  await db.updateMember(memberId, { strikes });
+  await botService.syncStrikeSystemMessage();
+  
+  // Webhook notification for strike resolution
+  const embed = {
+    title: '✅ MEMBER STRIKE RESOLVED',
+    description: `A discipline action has been cleared by Admin **${req.user.username}**.`,
+    color: 0x00ff00,
+    fields: [
+      { name: 'Player Name', value: `<@${memberId}> (${member.nickname})`, inline: true },
+      { name: 'Remaining Active Strikes', value: `${strikes.length}`, inline: true }
+    ]
+  };
+  await botService.sendWebhook('strikes', embed);
+  
+  return res.json({ success: true, strikes });
+});
+
 // Tickets
 router.get('/tickets', requireMember, async (req, res) => {
   const tickets = await db.getTickets();
@@ -502,6 +528,380 @@ router.post('/economy/rp-collect', requireMember, async (req, res) => {
   await botService.sendWebhook('rp-collect', embed);
 
   return res.json(log);
+});
+
+// -------------------------------------------------------------
+// EVENT WINS SUBMISSIONS & WEEKLY LEDGER PAYOUTS
+// -------------------------------------------------------------
+
+router.get('/economy/win-submissions', requireMember, async (req, res) => {
+  try {
+    const submissions = await db.getWinSubmissions();
+    res.json(submissions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/economy/win-submissions', requireMember, async (req, res) => {
+  const { type, title, participants, mediaUrl, baseAmount, content } = req.body;
+  if (!type || (!title && !content) || !mediaUrl) {
+    return res.status(400).json({ error: 'Event type, title/content, and media URL are required.' });
+  }
+  try {
+    let finalTitle = title;
+    let finalParticipants = [];
+    let finalBaseAmount = parseFloat(baseAmount) || (type === 'public-informallog' ? 70000 : 200000);
+    let finalEventName = type === 'public-informallog' ? 'Informal' : 'Weapons Factory';
+    let finalDateTimeStr = new Date().toISOString().split('T')[0];
+
+    if (content) {
+      const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+      
+      if (lines.length > 0 && lines[0].includes('|')) {
+        const headerParts = lines[0].split('|').map(p => p.trim());
+        if (headerParts[0]) finalEventName = headerParts[0];
+        if (headerParts[1]) {
+          const rawPrice = headerParts[1].replace(/[$/\s]|kill|k/gi, '').toLowerCase();
+          let multiplier = 1;
+          if (headerParts[1].toLowerCase().includes('k')) {
+            multiplier = 1000;
+          }
+          const parsedVal = parseFloat(rawPrice) * multiplier;
+          if (!isNaN(parsedVal)) finalBaseAmount = parsedVal;
+        }
+        if (headerParts[2]) finalDateTimeStr = headerParts[2];
+      }
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.toLowerCase().includes('kill list:')) continue;
+
+        const killMatch = line.match(/(\d+)\s*k\s*$/i) || line.match(/(\d+)\s*k\s+/i) || line.match(/\s+(\d+)\s*$/);
+        let kills = 1;
+        let cleanLine = line;
+        if (killMatch) {
+          kills = parseInt(killMatch[1], 10);
+          cleanLine = line.replace(killMatch[0], '').trim();
+        }
+
+        let username = cleanLine;
+        if (username.startsWith('@')) {
+          username = username.substring(1);
+        }
+        username = username.split('|')[0].trim();
+        const idMatch = username.match(/\s+\d{4,9}$/);
+        if (idMatch) {
+          username = username.replace(idMatch[0], '').trim();
+        }
+
+        if (username) {
+          finalParticipants.push(`${username}|${kills}`);
+        }
+      }
+
+      finalTitle = `${finalEventName} Win by ${req.user.username}`;
+    } else {
+      const parsedParts = Array.isArray(participants)
+        ? participants
+        : String(participants || '').split(',').map(p => p.trim()).filter(Boolean);
+      finalParticipants = parsedParts.map(p => p.includes('|') ? p : `${p}|1`);
+    }
+
+    const submission = await db.createWinSubmission({
+      source: 'web',
+      submitterId: req.user.discordId || 'unknown',
+      submitterName: req.user.username || 'unknown',
+      type,
+      title: finalTitle || 'Guild Event Win Log',
+      participants: finalParticipants,
+      mediaUrl,
+      baseAmount: finalBaseAmount,
+      eventName: finalEventName,
+      dateTimeStr: finalDateTimeStr,
+      rawContent: content || ''
+    });
+
+    if (req.app.get('socketio')) {
+      req.app.get('socketio').emit('win_submissions_update', await db.getWinSubmissions());
+    }
+
+    res.json(submission);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/economy/win-submissions/hc-approve/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { comment, participants, baseAmount, eventName, dateTimeStr } = req.body;
+
+  try {
+    const origSubmission = await db.getWinSubmissions().then(subs => subs.find(s => s.id === id));
+    if (!origSubmission) {
+      return res.status(404).json({ error: 'Win submission not found.' });
+    }
+
+    const cleanParticipants = Array.isArray(participants)
+      ? participants
+      : String(participants || '').split(',').map(p => p.trim()).filter(Boolean);
+
+    const amt = parseFloat(baseAmount) || origSubmission.baseAmount || 200000;
+    const cleanEventName = eventName || origSubmission.eventName || origSubmission.title || 'Bizwar';
+
+    const submission = await db.updateWinSubmission(id, {
+      status: 'hc_approved',
+      reviewedBy: req.user.username || 'High Command',
+      reviewedAt: new Date().toISOString(),
+      comment: comment || 'Approved by High Command',
+      participants: cleanParticipants,
+      baseAmount: amt,
+      eventName: cleanEventName,
+      dateTimeStr: dateTimeStr || origSubmission.dateTimeStr || ''
+    });
+
+    // Send notification to admin panel webhook
+    const embed = {
+      title: '📋 BONUS REQUEST - PENDING ADMIN CONFIRMATION',
+      description: `**Event:** ${submission.eventName || submission.title}\n**Price:** $${amt.toLocaleString()}/kill\n**Date/Time:** ${submission.dateTimeStr || 'N/A'}\n**HC Auditor:** ${req.user.username}\n\n**Calculated Participants:**\n` +
+        cleanParticipants.map(p => {
+          return `@${p}: $${amt.toLocaleString()}`;
+        }).join('\n'),
+      color: 0x3a86ff,
+      image: { url: submission.mediaUrl }
+    };
+    await botService.sendWebhook('bonus-admin-panel', embed);
+
+    if (req.app.get('socketio')) {
+      req.app.get('socketio').emit('win_submissions_update', await db.getWinSubmissions());
+    }
+
+    res.json({ success: true, submission });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/economy/win-submissions/approve/:id', requireAdmin, async (req, res, next) => {
+  // Backwards compatibility wrapper redirects to hc-approve
+  req.url = `/economy/win-submissions/hc-approve/${req.params.id}`;
+  req.app._router.handle(req, res, next);
+});
+
+router.post('/economy/win-submissions/admin-approve/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const submission = await db.updateWinSubmission(id, {
+      status: 'approved',
+      approvedBy: req.user.username || 'Admin',
+      approvedAt: new Date().toISOString()
+    });
+
+    if (!submission) {
+      return res.status(404).json({ error: 'Win submission not found.' });
+    }
+
+    const amt = submission.baseAmount || 200000;
+    const finalParticipants = submission.participants || [];
+    const details = [];
+
+    for (const pIdentifier of finalParticipants) {
+      const members = await db.getMembers();
+      // Match member in database
+      let member = members.find(m => 
+        m.discordId === pIdentifier || 
+        m.username.toLowerCase() === pIdentifier.toLowerCase() || 
+        m.nickname.toLowerCase().includes(pIdentifier.toLowerCase())
+      );
+      
+      if (member) {
+        const strikesCount = member.strikes ? member.strikes.length : 0;
+        let cutPercent = 0;
+        if (strikesCount === 1) cutPercent = 25;
+        else if (strikesCount === 2) cutPercent = 50;
+        else if (strikesCount >= 3) cutPercent = 100;
+
+        // Parse kills if stored in participant list item
+        let kills = 1;
+        let pName = pIdentifier;
+        if (typeof pIdentifier === 'object' && pIdentifier !== null) {
+          kills = pIdentifier.kills || 1;
+          pName = pIdentifier.username || 'unknown';
+        } else if (pIdentifier.includes('|')) {
+          const parts = pIdentifier.split('|');
+          pName = parts[0].trim();
+          kills = parseInt(parts[1], 10) || 1;
+        }
+
+        const rawBonus = kills * amt;
+        const cutAmount = (rawBonus * cutPercent) / 100;
+        const netAmount = rawBonus - cutAmount;
+
+        const currentBonus = member.weeklyBonus || 0;
+        await db.updateMember(member.discordId, {
+          weeklyBonus: currentBonus + netAmount
+        });
+
+        details.push({
+          discordId: member.discordId,
+          username: member.username,
+          strikes: strikesCount,
+          cutPercent,
+          cutAmount,
+          netAmount
+        });
+      } else {
+        // If not in database, create mock or record breakdown
+        details.push({
+          username: pIdentifier,
+          strikes: 'N/A',
+          cutPercent: 0,
+          cutAmount: 0,
+          netAmount: amt,
+          warning: 'Not in database'
+        });
+      }
+    }
+
+    const participantsListStr = details.map(d => {
+      const mention = d.discordId ? `<@${d.discordId}>` : d.username;
+      const warnSuffix = d.warning ? ` ⚠️ (${d.warning})` : '';
+      return `${mention}: **$${d.netAmount.toLocaleString()}** (Strikes: ${d.strikes}, Cut: ${d.cutPercent}%)${warnSuffix}`;
+    }).join('\n');
+
+    const embed = {
+      title: '🏆 EVENT WIN BONUS DISBURSED',
+      description: `**Event:** ${submission.eventName || submission.title}\n**Base Amount:** $${amt.toLocaleString()}\n**Approved By Admin:** ${req.user.username}\n\n**Weekly Payout Breakdown:**\n${participantsListStr}`,
+      color: 0x34d399,
+      image: { url: submission.mediaUrl },
+      timestamp: new Date().toISOString(),
+      footer: { text: 'White Pigeon Bonus System' }
+    };
+
+    await botService.sendWebhook('bonus-approval', embed);
+
+    if (req.app.get('socketio')) {
+      req.app.get('socketio').emit('win_submissions_update', await db.getWinSubmissions());
+      req.app.get('socketio').emit('leaderboard_update', await db.getMembers());
+    }
+
+    res.json({ success: true, submission, details });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/economy/win-submissions/reject/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { comment } = req.body;
+
+  try {
+    const submission = await db.updateWinSubmission(id, {
+      status: 'rejected',
+      reviewedBy: req.user.username || 'Admin',
+      reviewedAt: new Date().toISOString(),
+      comment: comment || 'Declined'
+    });
+
+    if (!submission) {
+      return res.status(404).json({ error: 'Win submission not found.' });
+    }
+
+    if (req.app.get('socketio')) {
+      req.app.get('socketio').emit('win_submissions_update', await db.getWinSubmissions());
+    }
+
+    try {
+      await botService.sendDirectMessage(submission.submitterId, `❌ Your event win submission was declined. Reason: ${comment || 'N/A'}`);
+    } catch {}
+
+    res.json({ success: true, submission });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/economy/weekly-ledger', requireMember, async (req, res) => {
+  try {
+    const members = await db.getMembers();
+    const ledger = members.map(m => ({
+      discordId: m.discordId,
+      username: m.username,
+      nickname: m.nickname,
+      roles: m.roles,
+      strikes: m.strikes ? m.strikes.length : 0,
+      weeklyBonus: m.weeklyBonus || 0,
+      payoutStatus: m.payoutStatus || 'Not Paid'
+    }));
+    res.json(ledger);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/economy/weekly-ledger/status', requireAdmin, async (req, res) => {
+  const { discordId, status } = req.body;
+  if (!discordId || !status) {
+    return res.status(400).json({ error: 'Discord ID and payment status are required.' });
+  }
+  try {
+    await db.updatePayoutStatus(discordId, status);
+    
+    if (req.app.get('socketio')) {
+      req.app.get('socketio').emit('leaderboard_update', await db.getMembers());
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/economy/weekly-ledger/close', requireAdmin, async (req, res) => {
+  const { weekId } = req.body;
+  if (!weekId) {
+    return res.status(400).json({ error: 'Week identifier (e.g. week-ending-date) is required.' });
+  }
+  try {
+    const report = await db.archiveAndResetWeeklyLedger(weekId, req.user.username);
+
+    const embed = {
+      title: '🚨 WEEKLY BONUS ROSTER CLOSED & RESET',
+      description: `The weekly event payout ledger has been archived and reset by **${req.user.username}**.\n\n**Week ID:** ${weekId}\n**Total Net Payouts Calculated:** $${report.totalNet.toLocaleString()}`,
+      color: 0xef4444,
+      timestamp: new Date().toISOString(),
+      footer: { text: 'White Pigeon Weekly Reset Protocol' }
+    };
+    await botService.sendWebhook('bonus-admin-panel', embed);
+
+    if (req.app.get('socketio')) {
+      req.app.get('socketio').emit('leaderboard_update', await db.getMembers());
+      req.app.get('socketio').emit('weekly_reports_update', await db.getWeeklyReports());
+    }
+
+    res.json({ success: true, report });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/economy/weekly-reports', requireMember, async (req, res) => {
+  try {
+    res.json(await db.getWeeklyReports());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/economy/weekly-reports/:weekId', requireMember, async (req, res) => {
+  try {
+    const report = await db.getWeeklyReport(req.params.weekId);
+    if (!report) return res.status(404).json({ error: 'Weekly report not found.' });
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin Bonus Log & Bonus Approvals
@@ -689,6 +1089,60 @@ router.post('/priority-list/remove', requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/activities/types', requireMember, async (req, res) => {
+  try {
+    const types = await db.getActivityTypes();
+    res.json(types);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/activities/types', requireAdmin, async (req, res) => {
+  const { emoji, name, points } = req.body;
+  if (!name || !points) {
+    return res.status(400).json({ error: 'Name and points are required.' });
+  }
+
+  const cleanEmoji = emoji || '📝';
+  const cleanName = name.trim();
+  const cleanPoints = parseInt(points, 10);
+
+  if (isNaN(cleanPoints) || cleanPoints <= 0) {
+    return res.status(400).json({ error: 'Points must be a positive number.' });
+  }
+
+  const key = `${cleanEmoji} ${cleanName} (${cleanPoints} points)`;
+
+  try {
+    const newType = await db.createActivityType({
+      key,
+      emoji: cleanEmoji,
+      name: cleanName,
+      points: `${cleanPoints} points`,
+      value: cleanPoints,
+      createdAt: new Date().toISOString()
+    });
+    
+    req.app.get('socketio').emit('activity_types_update', await db.getActivityTypes());
+    
+    res.json(newType);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/activities/types/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.deleteActivityType(id);
+    req.app.get('socketio').emit('activity_types_update', await db.getActivityTypes());
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // ACTIVITY SYSTEM
 // -------------------------------------------------------------
@@ -746,7 +1200,14 @@ router.post('/activities', requireMember, async (req, res) => {
   if (cleanMediaUrl && !isHttpUrl(cleanMediaUrl)) {
     return res.status(400).json({ error: 'Media URL must be a valid HTTPS URL.' });
   }
-  const pointsRequested = ACTIVITY_POINTS_LOOKUP[activityType] || 0;
+  let pointsRequested = ACTIVITY_POINTS_LOOKUP[activityType] || 0;
+  if (pointsRequested === 0) {
+    const dbTypes = await db.getActivityTypes();
+    const match = dbTypes.find(t => t.key === activityType || t.name === activityType);
+    if (match) {
+      pointsRequested = parseInt(match.value || match.points || '0', 10);
+    }
+  }
 
   const act = await db.createActivity({
     memberId: user.discordId,

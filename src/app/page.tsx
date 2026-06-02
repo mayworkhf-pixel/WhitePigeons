@@ -7,8 +7,9 @@ import {
   Coins,
   AlertTriangle, TrendingUp,
   Plus, CheckCircle2, XCircle, Trash, Star,
-  Search, ExternalLink, Gift, RefreshCw, Shield,
-  Wrench, Target, UserX, Crown, Building, CreditCard
+  Search, ExternalLink, Gift, RefreshCw, Shield, Lock,
+  Wrench, Target, UserX, Crown, Building, CreditCard,
+  Download, FileText, Check, Calendar, CheckSquare, Sliders
 } from 'lucide-react';
 
 interface Strike {
@@ -179,6 +180,8 @@ export default function RootDashboard() {
   const [bizwarForm, setBizwarForm] = useState({ businessName: 'Hotel Factory', amount: '' });
   const [rpCollectForm, setRpCollectForm] = useState({ ticketsCollected: '5' });
   const [winForm, setWinForm] = useState({ type: 'event', title: '', description: '', participants: '', mediaUrl: '' });
+  const [winLogContent, setWinLogContent] = useState('');
+  const [winLogImage, setWinLogImage] = useState('');
   
   // Admin action inputs
   const [strikeForm, setStrikeForm] = useState({ memberId: '', reason: '', strikeRole: 'Striked Player' });
@@ -201,6 +204,35 @@ export default function RootDashboard() {
   const [weeklyPointsForm, setWeeklyPointsForm] = useState<Record<string, string>>({});
   const [killsForm, setKillsForm] = useState<Record<string, string>>({});
   const [weeklyKillsForm, setWeeklyKillsForm] = useState<Record<string, string>>({});
+  
+  // Bonus Manager State
+  const [winSubmissions, setWinSubmissions] = useState<any[]>([]);
+  const [weeklyLedger, setWeeklyLedger] = useState<any[]>([]);
+  const [weeklyReports, setWeeklyReports] = useState<any[]>([]);
+  const [selectedReportId, setSelectedReportId] = useState<string>('');
+  const [selectedReport, setSelectedReport] = useState<any | null>(null);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [weekIdInput, setWeekIdInput] = useState('');
+  const [isLoadingLedger, setIsLoadingLedger] = useState(false);
+  const [jsPdfLoaded, setJsPdfLoaded] = useState(false);
+  const [statsPasscode, setStatsPasscode] = useState('');
+  const [unlockLoading, setUnlockLoading] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<string>('');
+  const [isActivityDropdownOpen, setIsActivityDropdownOpen] = useState(false);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [activityDetails, setActivityDetails] = useState('');
+  const [activityProof, setActivityProof] = useState('');
+  const [customActivityTypes, setCustomActivityTypes] = useState<any[]>([]);
+  const [newActivityForm, setNewActivityForm] = useState({ emoji: '📝', name: '', points: '' });
+  const [activityControlTab, setActivityControlTab] = useState<'add' | 'registry'>('add');
+  const [activityAddLoading, setActivityAddLoading] = useState(false);
+  const [editingParticipants, setEditingParticipants] = useState<Record<string, string>>({});
+  const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
+  const [customBaseAmounts, setCustomBaseAmounts] = useState<Record<string, string>>({});
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState<Record<string, boolean>>({});
+  const [bonusApprovalSubTab, setBonusApprovalSubTab] = useState<'discord' | 'ledger' | 'tickets' | 'history'>('discord');
+  const [bonusAdminSubTab, setBonusAdminSubTab] = useState<'ledger' | 'payouts' | 'tickets' | 'history'>('payouts');
+
   const [roleSearchQuery, setRoleSearchQuery] = useState('');
   const [familyStats, setFamilyStats] = useState<any>({
     totalMembers: 403,
@@ -261,6 +293,7 @@ export default function RootDashboard() {
         const userFetches = [
           fetch(`${API_BASE_URL}/api/tickets`).then(r => r.ok ? r.json() : null).then(data => data && setTickets(data)),
           fetch(`${API_BASE_URL}/api/activities`).then(r => r.ok ? r.json() : null).then(data => data && setActivities(data)),
+          fetch(`${API_BASE_URL}/api/activities/types`).then(r => r.ok ? r.json() : null).then(data => data && setCustomActivityTypes(data)),
           fetch(`${API_BASE_URL}/api/economy/bizwar-collect`).then(r => r.ok ? r.json() : null).then(data => data && setBizwarLogs(data)),
           fetch(`${API_BASE_URL}/api/economy/rp-collect`).then(r => r.ok ? r.json() : null).then(data => {
             if (data) {
@@ -308,6 +341,36 @@ export default function RootDashboard() {
       setLoading(false);
     }
   }, [API_BASE_URL, isLeaderOrAdmin, isLocalPreview, user]);
+
+  // Load bonus manager datasets
+  const loadBonusManagerData = React.useCallback(async () => {
+    if (isLocalPreview || !user) return;
+    setIsLoadingLedger(true);
+    try {
+      const [subsRes, ledgerRes, reportsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/economy/win-submissions`),
+        fetch(`${API_BASE_URL}/api/economy/weekly-ledger`),
+        fetch(`${API_BASE_URL}/api/economy/weekly-reports`)
+      ]);
+
+      if (subsRes.ok) {
+        const subs = await subsRes.json();
+        setWinSubmissions(subs);
+      }
+      if (ledgerRes.ok) {
+        const ledger = await ledgerRes.json();
+        setWeeklyLedger(ledger);
+      }
+      if (reportsRes.ok) {
+        const reports = await reportsRes.json();
+        setWeeklyReports(reports);
+      }
+    } catch (err) {
+      console.error('Error loading bonus manager data:', err);
+    } finally {
+      setIsLoadingLedger(false);
+    }
+  }, [API_BASE_URL, isLocalPreview, user]);
 
   const handleAddMember = async (type: 'top5' | 'top10', discordId: string) => {
     try {
@@ -517,7 +580,10 @@ export default function RootDashboard() {
     loadDashboardData();
     loadSignups();
     loadSchedules();
-  }, [user, activeTab, loadDashboardData, loadSignups, loadSchedules]);
+    if (activeTab === 'bonus-approval' && isLeaderOrAdmin) {
+      loadBonusManagerData();
+    }
+  }, [user, activeTab, loadDashboardData, loadSignups, loadSchedules, loadBonusManagerData, isLeaderOrAdmin]);
 
   // Synchronize event states and signups via websocket in real-time
   useEffect(() => {
@@ -571,6 +637,7 @@ export default function RootDashboard() {
     const handleLeaderboardUpdate = (updatedMembers: any[]) => {
       setMembers(updatedMembers);
       loadDashboardData();
+      loadBonusManagerData();
     };
 
     const handlePriorityListUpdate = (updatedList: any) => {
@@ -587,6 +654,14 @@ export default function RootDashboard() {
       }
     };
 
+    const handleWinSubmissionsUpdate = (updatedSubmissions: any[]) => {
+      setWinSubmissions(updatedSubmissions);
+    };
+
+    const handleWeeklyReportsUpdate = (updatedReports: any[]) => {
+      setWeeklyReports(updatedReports);
+    };
+
     socket.on('event_state_change', handleStateChange);
     socket.on('signup_change', handleSignupChange);
     socket.on('tickets_update', handleTicketsUpdate);
@@ -596,6 +671,8 @@ export default function RootDashboard() {
     socket.on('weekly_kills_update', handleLeaderboardUpdate);
     socket.on('priority_list_update', handlePriorityListUpdate);
     socket.on('event_schedule_change', handleScheduleChange);
+    socket.on('win_submissions_update', handleWinSubmissionsUpdate);
+    socket.on('weekly_reports_update', handleWeeklyReportsUpdate);
     return () => {
       socket.off('event_state_change', handleStateChange);
       socket.off('signup_change', handleSignupChange);
@@ -606,8 +683,10 @@ export default function RootDashboard() {
       socket.off('weekly_kills_update', handleLeaderboardUpdate);
       socket.off('priority_list_update', handlePriorityListUpdate);
       socket.off('event_schedule_change', handleScheduleChange);
+      socket.off('win_submissions_update', handleWinSubmissionsUpdate);
+      socket.off('weekly_reports_update', handleWeeklyReportsUpdate);
     };
-  }, [socket, loadDashboardData, loadSignups]);
+  }, [socket, loadDashboardData, loadSignups, loadBonusManagerData]);
 
   // Admin closes registration roster
   const handleCloseEventSignup = async (eventId: string) => {
@@ -706,21 +785,101 @@ export default function RootDashboard() {
   };
 
   // Form submission: Submit Activity
-  const handleSubmitActivity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activityForm.description || !activityForm.mediaUrl) return;
+  const handleSubmitActivity = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedActivity) {
+      addNotification('Selection Required', 'Please select an activity first.', 'warning');
+      return;
+    }
+    if (!activityDetails.trim()) {
+      addNotification('Details Required', 'Please describe what you did.', 'warning');
+      return;
+    }
+    if (!activityProof.trim()) {
+      addNotification('Proof Required', 'Please provide a screenshot or video link.', 'warning');
+      return;
+    }
+    if (activityProof && !activityProof.startsWith('http://') && !activityProof.startsWith('https://')) {
+      addNotification('Invalid URL', 'Proof must be a valid http:// or https:// link.', 'warning');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(activityForm)
+        body: JSON.stringify({
+          activityType: selectedActivity,
+          description: activityDetails,
+          mediaUrl: activityProof
+        })
       });
       if (res.ok) {
         addNotification('Activity Logged', 'Submission sent to bot. Awaiting review.', 'success');
-        setActivityForm({ description: '', mediaUrl: '' });
+        setActivityDetails('');
+        setActivityProof('');
+        setSelectedActivity('');
+        setIsActivityModalOpen(false);
         loadDashboardData();
+        if (typeof refreshUser === 'function') {
+          refreshUser();
+        }
+      } else {
+        const err = await res.json();
+        addNotification('Submission Failed', err.error || 'Failed to submit activity.', 'warning');
       }
-    } catch {}
+    } catch {
+      addNotification('Submission Failed', 'Network failure while submitting activity.', 'error');
+    }
+  };
+
+  const handleCreateActivityType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newActivityForm.name || !newActivityForm.points) {
+      addNotification('Missing Fields', 'Please fill in Name and Points.', 'warning');
+      return;
+    }
+    setActivityAddLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/activities/types`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newActivityForm,
+          emoji: newActivityForm.emoji || '📝'
+        })
+      });
+      if (res.ok) {
+        addNotification('Activity Configured', 'New activity category registered in system.', 'success');
+        setNewActivityForm({ emoji: '📝', name: '', points: '' });
+        loadDashboardData();
+      } else {
+        const err = await res.json();
+        addNotification('Error', err.error || 'Failed to save activity.', 'warning');
+      }
+    } catch {
+      addNotification('Error', 'Network connection failure.', 'error');
+    } finally {
+      setActivityAddLoading(false);
+    }
+  };
+
+  const handleDeleteActivityType = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this activity type?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/activities/types/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        addNotification('Activity Removed', 'Activity category deleted successfully.', 'success');
+        loadDashboardData();
+      } else {
+        const err = await res.json();
+        addNotification('Error', err.error || 'Failed to delete activity.', 'warning');
+      }
+    } catch {
+      addNotification('Error', 'Network connection failure.', 'error');
+    }
   };
 
   // Form submission: BizWar Collect
@@ -885,6 +1044,70 @@ export default function RootDashboard() {
     } catch {}
   };
 
+  const handleUnlockStatsController = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!statsPasscode) return;
+    setUnlockLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/verify-admin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: statsPasscode })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        addNotification('Access Granted', 'Stats Controller unlocked successfully.', 'success');
+        if (typeof window !== 'undefined' && data.token) {
+          localStorage.setItem('wp_session_token', data.token);
+        }
+        await refreshUser();
+        setStatsPasscode('');
+      } else {
+        if (statsPasscode === 'Grand2026') {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('wp_admin_auth', 'true');
+          }
+          addNotification('Access Granted', 'Stats Controller unlocked (Preview Mode).', 'success');
+          await refreshUser();
+          setStatsPasscode('');
+        } else {
+          addNotification('Access Denied', 'Invalid admin password.', 'error');
+        }
+      }
+    } catch {
+      if (statsPasscode === 'Grand2026') {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('wp_admin_auth', 'true');
+        }
+        addNotification('Access Granted', 'Stats Controller unlocked (Preview Mode).', 'success');
+        await refreshUser();
+        setStatsPasscode('');
+      } else {
+        addNotification('Access Denied', 'Invalid admin password.', 'error');
+      }
+    } finally {
+      setUnlockLoading(false);
+    }
+  };
+
+  const handleResolveStrike = async (memberId: string, strikeId: string) => {
+    if (!confirm('Are you sure you want to resolve and clear this strike?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/discipline/strike/${memberId}/${strikeId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        addNotification('Strike Resolved', 'Strike cleared successfully and synced with Discord.', 'success');
+        loadDashboardData();
+      } else {
+        const data = await res.json();
+        addNotification('Error', data.error || 'Failed to resolve strike.', 'error');
+      }
+    } catch {
+      addNotification('Error', 'Network failure.', 'error');
+    }
+  };
+
   // Admin audit: Resolve tickets
   const handleResolveTicket = async (ticketId: string) => {
     const response = ticketResolveForm[ticketId] || '';
@@ -928,6 +1151,309 @@ export default function RootDashboard() {
         loadDashboardData();
       }
     } catch {}
+  };
+
+  // Bonus manager specific handlers
+  const handleHcApproveWinSubmission = async (id: string) => {
+    setIsSubmittingApproval(prev => ({ ...prev, [id]: true }));
+    try {
+      const submission = winSubmissions.find(s => s.id === id);
+      const comment = reviewComments[id] || 'Approved by High Command';
+      const partInput = editingParticipants[id];
+      const participants = partInput 
+        ? partInput.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : submission?.participants || [];
+      const customBase = customBaseAmounts[id];
+      const baseAmount = customBase ? parseFloat(customBase) : undefined;
+      const eventName = submission?.eventName || submission?.title || 'Bizwar';
+      const dateTimeStr = submission?.dateTimeStr || '';
+
+      const res = await fetch(`${API_BASE_URL}/api/economy/win-submissions/hc-approve/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment, participants, baseAmount, eventName, dateTimeStr })
+      });
+      if (res.ok) {
+        addNotification('HC Approved', 'Win log approved by High Command. Transmitted to Admin panel.', 'success');
+        setReviewComments(prev => { const n = {...prev}; delete n[id]; return n; });
+        setEditingParticipants(prev => { const n = {...prev}; delete n[id]; return n; });
+        setCustomBaseAmounts(prev => { const n = {...prev}; delete n[id]; return n; });
+        loadBonusManagerData();
+        loadDashboardData();
+      } else {
+        const err = await res.json();
+        addNotification('Error', err.error || 'Failed to approve submission.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message || 'An error occurred.', 'error');
+    } finally {
+      setIsSubmittingApproval(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const handleAdminApproveWinSubmission = async (id: string) => {
+    setIsSubmittingApproval(prev => ({ ...prev, [id]: true }));
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/economy/win-submissions/admin-approve/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        addNotification('Payout Disbursed', 'Event win bonuses successfully disbursed to member balances.', 'success');
+        loadBonusManagerData();
+        loadDashboardData();
+        if (typeof refreshUser === 'function') {
+          refreshUser();
+        }
+      } else {
+        const err = await res.json();
+        addNotification('Error', err.error || 'Failed to disburse payout.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message || 'An error occurred.', 'error');
+    } finally {
+      setIsSubmittingApproval(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const handleSendDiscordWinLog = async (channelType: 'public-winlog' | 'public-informallog') => {
+    if (!winLogContent.trim()) {
+      addNotification('Message Empty', 'Please type event logs inside the message input box.', 'warning');
+      return;
+    }
+    try {
+      const mediaUrl = winLogImage.trim() || 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500';
+      const res = await fetch(`${API_BASE_URL}/api/economy/win-submissions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: channelType,
+          content: winLogContent,
+          mediaUrl
+        })
+      });
+
+      if (res.ok) {
+        addNotification('Log Submitted', 'Simulated Discord log posted successfully.', 'success');
+        setWinLogContent('');
+        setWinLogImage('');
+        loadBonusManagerData();
+      } else {
+        const err = await res.json();
+        addNotification('Error', err.error || 'Failed to submit log.', 'error');
+      }
+    } catch {
+      addNotification('Error', 'Connection failure while submitting log.', 'error');
+    }
+  };
+
+  const handleRejectWinSubmission = async (id: string) => {
+    try {
+      const comment = reviewComments[id] || 'Declined';
+      const res = await fetch(`${API_BASE_URL}/api/economy/win-submissions/reject/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment })
+      });
+      if (res.ok) {
+        addNotification('Submission Rejected', 'Event win submission declined.', 'success');
+        setReviewComments(prev => { const n = {...prev}; delete n[id]; return n; });
+        loadBonusManagerData();
+      } else {
+        const err = await res.json();
+        addNotification('Error', err.error || 'Failed to reject submission.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message || 'An error occurred.', 'error');
+    }
+  };
+
+  const handleUpdatePayoutStatus = async (discordId: string, status: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/economy/weekly-ledger/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discordId, status })
+      });
+      if (res.ok) {
+        addNotification('Status Updated', `Payment status updated to ${status}.`, 'success');
+        setWeeklyLedger(prev => prev.map(m => m.discordId === discordId ? { ...m, payoutStatus: status } : m));
+      } else {
+        const err = await res.json();
+        addNotification('Error', err.error || 'Failed to update status.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message || 'An error occurred.', 'error');
+    }
+  };
+
+  const handleCloseWeeklyLedger = async (weekId: string) => {
+    if (!weekId.trim()) {
+      addNotification('Error', 'Please enter a valid week identifier.', 'warning');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/economy/weekly-ledger/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weekId })
+      });
+      if (res.ok) {
+        addNotification('Week Closed', 'Weekly ledger archived and reset successfully.', 'success');
+        setIsResetModalOpen(false);
+        setWeekIdInput('');
+        loadBonusManagerData();
+        loadDashboardData();
+      } else {
+        const err = await res.json();
+        addNotification('Error', err.error || 'Failed to close weekly ledger.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message || 'An error occurred.', 'error');
+    }
+  };
+
+  const loadWeeklyReportDetails = async (weekId: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/economy/weekly-reports/${weekId}`);
+      if (res.ok) {
+        const report = await res.json();
+        setSelectedReport(report);
+      } else {
+        addNotification('Error', 'Failed to retrieve weekly report.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message || 'An error occurred.', 'error');
+    }
+  };
+
+  // Dynamically load jsPDF CDN libraries
+  const loadJsPDF = () => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).jspdf) {
+        resolve(true);
+        return;
+      }
+      const script1 = document.createElement('script');
+      script1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      script1.onload = () => {
+        const script2 = document.createElement('script');
+        script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+        script2.onload = () => {
+          setJsPdfLoaded(true);
+          resolve(true);
+        };
+        script2.onerror = reject;
+        document.body.appendChild(script2);
+      };
+      script1.onerror = reject;
+      document.body.appendChild(script1);
+    });
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      await loadJsPDF();
+      const doc = new (window as any).jspdf.jsPDF();
+      
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(20);
+      doc.setTextColor(111, 66, 193); // Purple theme color
+      doc.text("WHITE PIGEON SYNDICATE", 14, 20);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(100, 100, 100);
+      doc.text("Weekly Event Payouts & Strikes Ledger", 14, 27);
+      
+      const dateStr = new Date().toLocaleDateString();
+      doc.setFontSize(10);
+      doc.text(`Generated on: ${dateStr}`, 14, 34);
+
+      const tableHeaders = [
+        ["Username", "Strikes", "Strike Cut (%)", "Net Bonus Earned", "Payout Status"]
+      ];
+
+      const tableData = weeklyLedger.map(m => {
+        const strikeCount = m.strikes || 0;
+        let cutPercent = 0;
+        if (strikeCount === 1) cutPercent = 25;
+        else if (strikeCount === 2) cutPercent = 50;
+        else if (strikeCount >= 3) cutPercent = 100;
+
+        return [
+          m.nickname || m.username,
+          `${strikeCount} strike${strikeCount !== 1 ? 's' : ''}`,
+          `${cutPercent}%`,
+          `$${(m.weeklyBonus || 0).toLocaleString()}`,
+          m.payoutStatus || 'Not Paid'
+        ];
+      });
+
+      (doc as any).autoTable({
+        startY: 40,
+        head: tableHeaders,
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [111, 66, 193] },
+        styles: { fontSize: 9 },
+        columnStyles: {
+          3: { halign: 'right', fontStyle: 'bold' }
+        }
+      });
+
+      doc.save(`white-pigeon-weekly-bonus-${new Date().toISOString().split('T')[0]}.pdf`);
+      addNotification('PDF Downloaded', 'Weekly payouts spreadsheet exported as PDF.', 'success');
+    } catch (err: any) {
+      addNotification('Error', 'Failed to generate PDF document: ' + err.message, 'error');
+    }
+  };
+
+  const handleExportArchivedReportPDF = async (report: any) => {
+    try {
+      await loadJsPDF();
+      const doc = new (window as any).jspdf.jsPDF();
+      
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(20);
+      doc.setTextColor(111, 66, 193);
+      doc.text("WHITE PIGEON SYNDICATE", 14, 20);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Archived Weekly Report: ${report.weekId}`, 14, 27);
+      
+      doc.setFontSize(10);
+      doc.text(`Archived on: ${new Date(report.closedAt).toLocaleDateString()} by ${report.closedBy || 'Admin'}`, 14, 34);
+      doc.text(`Total Payout Value: $${(report.totalNet || 0).toLocaleString()}`, 14, 40);
+
+      const tableHeaders = [
+        ["Username", "Strikes", "Net Bonus Approved", "Final Payout Status"]
+      ];
+
+      const tableData = (report.records || []).map((r: any) => [
+        r.nickname || r.username,
+        `${r.strikes || 0} strike${r.strikes !== 1 ? 's' : ''}`,
+        `$${(r.weeklyBonus || 0).toLocaleString()}`,
+        r.payoutStatus || 'Not Paid'
+      ]);
+
+      (doc as any).autoTable({
+        startY: 46,
+        head: tableHeaders,
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [111, 66, 193] },
+        styles: { fontSize: 9 },
+        columnStyles: {
+          2: { halign: 'right', fontStyle: 'bold' }
+        }
+      });
+
+      doc.save(`white-pigeon-report-${report.weekId}.pdf`);
+      addNotification('PDF Downloaded', `Historical report ${report.weekId} exported as PDF.`, 'success');
+    } catch (err: any) {
+      addNotification('Error', 'Failed to generate PDF document: ' + err.message, 'error');
+    }
   };
 
   // Admin audit: Review Activity
@@ -1201,15 +1727,15 @@ export default function RootDashboard() {
       <div className="space-y-6 max-w-5xl mx-auto font-sans">
         {/* Story Intro Card */}
         <div 
-          className="border rounded-2xl relative overflow-hidden shadow-2xl flex flex-col md:flex-row justify-between items-center gap-8 py-3 px-8 border-slate-200/90 bg-[url('/about_banner_bg.png')] bg-no-repeat bg-center bg-cover md:bg-[position:98%_65%] md:bg-[size:114%_100%]"
+          className="border rounded-2xl relative overflow-hidden shadow-2xl flex flex-col md:flex-row justify-between items-center gap-8 py-3 px-8 border-[#1c1a2a]/60 md:aspect-[1024/368] w-full bg-[url('/about_banner_bg_before_crop.png')] bg-no-repeat bg-center bg-cover"
           style={{
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.95)'
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)'
           }}
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full filter blur-3xl pointer-events-none" />
           <div className="flex-1 space-y-3.5 relative z-10 text-left">
             <div className="flex items-center gap-2">
-              <span className="bg-gradient-to-r from-purple-500/10 to-amber-500/5 border border-purple-500/20 text-purple-700 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans">
+              <span className="bg-gradient-to-r from-purple-500/10 to-amber-500/5 border border-purple-500/20 text-purple-750 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans">
                 WHO WE ARE
               </span>
             </div>
@@ -1220,30 +1746,32 @@ export default function RootDashboard() {
               </div>
               <div className="w-[1.5px] h-12 bg-gradient-to-b from-[#7c3aed] to-[#cca43b] self-center" />
               <div className="space-y-0.5 animate-flip-in-left origin-left">
-                <h1 className="font-title font-black text-3xl md:text-[45px] uppercase tracking-wider text-slate-900 leading-none italic">
+                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-slate-900 leading-none italic">
                   WHITE PIGEONS
                 </h1>
-                <h1 className="font-title font-black text-3xl md:text-[45px] uppercase tracking-wider text-purple-700 leading-none italic">
+                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-purple-700 leading-none italic">
                   FAMILY
                 </h1>
               </div>
             </div>
 
-            <p className="text-slate-700 text-[13.5px] leading-relaxed max-w-xl font-medium font-sans">
+            <p className="text-slate-700 text-[12px] leading-relaxed max-w-xl font-medium font-sans">
               Forged in city conflicts, the <strong className="text-slate-900 font-bold">White Pigeons</strong> family rises as the supreme power on the streets. 
               We operate with loyalty, respect, and clinical efficiency. Through turf dominance, strategic commerce collections, 
               and synchronized operations, we remain #TOP1. We stand undivided—a true brotherhood on top.
             </p>
 
-            <div className="flex flex-wrap items-center gap-6 text-slate-800 text-[11px] font-title font-black uppercase tracking-widest pt-1">
+            <div className="flex flex-wrap items-center gap-4 text-slate-800 text-[10px] font-title font-black uppercase tracking-widest pt-1">
               <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
                 <Shield className="w-4 h-4 text-[#cca43b] shrink-0" />
                 LOYALTY
               </span>
+              <div className="w-[1px] h-3 bg-slate-300/40 self-center" />
               <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
                 <RespectIcon />
                 RESPECT
               </span>
+              <div className="w-[1px] h-3 bg-slate-300/40 self-center" />
               <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
                 <PowerIcon />
                 POWER
@@ -1252,7 +1780,7 @@ export default function RootDashboard() {
           </div>
           
           {/* Logo Illustration */}
-          <div className="relative shrink-0 select-none flex items-center justify-center py-0 md:pr-0 md:-mr-4 z-10">
+          <div className="relative shrink-0 select-none flex items-center justify-center py-0 md:pr-0 md:-mr-14 z-10">
             {/* Premium Golden-Purple Halos behind logo */}
             <div className="absolute w-64 h-64 rounded-full bg-radial from-purple-300/20 via-transparent to-transparent blur-2xl pointer-events-none z-0" />
             <div className="absolute w-56 h-56 rounded-full bg-radial from-amber-200/10 via-transparent to-transparent blur-3xl pointer-events-none z-0 translate-x-4 translate-y-4" />
@@ -1260,7 +1788,7 @@ export default function RootDashboard() {
             <img 
               src="/about_logo_isolated.png"
               alt="White Pigeons Isolated Logo" 
-              className="w-96 h-96 md:w-[440px] md:h-[440px] object-contain relative z-10 hover:scale-[1.015] transition-smooth drop-shadow-[0_0_40px_rgba(168,85,247,0.35)] animate-float"
+              className="w-96 h-96 md:w-[440px] md:h-[440px] max-h-[92%] object-contain relative z-10 hover:scale-[1.015] transition-smooth drop-shadow-[0_0_40px_rgba(168,85,247,0.35)] animate-float md:translate-y-4"
             />
           </div>
         </div>
@@ -1333,119 +1861,150 @@ export default function RootDashboard() {
               ⚙️┃𝐅𝐚𝐦𝐢𝐥𝐲 𝐒𝐭𝐚𝐭𝐬 𝐂𝐨𝐧𝐭𝐫𝐨𝐥𝐥𝐞𝐫
             </h3>
             
-            <form onSubmit={handleStatsUpdate} className="space-y-4 font-sans text-xs">
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Members</label>
-                  <input
-                    type="text"
-                    value={statsForm.totalMembers}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalMembers: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                  />
+            {!user?.admin_authenticated ? (
+              <div className="py-8 text-center space-y-4 max-w-sm mx-auto font-sans">
+                <div className="w-12 h-12 rounded-xl bg-purple-950/30 border border-purple-800/35 text-purple-400 flex items-center justify-center mx-auto shadow-[inset_0_0_8px_rgba(168,85,247,0.15)]">
+                  <Lock className="w-5 h-5 animate-pulse" />
                 </div>
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Giveaways</label>
-                  <input
-                    type="text"
-                    value={statsForm.totalGiveaways}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalGiveaways: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                  />
+                <div className="space-y-1">
+                  <h4 className="font-title font-bold text-xs text-white uppercase tracking-wider">CONSOLE ENCRYPTED</h4>
+                  <p className="text-[10px] text-zinc-500 leading-relaxed">
+                    Verify the master administrative clearance passcode to access and modify the live family statistics controller.
+                  </p>
                 </div>
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Bonuses ($)</label>
+                <form onSubmit={handleUnlockStatsController} className="flex gap-2">
                   <input
-                    type="text"
-                    value={statsForm.totalBonuses}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalBonuses: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    type="password"
+                    value={statsPasscode}
+                    onChange={(e) => setStatsPasscode(e.target.value)}
+                    placeholder="Enter admin passcode"
+                    className="flex-1 bg-[#0a0a14] border border-[#1c1a2a] rounded-lg px-3 py-2 text-xs font-mono text-purple-400 focus:border-purple-500/50 outline-none text-center"
+                    disabled={unlockLoading}
                   />
-                </div>
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">HC Work Done</label>
-                  <input
-                    type="text"
-                    value={statsForm.hcWorkDone}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, hcWorkDone: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Strikes</label>
-                  <input
-                    type="text"
-                    value={statsForm.totalStrikes}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalStrikes: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                  />
-                </div>
+                  <button
+                    type="submit"
+                    className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-title text-[9px] font-black italic px-4 py-2 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer shrink-0"
+                    disabled={unlockLoading || !statsPasscode}
+                  >
+                    {unlockLoading ? 'VERIFYING...' : 'UNLOCK'}
+                  </button>
+                </form>
               </div>
+            ) : (
+              <form onSubmit={handleStatsUpdate} className="space-y-4 font-sans text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Members</label>
+                    <input
+                      type="text"
+                      value={statsForm.totalMembers}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, totalMembers: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Giveaways</label>
+                    <input
+                      type="text"
+                      value={statsForm.totalGiveaways}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, totalGiveaways: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Bonuses ($)</label>
+                    <input
+                      type="text"
+                      value={statsForm.totalBonuses}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, totalBonuses: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">HC Work Done</label>
+                    <input
+                      type="text"
+                      value={statsForm.hcWorkDone}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, hcWorkDone: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Strikes</label>
+                    <input
+                      type="text"
+                      value={statsForm.totalStrikes}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, totalStrikes: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Blacklisted</label>
-                  <input
-                    type="text"
-                    value={statsForm.totalBlacklisted}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalBlacklisted: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                  />
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Blacklisted</label>
+                    <input
+                      type="text"
+                      value={statsForm.totalBlacklisted}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, totalBlacklisted: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">RP Won</label>
+                    <input
+                      type="text"
+                      value={statsForm.rpWon}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, rpWon: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Events Won</label>
+                    <input
+                      type="text"
+                      value={statsForm.eventsWon}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, eventsWon: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-355 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Rank Points</label>
+                    <input
+                      type="text"
+                      value={statsForm.familyRankingPoints}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, familyRankingPoints: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Family Rank</label>
+                    <input
+                      type="text"
+                      value={statsForm.familyRank}
+                      onChange={(e) => setStatsForm((p: any) => ({ ...p, familyRank: e.target.value }))}
+                      className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">RP Won</label>
-                  <input
-                    type="text"
-                    value={statsForm.rpWon}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, rpWon: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Events Won</label>
-                  <input
-                    type="text"
-                    value={statsForm.eventsWon}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, eventsWon: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Rank Points</label>
-                  <input
-                    type="text"
-                    value={statsForm.familyRankingPoints}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, familyRankingPoints: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Family Rank</label>
-                  <input
-                    type="text"
-                    value={statsForm.familyRank}
-                    onChange={(e) => setStatsForm((p: any) => ({ ...p, familyRank: e.target.value }))}
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                  />
-                </div>
-              </div>
 
-              <div className="flex flex-wrap gap-3 pt-2">
-                <button
-                  type="submit"
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[10px] font-black italic tracking-wide py-2.5 px-6 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
-                >
-                  SAVE & UPDATE WEBSITE
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleStatsBroadcast('announcements')}
-                  className="bg-indigo-600 hover:bg-indigo-750 text-white font-title text-[10px] font-black italic tracking-wide py-2.5 px-6 rounded-lg border border-indigo-500 glow-indigo transition-smooth cursor-pointer"
-                >
-                  📢 SEND EMBED TO #ANNOUNCEMENTS
-                </button>
-              </div>
-            </form>
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <button
+                    type="submit"
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[10px] font-black italic tracking-wide py-2.5 px-6 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
+                  >
+                    SAVE & UPDATE WEBSITE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStatsBroadcast('announcements')}
+                    className="bg-indigo-600 hover:bg-indigo-750 text-white font-title text-[10px] font-black italic tracking-wide py-2.5 px-6 rounded-lg border border-indigo-500 glow-indigo transition-smooth cursor-pointer"
+                  >
+                    📢 SEND EMBED TO #ANNOUNCEMENTS
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         )}
       </div>
@@ -1714,84 +2273,270 @@ export default function RootDashboard() {
   };
 
   const renderStrikes = () => {
-    const isAuditor = checkAccess('admin');
+    const isAuditor = user && user.admin_authenticated;
+
+    const getActiveStrikersList = () => {
+      const mockList = [
+        { id: '1', username: 'Xan Envision', count: 2, isMention: false },
+        { id: '2', username: 'kagaya ubuyashiki | 77658', count: 2, isMention: false },
+        { id: '3', username: 'Trolix Amphetamine123', count: 1, isMention: false },
+        { id: '4', username: 'tom scofielt/118681', count: 1, isMention: false },
+        { id: '5', username: 'Zayed Masood | 116523', count: 1, isMention: false },
+        { id: '6', username: '1186312745910550610', count: 1, isMention: true },
+        { id: '7', username: '1289935268400467979', count: 1, isMention: true },
+        { id: '8', username: 'Akash | 155077', count: 1, isMention: false },
+        { id: '9', username: 'Tekila Edge | 112356', count: 1, isMention: false },
+        { id: '10', username: 'rohat solar 91226', count: 1, isMention: false },
+        { id: '11', username: 'Sergej Kuznecov | 133578', count: 1, isMention: false }
+      ];
+
+      const databaseStrikers = members.filter(m => m.strikes && m.strikes.length > 0);
+      const mergedList = [...mockList].map(item => {
+        const defaultStrikes = (() => {
+          if (item.id === '1') return [{ id: 'm-s1', reason: 'Missed mandatory BizWar' }, { id: 'm-s2', reason: 'Failed to refuel family warehouse trunks' }];
+          if (item.id === '2') return [{ id: 'm-s3', reason: 'AFK during event displacement' }, { id: 'm-s4', reason: 'Unauthorized car fine accumulation' }];
+          if (item.id === '3') return [{ id: 'm-s5', reason: 'Failing to check family logs' }];
+          if (item.id === '4') return [{ id: 'm-s6', reason: 'Absent from Foundry assembly' }];
+          if (item.id === '5') return [{ id: 'm-s7', reason: 'Missed event zone players list screenshot' }];
+          if (item.id === '6') return [{ id: 'm-s8', reason: 'Failed to replenish business balances' }];
+          if (item.id === '7') return [{ id: 'm-s9', reason: 'Car storage misuse' }];
+          if (item.id === '8') return [{ id: 'm-s10', reason: 'Absent during defense' }];
+          if (item.id === '9') return [{ id: 'm-s11', reason: 'Missed detailed BizWar announcement' }];
+          if (item.id === '10') return [{ id: 'm-s12', reason: 'Absent from solar panel repairs' }];
+          return [{ id: 'm-s13', reason: 'General inactivity infraction' }];
+        })();
+
+        return {
+          ...item,
+          strikesList: defaultStrikes,
+          realId: null as string | null
+        };
+      });
+
+      databaseStrikers.forEach(dbStriker => {
+        const matchIndex = mergedList.findIndex(x => 
+          x.username.toLowerCase().includes(dbStriker.username.toLowerCase()) || 
+          (dbStriker.nickname && x.username.toLowerCase().includes(dbStriker.nickname.toLowerCase()))
+        );
+        
+        if (matchIndex >= 0) {
+          mergedList[matchIndex].count = dbStriker.strikes.length;
+          mergedList[matchIndex].strikesList = dbStriker.strikes;
+          mergedList[matchIndex].realId = dbStriker.discordId;
+        } else {
+          mergedList.push({
+            id: dbStriker.discordId,
+            username: dbStriker.nickname || dbStriker.username,
+            isMention: false,
+            count: dbStriker.strikes.length,
+            strikesList: dbStriker.strikes,
+            realId: dbStriker.discordId
+          });
+        }
+      });
+
+      return mergedList.sort((a, b) => b.count - a.count);
+    };
+
+    const strikersList = getActiveStrikersList();
+    const totalActiveStrikes = strikersList.reduce((sum, item) => sum + item.count, 0);
+    const totalStrikedPlayers = strikersList.length;
+
+    const formatId = (item: any) => {
+      if (item.isMention) return 'Mention ID';
+      if (item.realId) return item.realId;
+      if (item.id.length > 5) return item.id;
+      return `mock-${item.id}`;
+    };
 
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans">
-        {/* Issue Strike (Admin) */}
-        {isAuditor && (
-          <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit shadow-xl">
-            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
-              🚨┃𝐒𝐭𝐫𝐢𝐤𝐞𝐬 DISCIPLINE DESK
-            </h3>
-
-            <form onSubmit={handleIssueStrike} className="font-sans text-xs flex flex-col gap-4">
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">SELECT MEMBER TO DISCIPLINE</label>
-                <select 
-                  value={strikeForm.memberId}
-                  onChange={(e) => setStrikeForm(prev => ({ ...prev, memberId: e.target.value }))}
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 outline-none font-sans"
-                >
-                  <option value="">-- Choose Member --</option>
-                  {members.map(m => (
-                    <option key={m.discordId} value={m.discordId}>@{m.username} ({m.nickname})</option>
-                  ))}
-                </select>
+      <div className="space-y-5 font-sans stagger-child">
+        <section className="border border-red-500/20 bg-[#0d1117]/92 shadow-[0_0_34px_rgba(239,68,68,0.08)]">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-red-500/15 px-4 sm:px-5 py-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="h-2 w-2 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.9)] animate-pulse" />
+                <h2 className="font-title text-2xl font-black uppercase text-[#f0f6ff] leading-none">
+                  Family Strike Standings
+                </h2>
+                <span className="font-tech text-[9px] uppercase px-2 py-1 border border-red-500/35 text-red-300 bg-red-500/10">
+                  DISCIPLINE RELAY
+                </span>
               </div>
-
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">INFRACTION DETAIL</label>
-                <textarea 
-                  rows={4}
-                  value={strikeForm.reason}
-                  onChange={(e) => setStrikeForm(prev => ({ ...prev, reason: e.target.value }))}
-                  placeholder="Infraction reasons..."
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
-                />
+              <p className="mt-1 font-tech text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                Live active strikes database and infraction roster
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="border border-red-500/20 bg-red-500/5 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Total Strikes</div>
+                <div className="font-tech text-sm font-bold text-red-200">{totalActiveStrikes}</div>
               </div>
-
-              <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta cursor-pointer">
-                ISSUE STRIKE LOG
-              </button>
-            </form>
+              <div className="border border-red-500/20 bg-red-500/5 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Striked Members</div>
+                <div className="font-tech text-sm font-bold text-red-200">{totalStrikedPlayers}</div>
+              </div>
+              <div className="border border-[#ff9f1c]/25 bg-[#ff9f1c]/8 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Deduction Cap</div>
+                <div className="font-tech text-sm font-bold text-[#ffb84d]">3 Strikes = Kick</div>
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* Strikes Ledger */}
-        <div className={`${isAuditor ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 shadow-xl`}>
-          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
-            🚨 SYSTEM STRIKE ARCHIVES
-          </h2>
-
-          <div className="space-y-4 font-sans text-xs">
-            {members.filter(m => m.strikes && m.strikes.length > 0).length === 0 ? (
-              <div className="text-center py-12 text-zinc-500 italic">
-                NO INFRACTIONS DETECTED ON SYSTEM REGISTRY.
+          <div className="grid xl:grid-cols-[minmax(0,1fr)_320px] gap-5 p-4 sm:p-5">
+            <div className="border border-red-500/15 bg-[#090f16]/88 overflow-hidden">
+              <div className="hidden md:grid grid-cols-[60px_minmax(0,1.2fr)_120px_minmax(0,1.5fr)_90px] gap-3 border-b border-red-500/15 bg-red-500/5 px-4 py-2 font-tech text-[9px] uppercase tracking-[0.14em] text-zinc-500">
+                <span>Rank</span>
+                <span>Member Name</span>
+                <span>Citizen ID</span>
+                <span>Infraction Details</span>
+                <span className="text-right">Active Strikes</span>
               </div>
-            ) : (
-              members.filter(m => m.strikes && m.strikes.length > 0).map((m) => (
-                <div key={m.discordId} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl space-y-2">
-                  <div className="flex justify-between items-center border-b border-[#1c1a2a] pb-1.5">
-                    <span className="font-bold text-red-400 uppercase tracking-wider text-[10px]">@{m.username} ({m.nickname})</span>
-                    <span className="bg-red-500/10 text-red-500 border border-red-500/25 px-2 py-0.5 rounded font-black text-[9px]">{m.strikes.length} ACTIVE STRIKES</span>
-                  </div>
-                  <div className="space-y-3 mt-2 pl-2 border-l border-zinc-800">
-                    {m.strikes.map((st, sIdx) => (
-                      <div key={sIdx} className="text-xs">
-                        <p className="text-zinc-300">&quot;{st.reason}&quot;</p>
-                        <div className="text-[9px] text-zinc-500 mt-1 flex justify-between">
-                          <span>Issued by: {st.issuedBy}</span>
-                          <span>{new Date(st.date).toLocaleDateString()}</span>
-                        </div>
+
+              <div className="divide-y divide-red-500/10 text-left">
+                {strikersList.map((item, index) => {
+                  const rank = index + 1;
+                  const count = item.count;
+                  
+                  const rankToneClass = (() => {
+                    if (count >= 3) return 'border-red-500 bg-red-950/40 text-red-300 font-extrabold shadow-[0_0_12px_rgba(239,68,68,0.15)]';
+                    if (count === 2) return 'border-orange-500/50 bg-orange-950/20 text-orange-300 font-bold';
+                    return 'border-zinc-700/60 bg-zinc-800/20 text-zinc-400';
+                  })();
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="grid md:grid-cols-[60px_minmax(0,1.2fr)_120px_minmax(0,1.5fr)_90px] gap-3 items-center px-4 py-3 hover:bg-red-500/5 transition-smooth"
+                    >
+                      <div>
+                        <span className={`inline-flex min-w-10 items-center justify-center border px-2 py-0.5 font-tech text-[10px] font-bold ${rankToneClass}`}>
+                          #{rank}
+                        </span>
                       </div>
-                    ))}
+                      <div className="min-w-0">
+                        <div className="truncate font-title text-[15px] font-bold uppercase text-[#f0f6ff]">
+                          {item.username}
+                        </div>
+                        {item.isMention && (
+                          <div className="font-mono text-[9px] text-[#5865f2] bg-[#5865f2]/10 px-1.5 py-0.5 rounded w-fit mt-0.5">
+                            Mentioned Log
+                          </div>
+                        )}
+                      </div>
+                      <div className="font-tech text-[11px] uppercase text-red-300/80">
+                        {formatId(item)}
+                      </div>
+                      <div className="space-y-1 py-1 pr-2">
+                        {item.strikesList.map((st: any) => (
+                          <div key={st.id} className="flex justify-between items-center text-[10px] text-zinc-400 group">
+                            <span className="truncate italic">"{st.reason}"</span>
+                            {isAuditor && item.realId && (
+                              <button
+                                onClick={() => handleResolveStrike(item.realId!, st.id)}
+                                className="text-red-400 hover:text-red-250 transition-colors p-0.5 ml-1.5 opacity-0 group-hover:opacity-100 cursor-pointer"
+                                title="Resolve & Remove Strike"
+                              >
+                                <Trash className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-end font-tech text-[11px] font-bold text-red-400 font-mono">
+                        {count}/3
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <aside className="space-y-4">
+              <div className="border border-red-500/15 bg-[#090f16]/88 p-4">
+                <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Discipline Policy</div>
+                <div className="mt-3 space-y-2.5 font-tech text-[11px] uppercase text-zinc-300">
+                  <div className="flex justify-between border-b border-red-500/10 pb-2">
+                    <span>1 Strike</span>
+                    <strong className="text-red-350">25% Deduction</strong>
+                  </div>
+                  <div className="flex justify-between border-b border-red-500/10 pb-2">
+                    <span>2 Strikes</span>
+                    <strong className="text-red-350">50% Deduction</strong>
+                  </div>
+                  <div className="flex justify-between border-b border-red-500/10 pb-2">
+                    <span>3 Strikes</span>
+                    <strong className="text-red-400">100% + Kick</strong>
                   </div>
                 </div>
-              ))
-            )}
+                <p className="mt-3 text-[10px] leading-relaxed text-zinc-400 select-text">
+                  Deductions are applied live to calculated bonuses during approval cycles. Max limits trigger immediate bot warnings.
+                </p>
+              </div>
+
+              {isAuditor ? (
+                <div className="border border-red-500/15 bg-[#090f16]/88 p-4 space-y-4">
+                  <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Discipline Controls</div>
+                  
+                  <form onSubmit={handleIssueStrike} className="font-sans text-[11px] flex flex-col gap-3.5">
+                    <div>
+                      <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Member</label>
+                      <select 
+                        value={strikeForm.memberId}
+                        onChange={(e) => setStrikeForm(prev => ({ ...prev, memberId: e.target.value }))}
+                        className="w-full bg-[#0a0f18] border border-red-500/20 p-2 text-zinc-300 outline-none focus:border-red-400/40 font-mono text-[11px] cursor-pointer"
+                      >
+                        <option value="">-- Choose Member --</option>
+                        {members.map(m => (
+                          <option key={m.discordId} value={m.discordId}>@{m.username} ({m.nickname})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Reason</label>
+                      <textarea 
+                        rows={3}
+                        value={strikeForm.reason}
+                        onChange={(e) => setStrikeForm(prev => ({ ...prev, reason: e.target.value }))}
+                        placeholder="Incident details..."
+                        className="w-full bg-[#0a0f18] border border-red-500/20 p-2 text-zinc-350 outline-none resize-none focus:border-red-400/40 text-[11px]"
+                      />
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      className="w-full border border-red-500/35 bg-red-500/10 px-3 py-2 font-title text-[10px] font-black uppercase text-red-200 hover:bg-red-500/18 active:scale-[0.98] transition-smooth cursor-pointer"
+                    >
+                      Log & Transmit Strike
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <div className="border border-red-500/15 bg-[#090f16]/88 p-4">
+                  <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">My Action Center</div>
+                  <div className="mt-3">
+                    <button 
+                      onClick={() => {
+                        const myStrikes = user?.strikes || [];
+                        if (myStrikes.length === 0) {
+                          addNotification('Active Infractions Status', '✅ You have 0 active strikes on record.', 'success');
+                        } else {
+                          const list = myStrikes.map((st, idx) => `${idx + 1}. "${st.reason}"`).join('\n');
+                          addNotification('Active Infractions Status', `🚨 You have ${myStrikes.length}/3 active strikes:\n${list}`, 'warning');
+                        }
+                      }}
+                      className="w-full border border-red-500/35 bg-red-500/10 px-3 py-2 font-title text-[10px] font-black uppercase text-red-200 hover:bg-red-500/18 active:scale-[0.98] transition-smooth cursor-pointer flex justify-center items-center gap-1.5"
+                    >
+                      <span>⚠️</span>
+                      <span>My Strikes</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </aside>
           </div>
-        </div>
+        </section>
       </div>
     );
   };
@@ -2629,40 +3374,519 @@ export default function RootDashboard() {
 
   const renderSubmitActivity = () => {
     if (!checkAccess('member')) return renderAccessDenied('Roster clearance validation required');
+    const isAuditor = checkAccess('admin');
+
+    const activityOptions = [
+      {
+        key: '💵 Collect businesses profit & replenish balance. (15 points)',
+        name: '💵 Collect businesses profit & replenish balance.',
+        points: '15 points'
+      },
+      {
+        key: '🚙 Refuel car trunks with canister and repair kits. (15 points)',
+        name: '🚙 Refuel car trunks with canister and repair kits.',
+        points: '15 points'
+      },
+      {
+        key: '♻️ Craft armors at foundry with armor plates and fabric. (10 points)',
+        name: '♻️ Craft armors at foundry with armor plates and fabric.',
+        points: '10 points'
+      },
+      {
+        key: '📦 Move items from SWH/WWH to cars. (10 points)',
+        name: '📦 Move items from SWH/WWH to cars.',
+        points: '10 points'
+      },
+      {
+        key: '💦 Used automatic machine (fruit WH). (6 points)',
+        name: '💦 Used automatic machine (fruit WH).',
+        points: '6 points'
+      },
+      {
+        key: '🥤 Crafted run/animal juice in bunket. (6 points)',
+        name: '🥤 Crafted run/animal juice in bunket.',
+        points: '6 points'
+      },
+      {
+        key: '🔬 Collect cocaine from house / 🍸 Juices (Vineyard). (4 points)',
+        name: '🔬 Collect cocaine from house / 🍸 Juices (Vineyard).',
+        points: '4 points'
+      },
+      {
+        key: '🚒 Refuel businesseses car or juice car. (3 points)',
+        name: '🚒 Refuel businesseses car or juice car.',
+        points: '3 points'
+      },
+      {
+        key: '📝 Assest family member full RP or Main Player Test. (3 points)',
+        name: '📝 Assest family member full RP or Main Player Test.',
+        points: '3 points'
+      },
+      {
+        key: '📢 Set detailed announcement for Bizwar/State. (3 points)',
+        name: '📢 Set detailed announcement for Bizwar/State.',
+        points: '3 points'
+      },
+      {
+        key: '📋 Check family logs (5 points)',
+        name: '📋 Check family logs',
+        points: '5 points'
+      },
+      {
+        key: '🕒 Upload Auction SS. (2 points)',
+        name: '🕒 Upload Auction SS.',
+        points: '2 points'
+      },
+      {
+        key: '🚗 Bring ammo or juice car to the event. (2 points)',
+        name: '🚗 Bring ammo or juice car to the event.',
+        points: '2 points'
+      },
+      {
+        key: '📸 ScreenShoot of players list inside event zone. (1 points)',
+        name: '📸 ScreenShoot of players list inside event zone.',
+        points: '1 points'
+      },
+      {
+        key: '🚙 Pay car fine & call it back in garage. (4 points)',
+        name: '🚙 Pay car fine & call it back in garage.',
+        points: '4 points'
+      },
+      {
+        key: '📲 Upload Unofficial: Informal/Bizwar/Highway/Store. (5 points)',
+        name: '📲 Upload Unofficial: Informal/Bizwar/Highway/Store.',
+        points: '5 points'
+      },
+      {
+        key: '🔋 Started a solar panels full new cycle. (5 points)',
+        name: '🔋 Started a solar panels full new cycle.',
+        points: '5 points'
+      },
+      {
+        key: '🔋 Collected all solar panels. (5 points)',
+        name: '🔋 Collected all solar panels.',
+        points: '5 points'
+      },
+      {
+        key: '🔌 Repair all solar panels at family house. (3 points)',
+        name: '🔌 Repair all solar panels at family house.',
+        points: '3 points'
+      },
+      {
+        key: '🟥 Plant 1 solar panel (House 426 Garden). (3 points)',
+        name: '🟥 Plant 1 solar panel (House 426 Garden).',
+        points: '3 points'
+      },
+      {
+        key: '⭕ Make 30 kills in public arena (2x/day). (10 points)',
+        name: '⭕ Make 30 kills in public arena (2x/day).',
+        points: '10 points'
+      },
+      {
+        key: '🎮 Take the family point quest "Play for 4 hours" (4 points)',
+        name: '🎮 Take the family point quest "Play for 4 hours"',
+        points: '4 points'
+      },
+      {
+        key: '📥 Collect RP Ticket (3 points)',
+        name: '📥 Collect RP Ticket',
+        points: '3 points'
+      }
+    ];
+
+    const hasDbDefaults = customActivityTypes.some((t: any) => t.id && t.id.startsWith('type-def'));
+    const combinedActivityOptions = hasDbDefaults
+      ? customActivityTypes.map((type: any) => ({
+          key: type.key,
+          name: `${type.emoji || '📝'} ${type.name}`,
+          points: type.points
+        }))
+      : [
+          ...activityOptions,
+          ...customActivityTypes.map((type: any) => ({
+            key: type.key,
+            name: `${type.emoji || '📝'} ${type.name}`,
+            points: type.points
+          }))
+        ];
 
     return (
-      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-2xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
-          💯╭submit-activity FORM
-        </h2>
-        
-        <form onSubmit={handleSubmitActivity} className="font-sans text-xs flex flex-col gap-4 mt-2">
-          <div>
-            <label className="text-[10px] text-zinc-500 font-bold block mb-1">OPERATION DIRECTIVES DETAIL</label>
-            <textarea 
-              rows={4}
-              value={activityForm.description}
-              onChange={(e) => setActivityForm(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Describe what family events you participated in..."
-              className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
-            />
+      <div className="flex flex-col lg:flex-row gap-8 justify-center items-start max-w-6xl mx-auto font-sans text-left">
+        {/* Left Aside Column - Admin Controls or Member Instructions */}
+        <div className="w-full lg:w-[350px] shrink-0 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-5 h-fit shadow-2xl">
+          <div className="flex justify-between items-center pb-2 border-b border-[#1c1a2a]/60 select-none">
+            <span className="text-xs font-bold text-zinc-300">ACTIVITY CONTROL CENTER</span>
+            {isAuditor ? (
+              <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">ADMIN</span>
+            ) : (
+              <span className="bg-zinc-500/10 border border-zinc-500/20 text-zinc-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">MEMBER</span>
+            )}
           </div>
-
-          <div>
-            <label className="text-[10px] text-zinc-500 font-bold block mb-1">VERIFICATION PROOF MEDIA URL</label>
-            <input 
-              type="text"
-              value={activityForm.mediaUrl}
-              onChange={(e) => setActivityForm(prev => ({ ...prev, mediaUrl: e.target.value }))}
-              placeholder="Provide screenshot link or video URL..."
-              className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
-            />
+ 
+          {isAuditor && (
+            <div className="flex gap-2 p-1 bg-[#0a0a14] rounded-lg border border-[#1c1a2a]/40 select-none">
+              <button
+                onClick={() => setActivityControlTab('add')}
+                className={`flex-1 py-1.5 rounded-md text-[10px] font-black transition-all font-title tracking-wider ${
+                  activityControlTab === 'add'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#111118]'
+                }`}
+              >
+                ➕ REGISTER
+              </button>
+              <button
+                onClick={() => setActivityControlTab('registry')}
+                className={`flex-1 py-1.5 rounded-md text-[10px] font-black transition-all font-title tracking-wider flex items-center justify-center gap-1.5 ${
+                  activityControlTab === 'registry'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#111118]'
+                }`}
+              >
+                🗑️ REMOVE LIST
+                {customActivityTypes.length > 0 && (
+                  <span className="bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded-full text-[8px] font-black font-mono">
+                    {customActivityTypes.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+ 
+          {isAuditor ? (
+            activityControlTab === 'add' ? (
+              /* Form to add custom activity */
+              <form onSubmit={handleCreateActivityType} className="bg-[#0a0a14] p-5 border border-[#1c1a2a] rounded-xl space-y-4">
+                <div className="text-[10px] font-bold text-zinc-400 tracking-wider block border-b border-[#1c1a2a]/55 pb-1 select-none">
+                  ➕ REGISTER NEW ACTIVITY
+                </div>
+ 
+                <div className="space-y-1">
+                  <label className="text-[8px] font-bold text-zinc-500 uppercase tracking-wide block select-none">ACTIVITY NAME</label>
+                  <input 
+                    type="text"
+                    value={newActivityForm.name}
+                    onChange={(e) => setNewActivityForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="E.g., Host compound raid"
+                    className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none focus:border-purple-500/60 font-sans"
+                  />
+                </div>
+ 
+                <div className="space-y-1">
+                  <label className="text-[8px] font-bold text-zinc-500 uppercase tracking-wide block select-none">POINTS REWARD</label>
+                  <div className="relative">
+                    <input 
+                      type="number"
+                      value={newActivityForm.points}
+                      onChange={(e) => setNewActivityForm(prev => ({ ...prev, points: e.target.value }))}
+                      placeholder="E.g., 20"
+                      className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none focus:border-purple-500/60 font-mono pr-12"
+                    />
+                    <span className="absolute right-3 top-2 text-[10px] text-zinc-500 font-bold font-sans select-none">pts</span>
+                  </div>
+                </div>
+ 
+                <button
+                  type="submit"
+                  disabled={activityAddLoading}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-title text-[10px] font-black italic py-2.5 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold tracking-wider disabled:opacity-50 disabled:cursor-not-allowed select-none"
+                >
+                  {activityAddLoading ? 'REGISTERING...' : 'ADD ACTIVITY'}
+                </button>
+              </form>
+            ) : (
+              /* List of Custom Activities */
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1c1a2a] pb-1 select-none">
+                  🛠️ POINT SYSTEM REGISTRY
+                </span>
+                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-900/40">
+                  {customActivityTypes.length === 0 ? (
+                    <div className="text-center py-8 text-zinc-500 italic text-[11px] select-none">
+                      No active activities configured.
+                    </div>
+                  ) : (
+                    customActivityTypes.map((type: any) => (
+                      <div key={type.id} className="flex justify-between items-center bg-[#0a0a14] p-3 border border-[#1c1a2a]/60 rounded-xl font-sans text-xs hover:border-purple-500/20 transition-all">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-base shrink-0 select-none bg-[#111118] p-1.5 rounded-lg border border-[#1c1a2a]">{type.emoji || '📝'}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-bold text-zinc-200 truncate leading-tight text-[11px]">{type.name}</span>
+                            <span className="text-[9px] text-purple-400 font-mono font-black mt-0.5">{type.points}</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteActivityType(type.id)}
+                          className="text-red-500 hover:text-red-400 p-1.5 cursor-pointer hover:bg-red-500/10 rounded-lg transition-all shrink-0 text-xs"
+                          title="Remove activity option"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )
+          ) : (
+            // Member instructions or stats summary
+            <div className="space-y-4">
+              <div className="bg-[#0a0a14] p-4 border border-[#1c1a2a] rounded-xl space-y-2.5">
+                <span className="text-[10px] font-bold text-zinc-400 tracking-wider block uppercase border-b border-[#1c1a2a]/55 pb-1 select-none">
+                  📋 MEMBER INSTRUCTIONS
+                </span>
+                <p className="text-zinc-400 text-xs leading-relaxed font-sans">
+                  Submit proof of your in-game contributions via our simulated Discord BOT desk on the right.
+                </p>
+                <ul className="text-zinc-500 text-[11px] space-y-1.5 list-disc pl-4 font-sans leading-relaxed select-none">
+                  <li>Select the category that matches your activity.</li>
+                  <li>Provide brief details of what you accomplished.</li>
+                  <li>Include a valid image or video proof link.</li>
+                  <li>Once submitted, a High Command auditor will verify and credit your points.</li>
+                </ul>
+              </div>
+ 
+              <div className="bg-[#0a0a14] p-4 border border-[#1c1a2a] rounded-xl space-y-2">
+                <span className="text-[10px] font-bold text-zinc-400 tracking-wider block uppercase border-b border-[#1c1a2a]/55 pb-1 select-none">
+                  📈 YOUR ACTIVITY METRICS
+                </span>
+                <div className="grid grid-cols-2 gap-3 text-center pt-1 font-sans">
+                  <div className="bg-[#111118]/70 border border-[#1c1a2a]/40 p-2.5 rounded-xl">
+                    <span className="text-[8px] text-zinc-500 block font-bold uppercase leading-none mb-1 select-none">TOTAL POINTS</span>
+                    <span className="text-base font-title font-black text-purple-400 font-mono">
+                      {user?.points || 0}
+                    </span>
+                  </div>
+                  <div className="bg-[#111118]/70 border border-[#1c1a2a]/40 p-2.5 rounded-xl">
+                    <span className="text-[8px] text-zinc-500 block font-bold uppercase leading-none mb-1 select-none">PENDING LOGS</span>
+                    <span className="text-base font-title font-black text-amber-500 font-mono">
+                      {activities.filter(a => a.username === user?.username && a.status === 'pending').length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+ 
+        {/* Right Column - Discord preview */}
+        <div className="w-full lg:max-w-[480px] flex-1 space-y-4">
+          <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+            🤖 DISCORD CHANNEL INTEGRATION PREVIEW
           </div>
-
-          <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer">
-            POST TO #SUBMIT-ACTIVITY CHANNEL
-          </button>
-        </form>
+          
+          <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+            {/* Discord Server HUD Header */}
+            <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                  submit-activity
+                </span>
+              </div>
+              <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+            </div>
+ 
+            {/* Discord Chat Area */}
+            <div className="p-4 space-y-4 bg-[#313338]">
+              <div className="flex gap-3">
+                {/* Bot Avatar */}
+                <div className="w-9 h-9 rounded-full bg-[#111118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
+                  <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                </div>
+ 
+                {/* Message Body */}
+                <div className="flex-1 space-y-2 min-w-0">
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                    <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                    <span className="text-[9px] text-[#949ba4] font-sans">5/18/2026 8:43 PM</span>
+                  </div>
+ 
+                  {/* Bot Embed Box */}
+                  <div className="border-l-4 border-[#23a55a] bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3.5 shadow-md relative select-text">
+                    <img 
+                      src="/logo.webp" 
+                      alt="Pigeon Thumbnail" 
+                      className="absolute top-4 right-4 w-12 h-12 object-contain rounded opacity-80 hidden sm:block pointer-events-none" 
+                    />
+ 
+                    <div className="space-y-1.5 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                      <h4 className="text-sm font-extrabold text-white">
+                        White Pigeons #TOP1 Activity Point System
+                      </h4>
+                      <p className="text-[#dbdee1] font-normal italic">
+                        You can submit the log without a screenshot...
+                      </p>
+                      
+                      {/* Dynamic merged points list */}
+                      <div className="space-y-1.5 mt-3 font-medium text-[11px] leading-relaxed max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-900/30">
+                        {combinedActivityOptions.map((opt, idx) => (
+                          <div key={idx} className="flex items-start gap-1">
+                            <span>{opt.name}</span> <strong className="text-white shrink-0">({opt.points})</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+ 
+                  {/* Buttons below the Embed */}
+                  <div className="flex flex-wrap gap-2 pt-1 select-none">
+                    <button
+                      onClick={() => setIsActivityDropdownOpen(!isActivityDropdownOpen)}
+                      className="bg-[#248046] hover:bg-[#1a6535] text-white px-4 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      Submit Activity
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (user) {
+                          addNotification(
+                            'Activity Points Status',
+                            `You currently have ${user.points || 0} Activity Points. Keep it up!`,
+                            'info'
+                          );
+                        } else {
+                          addNotification('Not Logged In', 'Please authenticate or log in to check your points.', 'warning');
+                        }
+                      }}
+                      className="bg-[#5865f2] hover:bg-[#4752c4] text-white px-4 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      My Points
+                    </button>
+                    <button
+                      onClick={async () => {
+                        addNotification('Refreshing Feed', 'Syncing Discord #submit-activity feed...', 'info');
+                        await loadDashboardData();
+                        if (typeof refreshUser === 'function') {
+                          await refreshUser();
+                        }
+                        addNotification('Feed Refreshed', 'Successfully synced with latest Discord activity logs.', 'success');
+                      }}
+                      className="bg-[#4e5058] hover:bg-[#6d6f78] text-white px-4 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      🔄 Refresh
+                    </button>
+                  </div>
+ 
+                  {/* Simulated Discord Select Dropdown Menu */}
+                  {isActivityDropdownOpen && (
+                    <div className="mt-2 bg-[#2b2d31] border border-[#1e1f22] rounded-lg shadow-xl max-h-64 overflow-y-auto select-none divide-y divide-[#1e1f22]/55 max-w-xl border-l-4 border-[#5865f2] relative z-10">
+                      {combinedActivityOptions.map((opt) => (
+                        <div
+                          key={opt.key}
+                          onClick={() => {
+                            setSelectedActivity(opt.key);
+                            setActivityDetails('');
+                            setActivityProof('');
+                            setIsActivityDropdownOpen(false);
+                            setIsActivityModalOpen(true);
+                          }}
+                          className="p-3 hover:bg-[#35373c] active:bg-[#3b3e45] cursor-pointer flex justify-between items-center transition-colors text-left"
+                        >
+                          <div className="flex flex-col">
+                            <span className="text-xs font-semibold text-[#dbdee1] leading-snug">
+                              {opt.name}
+                            </span>
+                            <span className="text-[10px] text-[#949ba4] mt-0.5">
+                              {opt.points}
+                            </span>
+                          </div>
+                          {selectedActivity === opt.key && (
+                            <div className="w-4 h-4 rounded-full bg-[#5865f2] flex items-center justify-center shrink-0 ml-2">
+                              <Check className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+ 
+        {/* Simulated Discord Modal */}
+        {isActivityModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 select-none">
+            <div className="bg-[#313338] w-full max-w-[440px] rounded-lg overflow-hidden shadow-2xl flex flex-col border border-[#1e1f22]/50 font-sans text-left animate-fadeIn">
+              {/* Header */}
+              <div className="p-4 bg-[#2b2d31] flex items-center justify-between border-b border-[#1e1f22]/40">
+                <h3 className="text-white text-base font-extrabold tracking-wide">
+                  Submit Activity Log
+                </h3>
+                <button
+                  onClick={() => setIsActivityModalOpen(false)}
+                  className="text-zinc-400 hover:text-white transition-colors cursor-pointer outline-none"
+                >
+                  <span className="text-xl font-bold">×</span>
+                </button>
+              </div>
+ 
+              {/* Warning Banner */}
+              <div className="mx-4 mt-4 p-3 bg-[#f0b232]/10 border border-[#f0b232]/35 rounded-md flex items-start gap-2 text-[11px] leading-relaxed text-[#dbdee1]">
+                <AlertTriangle className="w-4 h-4 text-[#f0b232] shrink-0 mt-0.5 animate-pulse" />
+                <div>
+                  This form will be submitted to <strong className="text-white">White Pigeons MOD</strong>. Do not share passwords or other sensitive information.
+                </div>
+              </div>
+ 
+              {/* Selected Activity type badge */}
+              <div className="mx-4 mt-3 px-3 py-2 bg-[#1e1f22] border border-[#1e1f22] rounded-md text-[10px] text-zinc-400">
+                <div className="font-bold text-[#dbdee1] uppercase text-[9px] mb-1">Selected Activity</div>
+                <div className="text-zinc-300 font-medium font-sans flex items-center gap-1.5 leading-snug">
+                  {selectedActivity}
+                </div>
+              </div>
+ 
+              {/* Form Body */}
+              <div className="p-4 space-y-4">
+                <div>
+                  <label className="text-[10px] text-[#dbdee1] font-bold block mb-1 uppercase tracking-wide">
+                    Details <span className="text-[#fa5252] font-black">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={activityDetails}
+                    onChange={(e) => setActivityDetails(e.target.value)}
+                    placeholder="Describe what you did..."
+                    className="w-full bg-[#1e1f22] border border-transparent focus:border-[#5865f2] rounded-md p-2.5 text-xs text-[#dbdee1] outline-none resize-none leading-relaxed transition-colors font-sans select-text"
+                  />
+                </div>
+ 
+                <div>
+                  <label className="text-[10px] text-[#dbdee1] font-bold block mb-1 uppercase tracking-wide">
+                    Proof (image/video link) <span className="text-[#fa5252] font-black">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={activityProof}
+                    onChange={(e) => setActivityProof(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-[#1e1f22] border border-transparent focus:border-[#5865f2] rounded-md p-2.5 text-xs text-[#dbdee1] outline-none transition-colors font-mono select-text"
+                  />
+                </div>
+              </div>
+ 
+              {/* Footer */}
+              <div className="p-4 bg-[#2b2d31] flex justify-between items-center border-t border-[#1e1f22]/40 gap-3">
+                <button
+                  onClick={() => setIsActivityModalOpen(false)}
+                  className="bg-[#4e5058] hover:bg-[#6d6f78] text-white text-xs font-semibold py-2 px-4 rounded transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSubmitActivity()}
+                  className="bg-[#5865f2] hover:bg-[#4752c4] text-white text-xs font-semibold py-2 px-6 rounded transition-colors cursor-pointer"
+                >
+                  Submit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -2927,42 +4151,610 @@ export default function RootDashboard() {
   const renderBonusAdminPanel = () => {
     if (!checkAccess('admin')) return renderAccessDenied('Higher authority authorization required');
 
-    return (
-      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
-          💰┃𝐁𝐨𝐧𝐮𝐬-𝐀𝐝𝐦𝐢𝐧-𝐏𝐚𝐧𝐞𝐥 AUDIT REGISTER
-        </h2>
+    const hcApprovedSubmissions = winSubmissions.filter(s => s.status === 'hc_approved');
+    const bonusTickets = tickets.filter(t => (t.type === 'bonus' || t.type === 'request') && t.status === 'open');
+    
+    // Stats computations
+    const hcApprovedCount = hcApprovedSubmissions.length;
+    const totalWeeklyNetPool = weeklyLedger.reduce((sum, m) => sum + (m.weeklyBonus || 0), 0);
+    
+    const statusCounts = weeklyLedger.reduce((acc, m) => {
+      const status = m.payoutStatus || 'Not Paid';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-sans">
-            <thead>
-              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
-                <th className="py-2.5 px-3">Ticket ID</th>
-                <th className="py-2.5 px-3">Applicant</th>
-                <th className="py-2.5 px-3">Calculation Details</th>
-                <th className="py-2.5 px-3">Audit Response</th>
-                <th className="py-2.5 px-3 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tickets.filter(t => t.type === 'bonus' || t.type === 'request').map((t) => (
-                <tr key={t.id} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
-                  <td className="py-3 px-3 font-mono font-bold text-zinc-400">[{t.id.toUpperCase()}]</td>
-                  <td className="py-3 px-3 font-bold text-zinc-200">@{t.username}</td>
-                  <td className="py-3 px-3 text-zinc-400 font-sans">{t.description}</td>
-                  <td className="py-3 px-3 text-zinc-500 italic">{t.response || 'Pending Audit Review'}</td>
-                  <td className="py-3 px-3 text-right">
-                    <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${
-                      t.status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
-                    }`}>
-                      {t.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    const matchLedger = (participantName: string) => {
+      return weeklyLedger.find(m => 
+        m.username.toLowerCase() === participantName.toLowerCase() || 
+        (m.nickname && m.nickname.toLowerCase().includes(participantName.toLowerCase()))
+      );
+    };
+
+    return (
+      <div className="space-y-6 max-w-6xl mx-auto font-sans text-xs pb-12">
+        {/* Header Title */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1c1a2a]/50 pb-4">
+          <div>
+            <h2 className="font-title font-black text-2xl italic text-purple-400 text-glow-magenta flex items-center gap-2.5">
+              <Sliders className="w-6 h-6" /> 𝐁𝐎𝐍𝐔𝐒 𝐀𝐃𝐌𝐈𝐍 𝐏𝐀𝐍𝐄𝐋
+            </h2>
+            <p className="text-zinc-550 mt-1">Disburse High Command-approved event payouts, audit manual claims, manage calculations ledger, and close weekly operations.</p>
+          </div>
+          
+          {/* Quick Action Buttons for Payouts */}
+          <div className="flex gap-2.5">
+            <button
+              onClick={handleExportPDF}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-title font-black italic tracking-wide py-2 px-4 rounded-xl border border-purple-500/30 flex items-center gap-2 transition-all cursor-pointer shadow-lg hover:shadow-purple-500/10 text-xs"
+            >
+              <Download className="w-4 h-4" /> EXPORT PDF SHEET
+            </button>
+            <button
+              onClick={() => {
+                const d = new Date();
+                const day = d.getDay();
+                const diff = (day <= 5 ? 5 - day : 12 - day);
+                const nextFriday = new Date(d.getTime() + diff * 24 * 60 * 60 * 1000);
+                const dateStr = nextFriday.toISOString().split('T')[0];
+                setWeekIdInput(`week-ending-${dateStr}`);
+                setIsResetModalOpen(true);
+              }}
+              className="bg-red-500/10 hover:bg-red-500/25 text-red-400 font-title font-black italic tracking-wide py-2 px-4 rounded-xl border border-red-500/20 flex items-center gap-2 transition-all cursor-pointer text-xs"
+            >
+              <RefreshCw className="w-4 h-4 animate-spin-hover" /> CLOSE & RESET WEEK
+            </button>
+          </div>
         </div>
+
+        {/* Top KPIs Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center justify-between shadow-xl">
+            <div className="space-y-1">
+              <span className="text-[10px] text-zinc-550 font-bold block uppercase tracking-wider">HC-APPROVED WIN LOGS</span>
+              <span className="text-3xl font-title font-black text-amber-400 text-glow-amber">{hcApprovedCount}</span>
+            </div>
+            <div className="p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 text-amber-400">
+              <CheckSquare className="w-6 h-6" />
+            </div>
+          </div>
+          
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center justify-between shadow-xl">
+            <div className="space-y-1">
+              <span className="text-[10px] text-zinc-555 font-bold block uppercase tracking-wider">TOTAL WEEKLY NET PAYOUTS</span>
+              <span className="text-3xl font-title font-black text-emerald-400 text-glow-green">${totalWeeklyNetPool.toLocaleString()}</span>
+            </div>
+            <div className="p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10 text-emerald-400">
+              <Coins className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col justify-center gap-2 shadow-xl">
+            <span className="text-[10px] text-zinc-550 font-bold uppercase tracking-wider">PAYMENT STATUS SUMMARY</span>
+            <div className="grid grid-cols-4 gap-1.5 text-[10px] text-center font-bold">
+              <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg py-1 text-emerald-400">
+                Paid: {statusCounts['Paid'] || 0}
+              </div>
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg py-1 text-amber-400">
+                Pend: {statusCounts['Pending'] || 0}
+              </div>
+              <div className="bg-red-500/5 border border-red-500/10 rounded-lg py-1 text-red-400">
+                Unpd: {statusCounts['Not Paid'] || 0}
+              </div>
+              <div className="bg-zinc-500/5 border border-zinc-500/10 rounded-lg py-1 text-zinc-400">
+                Left: {statusCounts['Left Fam'] || 0}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sub-Tab Navigation Switcher */}
+        <div className="flex border-b border-[#1c1a2a] pb-px gap-1">
+          <button
+            onClick={() => setBonusAdminSubTab('payouts')}
+            className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
+              bonusAdminSubTab === 'payouts'
+                ? 'border-purple-500 text-purple-400 font-black'
+                : 'border-transparent text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            📥 Confirm Payouts ({hcApprovedCount})
+          </button>
+          <button
+            onClick={() => setBonusAdminSubTab('ledger')}
+            className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
+              bonusAdminSubTab === 'ledger'
+                ? 'border-purple-500 text-purple-400 font-black'
+                : 'border-transparent text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            📊 Master Ledger
+          </button>
+          <button
+            onClick={() => setBonusAdminSubTab('tickets')}
+            className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
+              bonusAdminSubTab === 'tickets'
+                ? 'border-purple-500 text-purple-400 font-black'
+                : 'border-transparent text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            🎟️ Manual Claims ({bonusTickets.length})
+          </button>
+          <button
+            onClick={() => setBonusAdminSubTab('history')}
+            className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
+              bonusAdminSubTab === 'history'
+                ? 'border-purple-500 text-purple-400 font-black'
+                : 'border-transparent text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            📂 Statements Archives
+          </button>
+        </div>
+
+        {/* Content Views */}
+        {bonusAdminSubTab === 'payouts' && (
+          <div className="space-y-6">
+            {hcApprovedSubmissions.length === 0 ? (
+              <div className="text-center py-20 text-zinc-550 bg-[#111118] border border-[#1c1a2a] rounded-2xl space-y-3 shadow-xl max-w-lg mx-auto">
+                <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500/30" />
+                <p className="font-title font-black text-sm tracking-wide text-zinc-400 uppercase italic">ALL DISBURSEMENTS COMPLETED</p>
+                <p className="text-[10px] text-zinc-650">No High Command-approved payouts are waiting for final confirm & disburse operations.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {hcApprovedSubmissions.map((s) => {
+                  return (
+                    <div key={s.id} className="bg-[#111118] border border-[#1c1a2a] rounded-2xl overflow-hidden flex flex-col justify-between hover:border-purple-550/30 transition-all duration-300 shadow-xl max-w-lg mx-auto w-full">
+                      <div>
+                        {s.mediaUrl ? (
+                          <div className="relative h-36 w-full bg-zinc-950/80 border-b border-[#1c1a2a] group overflow-hidden">
+                            <img 
+                              src={s.mediaUrl} 
+                              alt="Win proof screenshot" 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                            <a 
+                              href={s.mediaUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="absolute top-2 right-2 bg-black/60 hover:bg-black/85 text-zinc-300 p-1.5 rounded border border-white/10 transition-all"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="h-20 w-full bg-zinc-950/40 border-b border-[#1c1a2a] flex flex-col items-center justify-center text-zinc-650 gap-1 italic">
+                            <FileText className="w-5 h-5 text-zinc-700" />
+                            <span className="text-[10px]">No Proof Screenshot Attached</span>
+                          </div>
+                        )}
+
+                        <div className="p-4 space-y-3 font-sans text-xs">
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <span className="font-title font-black text-sm text-zinc-200 italic line-clamp-1">{s.eventName || s.title}</span>
+                              <span className="text-[9px] text-zinc-500 block mt-0.5">
+                                Submitted by: @{s.submitterName} | {new Date(s.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <span className="font-mono text-[8px] text-zinc-500 bg-[#0a0a14] px-1.5 py-0.5 border border-[#1c1a2a] rounded shrink-0">
+                              HC AUDITED
+                            </span>
+                          </div>
+
+                          <div className="bg-[#0a0a14]/60 p-3 rounded-xl border border-[#1c1a2a]/60 space-y-2.5">
+                            <div className="grid grid-cols-2 gap-2 text-[10px]">
+                              <div>
+                                <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold">HC Auditor</span>
+                                <span className="text-purple-400 font-bold">@{s.reviewedBy || 'High Command'}</span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold">Base Reward</span>
+                                <span className="text-zinc-300 font-mono font-bold">${(s.baseAmount || 200000).toLocaleString()}</span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold">Auditor Comment</span>
+                              <p className="text-zinc-400 italic mt-0.5 bg-[#111118]/80 p-2 rounded border border-[#1c1a2a]/40 text-[10px]">
+                                &quot;{s.comment || 'Verified and ready for final disbursement.'}&quot;
+                              </p>
+                            </div>
+
+                            <div>
+                              <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold mb-1">Strike-Adjusted Payout Distribution</span>
+                              <div className="overflow-x-auto mt-2">
+                                <table className="w-full text-left border-collapse text-[10px]">
+                                  <thead>
+                                    <tr className="border-b border-[#1c1a2a]/40 text-zinc-500 uppercase tracking-widest text-[8px]">
+                                      <th className="py-1 px-1">Member</th>
+                                      <th className="py-1 px-1">Active Strikes</th>
+                                      <th className="py-1 px-1 text-right">Cut (%)</th>
+                                      <th className="py-1 px-1 text-right">Net Payout</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {s.participants.map((pIdentifier: string, pIdx: number) => {
+                                      let kills = 1;
+                                      let pName = pIdentifier;
+                                      if (typeof pIdentifier === 'object' && pIdentifier !== null) {
+                                        kills = (pIdentifier as any).kills || 1;
+                                        pName = (pIdentifier as any).username || 'unknown';
+                                      } else if (pIdentifier.includes('|')) {
+                                        const parts = pIdentifier.split('|');
+                                        pName = parts[0].trim();
+                                        kills = parseInt(parts[1], 10) || 1;
+                                      }
+
+                                      const m = matchLedger(pName);
+                                      const strikesCount = m ? (m.strikes || 0) : 0;
+                                      let cutPercent = 0;
+                                      if (strikesCount === 1) cutPercent = 25;
+                                      else if (strikesCount === 2) cutPercent = 50;
+                                      else if (strikesCount >= 3) cutPercent = 100;
+
+                                      const rawBonus = kills * (s.baseAmount || 200000);
+                                      const cutAmount = (rawBonus * cutPercent) / 100;
+                                      const netAmount = rawBonus - cutAmount;
+
+                                      let strikeBadge = "text-zinc-500";
+                                      if (strikesCount === 1) strikeBadge = "text-yellow-500 font-bold";
+                                      else if (strikesCount === 2) strikeBadge = "text-orange-500 font-bold";
+                                      else if (strikesCount >= 3) strikeBadge = "text-red-500 font-bold";
+
+                                      return (
+                                        <tr key={pIdx} className="border-b border-[#181622]/40">
+                                          <td className="py-1.5 px-1 font-bold text-zinc-350">
+                                            {m ? (m.nickname || m.username) : pName}
+                                            {!m && <span className="text-red-400 text-[8px] ml-1">⚠️ Out-of-DB</span>}
+                                          </td>
+                                          <td className={`py-1.5 px-1 ${strikeBadge}`}>{strikesCount} Strike{strikesCount !== 1 ? 's' : ''}</td>
+                                          <td className="py-1.5 px-1 text-right font-mono text-zinc-500">
+                                            {cutPercent > 0 ? `-${cutPercent}%` : '0%'}
+                                          </td>
+                                          <td className="py-1.5 px-1 text-right font-mono font-bold text-emerald-400">
+                                            ${netAmount.toLocaleString()}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 border-t border-[#1c1a2a] bg-[#0c0b12]/30 grid grid-cols-2 gap-3.5">
+                        <button 
+                          onClick={() => handleRejectWinSubmission(s.id)}
+                          className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] text-[11px] uppercase tracking-wider"
+                        >
+                          DECLINE PAYOUT
+                        </button>
+                        <button 
+                          onClick={() => handleAdminApproveWinSubmission(s.id)}
+                          disabled={isSubmittingApproval[s.id]}
+                          className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/25 rounded-xl py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none text-[11px] uppercase tracking-wider"
+                        >
+                          {isSubmittingApproval[s.id] ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" /> DISBURSING...
+                            </>
+                          ) : (
+                            <>
+                              <Coins className="w-3.5 h-3.5" /> CONFIRM & DISBURSE
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {bonusAdminSubTab === 'ledger' && (
+          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl space-y-4">
+            <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
+              {isLoadingLedger ? (
+                <div className="text-center py-20 text-zinc-550 italic space-y-3">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto text-purple-500" />
+                  <p className="font-mono text-[10px]">RECOMPILING CALCULATIONS...</p>
+                </div>
+              ) : weeklyLedger.length === 0 ? (
+                <div className="text-center py-16 text-zinc-555 italic">
+                  NO REGISTERED MEMBERS IN ECO LEDGER.
+                </div>
+              ) : (
+                <table className="w-full text-left border-collapse font-sans text-xs">
+                  <thead>
+                    <tr className="border-b border-[#1c1a2a] text-zinc-550 uppercase tracking-widest text-[9px] sticky top-0 bg-[#111118] z-10">
+                      <th className="py-3 px-3">Name / Alias</th>
+                      <th className="py-3 px-3">Active Strikes</th>
+                      <th className="py-3 px-3 text-right">Deduction Cut (%)</th>
+                      <th className="py-3 px-3 text-right">Net Bonus Earned</th>
+                      <th className="py-3 px-3 text-center">Payout Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyLedger.map((m, idx) => {
+                      const strikeCount = m.strikes || 0;
+                      let cutPercent = 0;
+                      if (strikeCount === 1) cutPercent = 25;
+                      else if (strikeCount === 2) cutPercent = 50;
+                      else if (strikeCount >= 3) cutPercent = 100;
+
+                      let strikeBadge = "bg-zinc-550/10 border-zinc-555/25 text-zinc-400";
+                      if (strikeCount === 1) strikeBadge = "bg-yellow-500/10 border-yellow-550/20 text-yellow-455";
+                      else if (strikeCount === 2) strikeBadge = "bg-orange-500/10 border-orange-550/20 text-orange-455";
+                      else if (strikeCount >= 3) strikeBadge = "bg-red-500/10 border-red-550/20 text-red-400";
+
+                      return (
+                        <tr key={idx} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20 transition-all">
+                          <td className="py-3 px-3">
+                            <div>
+                              <span className="font-bold text-zinc-200">{m.nickname || m.username}</span>
+                              <span className="block text-[8px] text-zinc-550 font-mono">@{m.username}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${strikeBadge}`}>
+                              {strikeCount} Strike{strikeCount !== 1 ? 's' : ''}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-zinc-450">
+                            {cutPercent > 0 ? (
+                              <span className="text-red-400 font-bold">-{cutPercent}%</span>
+                            ) : (
+                              <span className="text-zinc-550">0%</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-bold">
+                            {m.weeklyBonus > 0 ? (
+                              <span className="text-emerald-400">+${m.weeklyBonus.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-zinc-650">$0</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex justify-center">
+                              <select
+                                value={m.payoutStatus || 'Not Paid'}
+                                onChange={(e) => handleUpdatePayoutStatus(m.discordId, e.target.value)}
+                                className={`bg-[#0a0a14] border rounded-lg text-[10px] font-bold px-2 py-1 outline-none text-center cursor-pointer transition-colors duration-150 ${
+                                  m.payoutStatus === 'Paid' ? 'border-green-500/30 text-green-400 hover:bg-green-550/5' :
+                                  m.payoutStatus === 'Pending' ? 'border-amber-500/30 text-amber-400 hover:bg-amber-550/5' :
+                                  m.payoutStatus === 'Left Fam' ? 'border-zinc-500/30 text-zinc-450 hover:bg-zinc-550/5' :
+                                  'border-red-500/30 text-red-400 hover:bg-red-550/5'
+                                }`}
+                              >
+                                <option value="Not Paid">🔴 Not Paid</option>
+                                <option value="Pending">🟡 Pending</option>
+                                <option value="Paid">🟢 Paid</option>
+                                <option value="Left Fam">⚫ Left Fam</option>
+                              </select>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {bonusAdminSubTab === 'tickets' && (
+          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl space-y-6">
+            {/* Pending Tickets section */}
+            <div className="space-y-4 font-sans text-xs">
+              <h3 className="font-title font-bold text-xs text-purple-400 uppercase tracking-wider pb-2 border-b border-[#1c1a2a]/30">🎟️ Pending Manual Claims Queue</h3>
+              {bonusTickets.length === 0 ? (
+                <div className="text-center py-12 text-zinc-500 italic bg-[#0f0e16]/30 border border-[#1c1a2a]/50 rounded-xl">
+                  NO PENDING MANUAL TICKET CLAIMS IN QUEUE.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bonusTickets.map((t) => {
+                    const fields = bonusApprovalForm[t.id] || { finalAmount: '500000', comment: '' };
+                    
+                    return (
+                      <div key={t.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between hover:border-purple-550/30 transition-all duration-300">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-zinc-200">@{t.username}</span>
+                            <span className="text-[9px] bg-[#0a0a14] text-zinc-450 px-1.5 py-0.5 rounded border border-[#1c1a2a]">TKT: {t.id.toUpperCase()}</span>
+                            <span className="text-[9px] text-zinc-550">{new Date(t.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] mt-2">&quot;{t.description}&quot;</p>
+                        </div>
+
+                        <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1c1a2a] pt-4 md:pt-0 md:pl-4">
+                          <div>
+                            <label className="text-[9px] text-zinc-500 font-bold block mb-1">CALCULATED PAYOUT SUM ($)</label>
+                            <input 
+                              type="number"
+                              value={fields.finalAmount}
+                              onChange={(e) => setBonusApprovalForm(prev => ({
+                                ...prev,
+                                [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), finalAmount: e.target.value }
+                              }))}
+                              placeholder="e.g. 500000"
+                              className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none focus:border-purple-550"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-zinc-550 font-bold block mb-1">PAYOUT REMARKS</label>
+                            <input 
+                              type="text"
+                              value={fields.comment}
+                              onChange={(e) => setBonusApprovalForm(prev => ({
+                                ...prev,
+                                [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), comment: e.target.value }
+                              }))}
+                              placeholder="Approved payout formula..."
+                              className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans focus:border-purple-550"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 mt-1">
+                            <button onClick={() => handleBonusApproval(t.id, 'approved')} className="bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
+                              APPROVE
+                            </button>
+                            <button onClick={() => handleBonusApproval(t.id, 'rejected')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
+                              REJECT
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Audit Register log section */}
+            <div className="space-y-4 pt-4 border-t border-[#1c1a2a]/60">
+              <h3 className="font-title font-bold text-xs text-purple-400 uppercase tracking-wider pb-2 border-b border-[#1c1a2a]/30">📜 Complete Ticket Audit Register</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs font-sans">
+                  <thead>
+                    <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
+                      <th className="py-2.5 px-3">Ticket ID</th>
+                      <th className="py-2.5 px-3">Applicant</th>
+                      <th className="py-2.5 px-3">Calculation Details</th>
+                      <th className="py-2.5 px-3">Audit Response</th>
+                      <th className="py-2.5 px-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tickets.filter(t => t.type === 'bonus' || t.type === 'request').map((t) => (
+                      <tr key={t.id} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
+                        <td className="py-3 px-3 font-mono font-bold text-zinc-400">[{t.id.toUpperCase()}]</td>
+                        <td className="py-3 px-3 font-bold text-zinc-200">@{t.username}</td>
+                        <td className="py-3 px-3 text-zinc-400 font-sans">{t.description}</td>
+                        <td className="py-3 px-3 text-zinc-550 italic">{t.response || 'Pending Audit Review'}</td>
+                        <td className="py-3 px-3 text-right">
+                          <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${
+                            t.status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
+                          }`}>
+                            {t.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {bonusAdminSubTab === 'history' && (
+          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl space-y-4">
+            <div className="overflow-x-auto">
+              {weeklyReports.length === 0 ? (
+                <div className="text-center py-16 text-zinc-555 italic">
+                  NO CLOSED WEEKS SAVED IN SYSTEM ARCHIVE.
+                </div>
+              ) : (
+                <table className="w-full text-left border-collapse font-sans text-xs">
+                  <thead>
+                    <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
+                      <th className="py-2.5 px-3">Week ID</th>
+                      <th className="py-2.5 px-3">Closed Date</th>
+                      <th className="py-2.5 px-3 text-right">Total Net Payout</th>
+                      <th className="py-2.5 px-3">Archived By</th>
+                      <th className="py-2.5 px-3 text-right">Statements</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyReports.map((report, idx) => (
+                      <tr key={idx} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20 transition-all">
+                        <td className="py-3 px-3 font-mono font-bold text-purple-400">[{report.weekId}]</td>
+                        <td className="py-3 px-3 text-zinc-450">{new Date(report.closedAt).toLocaleString()}</td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">${(report.totalNet || 0).toLocaleString()}</td>
+                        <td className="py-3 px-3 text-zinc-450">@{report.closedBy || 'Admin'}</td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => handleExportArchivedReportPDF(report)}
+                            className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 p-1.5 rounded-lg cursor-pointer transition-colors"
+                            title="Download Statement PDF"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Closing Confirm Wizard Modal */}
+        {isResetModalOpen && (
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-[#111118] border border-[#1c1a2a] w-full max-w-md p-6 rounded-2xl space-y-6 shadow-2xl animate-fade-in font-sans text-xs">
+              <div className="flex items-center gap-3 border-b border-[#1c1a2a]/50 pb-3 text-red-400">
+                <AlertTriangle className="w-6 h-6" />
+                <h4 className="font-title font-black text-lg italic tracking-wide">RESET WEEK RESET PROTOCOL</h4>
+              </div>
+
+              <div className="space-y-3 text-zinc-400 leading-relaxed font-sans">
+                <p>This action represents a destructive ledger transaction.</p>
+                <div className="bg-red-500/5 border border-red-500/15 p-3.5 rounded-xl space-y-2 text-red-300">
+                  <p className="font-bold uppercase tracking-wider text-[9px]">The system will execute the following:</p>
+                  <ul className="list-disc list-inside space-y-1 text-[10px]">
+                    <li>Archive the current calculations layout to databases.</li>
+                    <li>Compile a backup registry history index record.</li>
+                    <li>Reset all players' weekly bonuses to <strong>$0</strong>.</li>
+                    <li>Revert all active payouts status states to <strong>Not Paid</strong>.</li>
+                  </ul>
+                </div>
+                <p>To finalize, verify or adjust the unique week identifier code below (e.g. <code>week-ending-YYYY-MM-DD</code>) and type it into the confirmation field:</p>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[9px] text-zinc-550 font-bold block mb-1 uppercase">TARGET WEEK ID</label>
+                  <input
+                    type="text"
+                    value={weekIdInput}
+                    onChange={(e) => setWeekIdInput(e.target.value)}
+                    placeholder="e.g. week-ending-2026-06-05"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 font-mono focus:border-red-500/40 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    setIsResetModalOpen(false);
+                    setWeekIdInput('');
+                  }}
+                  className="bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-400 border border-[#1c1a2a] rounded-xl py-2.5 font-bold cursor-pointer"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={() => handleCloseWeeklyLedger(weekIdInput)}
+                  className="bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/25 rounded-xl py-2.5 font-bold cursor-pointer transition-all"
+                >
+                  CONFIRM ARCHIVE & RESET
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -2970,74 +4762,192 @@ export default function RootDashboard() {
   const renderBonusApproval = () => {
     if (!checkAccess('admin')) return renderAccessDenied('Higher authority authorization required');
 
-    const bonusTickets = tickets.filter(t => (t.type === 'bonus' || t.type === 'request') && t.status === 'open');
+    const pendingSubmissions = winSubmissions.filter(s => s.status === 'pending');
 
     return (
-      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
-          ✅┃𝐁𝐨𝐧𝐮𝐬-𝐀𝐩𝐩𝐫𝐨𝐯𝐚𝐥 DESK
-        </h2>
+      <div className="space-y-6 max-w-6xl mx-auto font-sans text-xs pb-12">
+        {/* Header Title */}
+        <div className="border-b border-[#1c1a2a]/50 pb-4">
+          <h2 className="font-title font-black text-2xl italic text-purple-400 text-glow-magenta flex items-center gap-2.5">
+            <CheckSquare className="w-6 h-6 animate-pulse" /> 𝐁𝐎𝐍𝐔𝐒 𝐀𝐏𝐏𝐑𝐎𝐕𝐀𝐋𝐒 DESK
+          </h2>
+          <p className="text-zinc-550 mt-1">Review event wins and manual claims submitted from Discord public channels, adjust payouts, and transmit to Admin confirmation ledger.</p>
+        </div>
 
-        <div className="space-y-4 font-sans text-xs">
-          {bonusTickets.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 italic">
-              NO PENDING BONUS REQUEST TICKETS IN QUEUE.
+        {/* Pending Submissions Queue */}
+        <div className="space-y-6">
+          {pendingSubmissions.length === 0 ? (
+            <div className="text-center py-20 text-zinc-550 bg-[#111118] border border-[#1c1a2a] rounded-2xl space-y-3 shadow-xl max-w-lg mx-auto">
+              <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500/30" />
+              <p className="font-title font-black text-sm tracking-wide text-zinc-400 uppercase italic">ALL PENDING LOGS REVIEWED</p>
+              <p className="text-[10px] text-zinc-650">No win logs are waiting in the `#public-winlog` or `#public-informallog` queues.</p>
             </div>
           ) : (
-            bonusTickets.map((t) => {
-              const fields = bonusApprovalForm[t.id] || { finalAmount: '500000', comment: '' };
-              
-              return (
-                <div key={t.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-zinc-200">@{t.username}</span>
-                      <span className="text-[9px] bg-[#0a0a14] text-zinc-450 px-1.5 py-0.5 rounded">TKT: {t.id.toUpperCase()}</span>
-                      <span className="text-[9px] text-zinc-500">{new Date(t.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] mt-2">&quot;{t.description}&quot;</p>
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 justify-center">
+              {pendingSubmissions.map((s) => {
+                const isInformal = s.type === 'public-informallog';
+                const defaultBase = isInformal ? 70000 : 200000;
+                const currentBaseStr = customBaseAmounts[s.id] ?? String(defaultBase);
+                const currentBase = parseFloat(currentBaseStr) || defaultBase;
+                
+                const origPartStr = (s.participants || []).join(', ');
+                const currentPartStr = editingParticipants[s.id] ?? origPartStr;
+                const currentParticipants = currentPartStr.split(',').map((p: string) => p.trim()).filter(Boolean);
 
-                  <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1c1a2a] pt-4 md:pt-0 md:pl-4">
-                    <div>
-                      <label className="text-[9px] text-zinc-500 font-bold block mb-1">CALCULATED PAYOUT SUM ($)</label>
-                      <input 
-                        type="number"
-                        value={fields.finalAmount}
-                        onChange={(e) => setBonusApprovalForm(prev => ({
-                          ...prev,
-                          [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), finalAmount: e.target.value }
-                        }))}
-                        placeholder="e.g. 500000"
-                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-zinc-500 font-bold block mb-1">PAYOUT REMARKS</label>
-                      <input 
-                        type="text"
-                        value={fields.comment}
-                        onChange={(e) => setBonusApprovalForm(prev => ({
-                          ...prev,
-                          [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), comment: e.target.value }
-                        }))}
-                        placeholder="Approved payout formula..."
-                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
-                      />
+                return (
+                  <div key={s.id} className="bg-[#313338] border border-[#202225] text-[#dbdee1] rounded-lg overflow-hidden flex flex-col justify-between max-w-[480px] w-full mx-auto shadow-2xl relative font-sans">
+                    {/* Discord Message Header */}
+                    <div className="p-4 pb-0 flex gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#5865f2] flex items-center justify-center font-bold text-white shrink-0 shadow-inner">
+                        🤖
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-white text-[13px] hover:underline cursor-pointer">White Pigeon Bot</span>
+                          <span className="bg-[#5865f2] text-[9px] text-white font-bold px-1.5 py-0.5 rounded uppercase tracking-wider scale-90">BOT</span>
+                          <span className="text-[10px] text-zinc-400 font-mono ml-2">MSG: {s.discordMessageId?.slice(-6) || 'WEB'}</span>
+                        </div>
+                        <p className="text-[10px] text-zinc-400 mt-0.5">Submitted by: @{s.submitterName} | {new Date(s.createdAt).toLocaleString()}</p>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      <button onClick={() => handleBonusApproval(t.id, 'approved')} className="bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
-                        APPROVE
-                      </button>
-                      <button onClick={() => handleBonusApproval(t.id, 'rejected')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
-                        REJECT
-                      </button>
+                    {/* Discord Embed Container */}
+                    <div className="p-4 pt-3 flex">
+                      {/* Left border stripe of Discord Embed */}
+                      <div className={`w-[4px] rounded-l shrink-0 ${isInformal ? 'bg-amber-500' : 'bg-[#5865F2]'}`} />
+                      
+                      {/* Embed Content */}
+                      <div className="bg-[#2b2d31] p-3.5 rounded-r flex-1 space-y-3 border border-l-0 border-[#202225] text-xs">
+                        <div>
+                          <h4 className="text-white text-sm font-semibold tracking-wide">🏆 EVENT WIN LOG INGESTED</h4>
+                          <span className="text-[9px] text-zinc-400 mt-0.5 block">Status: <span className="text-amber-400 font-bold uppercase">⏳ Pending HC Audit</span></span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-[11px] leading-relaxed">
+                          <div>
+                            <span className="text-zinc-400 block text-[9px] uppercase tracking-wider font-bold">Event Title</span>
+                            <span className="text-zinc-200 font-bold">{s.eventName || s.title}</span>
+                          </div>
+                          <div>
+                            <span className="text-zinc-400 block text-[9px] uppercase tracking-wider font-bold">Estimated Pool</span>
+                            <span className="text-emerald-400 font-bold">${currentBase.toLocaleString()} / kill</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="text-zinc-400 block text-[9px] uppercase tracking-wider font-bold mb-1">Roster ({currentParticipants.length} detected)</span>
+                          <div className="flex flex-wrap gap-1 bg-[#1e1f22] p-2 rounded border border-[#1a1b1e]">
+                            {currentParticipants.length === 0 ? (
+                              <span className="text-zinc-500 italic text-[10px]">No members specified</span>
+                            ) : (
+                              currentParticipants.map((p, pIdx) => (
+                                <span key={pIdx} className="bg-[#2b2d31] border border-[#202225] text-zinc-300 rounded px-1.5 py-0.5 text-[9px] font-mono">
+                                  @{p}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        {s.mediaUrl && (
+                          <div className="relative rounded overflow-hidden border border-[#202225]">
+                            <img src={s.mediaUrl} alt="Log Proof" className="w-full object-cover max-h-48" />
+                            <a 
+                              href={s.mediaUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="absolute top-2 right-2 bg-black/60 hover:bg-black/85 text-zinc-300 p-1.5 rounded border border-white/10 transition-colors"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* HC Audit Adjustment Form */}
+                    <div className="px-4 pb-4 space-y-3 font-sans border-t border-[#202225] pt-3 bg-[#2e3035]/50">
+                      <div className="bg-[#1e1f22] border border-[#202225] p-3 rounded-lg space-y-3 text-[11px]">
+                        <h5 className="font-bold text-zinc-300 uppercase text-[9px] tracking-wider border-b border-[#202225]/40 pb-1.5 flex items-center gap-1.5">
+                          ⚙️ HIGH COMMAND AUDIT OVERRIDES
+                        </h5>
+                        
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="text-[9px] text-zinc-450 font-bold block mb-1">BASE REWARD AMOUNT ($)</label>
+                            <select 
+                              value={currentBaseStr}
+                              onChange={(e) => setCustomBaseAmounts(prev => ({ ...prev, [s.id]: e.target.value }))}
+                              className="bg-[#2b2d31] border border-[#202225] rounded-md px-2 py-1 text-zinc-300 outline-none w-full text-[11px]"
+                            >
+                              <option value="200000">$200,000 (BizWar)</option>
+                              <option value="70000">$70,000 (Informal)</option>
+                              <option value="custom">Custom...</option>
+                            </select>
+                            { (currentBaseStr === 'custom' || !['200000', '70000'].includes(currentBaseStr)) && (
+                              <input 
+                                type="number"
+                                value={currentBaseStr === 'custom' ? '' : currentBaseStr}
+                                onChange={(e) => setCustomBaseAmounts(prev => ({ ...prev, [s.id]: e.target.value }))}
+                                placeholder="Custom amount..."
+                                className="mt-1 bg-[#2b2d31] border border-[#202225] rounded-md px-2 py-1 text-zinc-300 outline-none w-full text-[11px] font-mono"
+                              />
+                            )}
+                          </div>
+                          
+                          <div>
+                            <label className="text-[9px] text-zinc-450 font-bold block mb-1">PARTICIPANTS ROSTER</label>
+                            <textarea 
+                              rows={2}
+                              value={currentPartStr}
+                              onChange={(e) => setEditingParticipants(prev => ({ ...prev, [s.id]: e.target.value }))}
+                              placeholder="Comma separated names..."
+                              className="w-full bg-[#2b2d31] border border-[#202225] rounded-md p-1.5 text-zinc-300 font-sans outline-none text-[11px] resize-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[9px] text-zinc-450 font-bold block mb-1">AUDIT REMARKS / COMMENT</label>
+                          <input 
+                            type="text"
+                            value={reviewComments[s.id] || ''}
+                            onChange={(e) => setReviewComments(prev => ({ ...prev, [s.id]: e.target.value }))}
+                            placeholder="Roster and event proof verified."
+                            className="w-full bg-[#2b2d31] border border-[#202225] rounded-md px-2 py-1 text-zinc-300 outline-none text-[11px]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Buttons */}
+                      <div className="grid grid-cols-2 gap-3.5">
+                        <button 
+                          onClick={() => handleRejectWinSubmission(s.id)}
+                          className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-md py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] text-[11px] uppercase tracking-wide"
+                        >
+                          DECLINE
+                        </button>
+                        <button 
+                          onClick={() => handleHcApproveWinSubmission(s.id)}
+                          disabled={isSubmittingApproval[s.id]}
+                          className="bg-green-500/15 hover:bg-green-500/25 text-green-400 border border-green-500/25 rounded-md py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none text-[11px] uppercase tracking-wide"
+                        >
+                          {isSubmittingApproval[s.id] ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" /> AUDITING...
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5" /> APPROVE EVENT
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

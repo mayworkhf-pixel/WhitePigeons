@@ -108,9 +108,113 @@ const botService = {
         botService.logSimulated(`Bot Connection Error: ${err.message}`);
       });
 
-      client.on('messageCreate', (message) => {
+      client.on('messageCreate', async (message) => {
         if (message.author.bot) return;
-        botService.logSimulated(`Message in #${message.channel.name} by @${message.author.username}: "${message.content}"`);
+        botService.logSimulated(`Message in #${message.channel?.name || 'unknown'} by @${message.author.username}: "${message.content}"`);
+
+        const config = await db.getConfig();
+        const winChannelId = config.publicWinLogChannelId;
+        const informalChannelId = config.publicInformalLogChannelId;
+
+        const isWinChannel = message.channel.id === winChannelId || message.channel.name === 'public-winlog';
+        const isInformalChannel = message.channel.id === informalChannelId || message.channel.name === 'public-informallog';
+
+        if (isWinChannel || isInformalChannel) {
+          try {
+            const mediaUrl = message.attachments.first()?.url || 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500';
+            const type = isWinChannel ? 'public-winlog' : 'public-informallog';
+
+            const lines = message.content.split('\n').map(l => l.trim()).filter(Boolean);
+            let eventName = isWinChannel ? 'Weapons Factory' : 'Informal';
+            let baseAmount = isWinChannel ? 200000 : 70000;
+            let dateTimeStr = new Date().toISOString().split('T')[0];
+            let participants = [];
+
+            if (lines.length > 0 && lines[0].includes('|')) {
+              const headerParts = lines[0].split('|').map(p => p.trim());
+              if (headerParts[0]) eventName = headerParts[0];
+              if (headerParts[1]) {
+                const rawPrice = headerParts[1].replace(/[$/\s]|kill|k/gi, '').toLowerCase();
+                let multiplier = 1;
+                if (headerParts[1].toLowerCase().includes('k')) {
+                  multiplier = 1000;
+                }
+                const parsedVal = parseFloat(rawPrice) * multiplier;
+                if (!isNaN(parsedVal)) baseAmount = parsedVal;
+              }
+              if (headerParts[2]) dateTimeStr = headerParts[2];
+            }
+
+            for (let i = 1; i < lines.length; i++) {
+              const line = lines[i];
+              if (line.toLowerCase().includes('kill list:')) continue;
+
+              const killMatch = line.match(/(\d+)\s*k\s*$/i) || line.match(/(\d+)\s*k\s+/i) || line.match(/\s+(\d+)\s*$/);
+              let kills = 1;
+              let cleanLine = line;
+              if (killMatch) {
+                kills = parseInt(killMatch[1], 10);
+                cleanLine = line.replace(killMatch[0], '').trim();
+              }
+
+              let username = cleanLine;
+              if (username.startsWith('@')) {
+                username = username.substring(1);
+              }
+              username = username.split('|')[0].trim();
+              const idMatch = username.match(/\s+\d{4,9}$/);
+              if (idMatch) {
+                username = username.replace(idMatch[0], '').trim();
+              }
+
+              if (username) {
+                participants.push(`${username}|${kills}`);
+              }
+            }
+
+            if (participants.length === 0) {
+              participants.push(`${message.author.username}|1`);
+              message.mentions.users.forEach(u => {
+                if (u.username !== message.author.username && !u.bot) {
+                  participants.push(`${u.username}|1`);
+                }
+              });
+            }
+
+            const submission = await db.createWinSubmission({
+              source: 'discord',
+              discordMessageId: message.id,
+              submitterId: message.author.id,
+              submitterName: message.author.username,
+              type,
+              title: `${eventName} Win by ${message.author.username}`,
+              participants,
+              mediaUrl,
+              baseAmount,
+              eventName,
+              dateTimeStr,
+              rawContent: message.content
+            });
+
+            botService.logSimulated(`Ingested win submission "${submission.title}" from Discord.`);
+            
+            try {
+              // React with reviewing indicator
+              await message.react('⏳');
+            } catch {}
+
+            // Send standard reminder template
+            try {
+              await message.channel.send({
+                content: `ℹ️ **White Pigeons REG** APP\n**Please Follow New Format on Logs**\n\`\`\`\nEvent Name | Bonus Price | Date & Time\nKill List:\n@user 1k\n@user 5k\n\`\`\`\n*"You must send the photo in the same message of the kills"*\n\n**Note:**\n⏳ This means reviewing\n❌ It is rejected\n✅ It is approved\n⚠️ There is an error, send logs again`
+              });
+            } catch {}
+
+            botService.broadcastSocket('win_submissions_update', await db.getWinSubmissions());
+          } catch (err) {
+            console.error('[Bot] Win log ingestion failed:', err.message);
+          }
+        }
       });
 
       // Discord interaction listener for components and modals
