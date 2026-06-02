@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const admin = require('firebase-admin');
 
 // Paths
 const DATA_DIR = path.join(__dirname, 'data');
