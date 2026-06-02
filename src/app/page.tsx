@@ -3488,38 +3488,21 @@ export default function RootDashboard() {
               <div className="border-t border-[#1c1a2a] pt-3 mt-2 space-y-2">
                 <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">CUSTOM TIMER TRIGGER</span>
                 <div className="flex gap-2">
-                  <input 
-                    type="number"
-                    value={rpTriggerDelay}
-                    onChange={(e) => setRpTriggerDelay(e.target.value)}
-                    placeholder="Delay (minutes)..." 
-                    className="flex-1 bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none"
-                    min="1"
-                  />
-                  <button 
-                    onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, rpTriggerDelay)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-title text-[9px] font-black italic px-3 rounded-lg cursor-pointer transition-smooth"
-                  >
-                    SET TIMER
-                  </button>
-                </div>
-                <div className="flex gap-1.5 pt-1 items-center">
-                  <span className="text-[9px] text-zinc-500 font-semibold">Test (seconds):</span>
                   <button 
                     onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, '10', 'seconds')}
-                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
                   >
                     10s
                   </button>
                   <button 
                     onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, '20', 'seconds')}
-                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
                   >
                     20s
                   </button>
                   <button 
                     onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, '30', 'seconds')}
-                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
                   >
                     30s
                   </button>
@@ -3824,38 +3807,21 @@ export default function RootDashboard() {
               <div className="border-t border-[#1c1a2a] pt-3 mt-2 space-y-2">
                 <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">CUSTOM TIMER TRIGGER</span>
                 <div className="flex gap-2">
-                  <input 
-                    type="number"
-                    value={infTriggerDelay}
-                    onChange={(e) => setInfTriggerDelay(e.target.value)}
-                    placeholder="Delay (minutes)..." 
-                    className="flex-1 bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none"
-                    min="1"
-                  />
-                  <button 
-                    onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, infTriggerDelay)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-title text-[9px] font-black italic px-3 rounded-lg cursor-pointer transition-smooth"
-                  >
-                    SET TIMER
-                  </button>
-                </div>
-                <div className="flex gap-1.5 pt-1 items-center">
-                  <span className="text-[9px] text-zinc-500 font-semibold">Test (seconds):</span>
                   <button 
                     onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, '10', 'seconds')}
-                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
                   >
                     10s
                   </button>
                   <button 
                     onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, '20', 'seconds')}
-                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
                   >
                     20s
                   </button>
                   <button 
                     onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, '30', 'seconds')}
-                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
                   >
                     30s
                   </button>
