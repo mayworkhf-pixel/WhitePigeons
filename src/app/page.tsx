@@ -129,8 +129,10 @@ export default function RootDashboard() {
   // Custom Timer states
   const [rpTriggerDelay, setRpTriggerDelay] = useState('5');
   const [rpScheduledTime, setRpScheduledTime] = useState<string | null>(null);
+  const [rpCountdown, setRpCountdown] = useState<number | null>(null);
   const [infTriggerDelay, setInfTriggerDelay] = useState('5');
   const [infScheduledTime, setInfScheduledTime] = useState<string | null>(null);
+  const [infCountdown, setInfCountdown] = useState<number | null>(null);
   
   // Kick & Swap admin states
   const [rpSwapFirstId, setRpSwapFirstId] = useState<string | null>(null);
@@ -372,6 +374,33 @@ export default function RootDashboard() {
       }
     } catch (e) {}
   };
+
+  // Countdown timers tickers
+  useEffect(() => {
+    if (rpCountdown === null) return;
+    if (rpCountdown <= 0) {
+      setRpCountdown(null);
+      setRpScheduledTime(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setRpCountdown(rpCountdown - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [rpCountdown]);
+
+  useEffect(() => {
+    if (infCountdown === null) return;
+    if (infCountdown <= 0) {
+      setInfCountdown(null);
+      setInfScheduledTime(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setInfCountdown(infCountdown - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [infCountdown]);
 
   // Run data timers & queries on mount
   useEffect(() => {
@@ -873,10 +902,13 @@ export default function RootDashboard() {
       const data = await res.json();
       if (res.ok) {
         addNotification('Trigger Scheduled', `Bot will trigger in ${val} ${unit} at ${data.targetTime}.`, 'success');
+        const totalSecs = unit === 'seconds' ? val : val * 60;
         if (eventId === 'rp-signup') {
           setRpScheduledTime(data.targetTime);
+          setRpCountdown(totalSecs);
         } else {
           setInfScheduledTime(data.targetTime);
+          setInfCountdown(totalSecs);
         }
       } else {
         addNotification('Scheduling Failed', data.error || 'Failed to schedule trigger.', 'warning');
@@ -3507,11 +3539,15 @@ export default function RootDashboard() {
                     30s
                   </button>
                 </div>
-                {rpScheduledTime && (
+                {rpCountdown !== null && rpCountdown > 0 ? (
+                  <span className="text-[10px] text-green-400 font-bold block animate-pulse">
+                    ⏱️ Triggering in {rpCountdown}s
+                  </span>
+                ) : rpScheduledTime ? (
                   <span className="text-[9px] text-green-400 font-bold block animate-pulse">
                     ⏱️ Next trigger scheduled at {rpScheduledTime}
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
           )}
@@ -3826,11 +3862,15 @@ export default function RootDashboard() {
                     30s
                   </button>
                 </div>
-                {infScheduledTime && (
+                {infCountdown !== null && infCountdown > 0 ? (
+                  <span className="text-[10px] text-green-400 font-bold block animate-pulse">
+                    ⏱️ Triggering in {infCountdown}s
+                  </span>
+                ) : infScheduledTime ? (
                   <span className="text-[9px] text-green-400 font-bold block animate-pulse">
                     ⏱️ Next trigger scheduled at {infScheduledTime}
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
           )}
