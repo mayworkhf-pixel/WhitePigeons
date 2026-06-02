@@ -274,180 +274,188 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
 
   if (!isApproved) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#09090f] text-foreground font-sans relative overflow-hidden p-4">
-        {/* Glow decoration */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-600/5 rounded-full filter blur-[100px] pointer-events-none" />
-        
-        <div className="w-full max-w-md bg-[#111118] border border-[#1c1a2a] rounded-2xl shadow-2xl relative overflow-hidden p-6 z-10 transition-smooth">
-          {/* Top Indicator Strip */}
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-600 to-indigo-600" />
+      <>
+        <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#09090f] text-foreground font-sans relative overflow-hidden p-4">
+          {/* Glow decoration */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-600/5 rounded-full filter blur-[100px] pointer-events-none" />
+          
+          <div className="w-full max-w-md bg-[#111118] border border-[#1c1a2a] rounded-2xl shadow-2xl relative overflow-hidden p-6 z-10 transition-smooth">
+            {/* Top Indicator Strip */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-600 to-indigo-600" />
 
-          {/* Hub Branding */}
-          <div className="text-center mt-4 mb-6">
-            <h1 className="font-title font-black text-3xl italic tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-200 to-purple-400 uppercase drop-shadow-[0_0_15px_rgba(168,85,247,0.15)] leading-none">
-              WHITE PIGEONS
-            </h1>
-            <span className="text-[9px] font-sans font-bold text-zinc-500 uppercase tracking-[0.2em] block mt-2">
-              COMMAND HUB GATEWAY
-            </span>
-          </div>
-
-          {/* Form Tabs */}
-          {(!user || user.status !== 'pending') && (
-            <div className="flex bg-[#09090f] border border-[#1c1a2a] p-1 rounded-xl mb-6">
-              <button
-                onClick={() => { setGatewayTab('register'); setGatewayError(null); setGatewaySuccess(null); }}
-                className={`flex-1 py-2 text-center text-xs font-title font-bold italic tracking-wide rounded-lg transition-smooth cursor-pointer uppercase ${
-                  gatewayTab === 'register'
-                    ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.2)]'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                Register Request
-              </button>
-              <button
-                onClick={() => { setGatewayTab('login'); setGatewayError(null); setGatewaySuccess(null); }}
-                className={`flex-1 py-2 text-center text-xs font-title font-bold italic tracking-wide rounded-lg transition-smooth cursor-pointer uppercase ${
-                  gatewayTab === 'login'
-                    ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.2)]'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                Player Login
-              </button>
+            {/* Hub Branding */}
+            <div className="text-center mt-4 mb-6">
+              <h1 className="font-title font-black text-3xl italic tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-200 to-purple-400 uppercase drop-shadow-[0_0_15px_rgba(168,85,247,0.15)] leading-none">
+                WHITE PIGEONS
+              </h1>
+              <span className="text-[9px] font-sans font-bold text-zinc-500 uppercase tracking-[0.2em] block mt-2">
+                COMMAND HUB GATEWAY
+              </span>
             </div>
-          )}
 
-          {/* Error and Success Notifications */}
-          {gatewayError && (
-            <div className="bg-rose-950/20 border border-rose-900/30 rounded-xl p-3 text-[11px] text-rose-400 font-sans flex items-start gap-2 mb-4 animate-shake">
-              <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-              <span>{gatewayError}</span>
-            </div>
-          )}
-          {gatewaySuccess && (
-            <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-3 text-[11px] text-emerald-400 font-sans flex items-start gap-2 mb-4">
-              <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
-              <span>{gatewaySuccess}</span>
-            </div>
-          )}
-
-          {/* Pending Approval Screen */}
-          {user && user.status === 'pending' ? (
-            <div className="text-center py-6 space-y-4">
-              <div className="w-14 h-14 bg-amber-950/20 border border-amber-800/35 rounded-xl flex items-center justify-center text-amber-400 mx-auto animate-pulse">
-                <Lock className="w-7 h-7" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-title font-bold text-zinc-200 text-sm">REGISTRATION PENDING</h3>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Awaiting Administrator Approval</p>
-              </div>
-              <p className="text-[11px] text-zinc-400 leading-relaxed max-w-xs mx-auto">
-                Your profile <span className="font-mono text-purple-400">{user.nickname}</span> has been submitted to high command. Please wait for authorization.
-              </p>
-              <div className="pt-2">
+            {/* Form Tabs */}
+            {(!user || user.status !== 'pending') && (
+              <div className="flex bg-[#09090f] border border-[#1c1a2a] p-1 rounded-xl mb-6">
                 <button
-                  onClick={logout}
-                  className="bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-title font-bold py-2 px-4 rounded-lg transition-smooth cursor-pointer"
+                  onClick={() => { setGatewayTab('register'); setGatewayError(null); setGatewaySuccess(null); }}
+                  className={`flex-1 py-2 text-center text-xs font-title font-bold italic tracking-wide rounded-lg transition-smooth cursor-pointer uppercase ${
+                    gatewayTab === 'register'
+                      ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                      : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
                 >
-                  Cancel & Log Out
+                  Register Request
+                </button>
+                <button
+                  onClick={() => { setGatewayTab('login'); setGatewayError(null); setGatewaySuccess(null); }}
+                  className={`flex-1 py-2 text-center text-xs font-title font-bold italic tracking-wide rounded-lg transition-smooth cursor-pointer uppercase ${
+                    gatewayTab === 'login'
+                      ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                      : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  Player Login
                 </button>
               </div>
+            )}
+
+            {/* Error and Success Notifications */}
+            {gatewayError && (
+              <div className="bg-rose-950/20 border border-rose-900/30 rounded-xl p-3 text-[11px] text-rose-400 font-sans flex items-start gap-2 mb-4 animate-shake">
+                <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                <span>{gatewayError}</span>
+              </div>
+            )}
+            {gatewaySuccess && (
+              <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-3 text-[11px] text-emerald-400 font-sans flex items-start gap-2 mb-4">
+                <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+                <span>{gatewaySuccess}</span>
+              </div>
+            )}
+
+            {/* Pending Approval Screen */}
+            {user && user.status === 'pending' ? (
+              <div className="text-center py-6 space-y-4">
+                <div className="w-14 h-14 bg-amber-950/20 border border-amber-800/35 rounded-xl flex items-center justify-center text-amber-400 mx-auto animate-pulse">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-title font-bold text-zinc-200 text-sm">REGISTRATION PENDING</h3>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Awaiting Administrator Approval</p>
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed max-w-xs mx-auto">
+                  Your profile <span className="font-mono text-purple-400">{user.nickname}</span> has been submitted to high command. Please wait for authorization.
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={logout}
+                    className="bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-[10px] font-title font-bold py-2 px-4 rounded-lg transition-smooth cursor-pointer"
+                  >
+                    Cancel & Log Out
+                  </button>
+                </div>
+              </div>
+            ) : gatewayTab === 'register' ? (
+              /* Register Form */
+              <form onSubmit={handleRegisterSubmit} className="space-y-4 font-sans text-xs">
+                <div>
+                  <label className="text-[9px] text-zinc-500 font-black block mb-1">IN-GAME ID (CHARACTER ID)</label>
+                  <input 
+                    type="text"
+                    required
+                    placeholder="e.g. 70941"
+                    value={registerForm.inGameId}
+                    onChange={e => setRegisterForm(prev => ({ ...prev, inGameId: e.target.value }))}
+                    className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] text-zinc-500 font-black block mb-1">FIRST NAME</label>
+                    <input 
+                      type="text"
+                      required
+                      placeholder="First Name"
+                      value={registerForm.firstName}
+                      onChange={e => setRegisterForm(prev => ({ ...prev, firstName: e.target.value }))}
+                      className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-zinc-500 font-black block mb-1">LAST NAME</label>
+                    <input 
+                      type="text"
+                      required
+                      placeholder="Last Name"
+                      value={registerForm.lastName}
+                      onChange={e => setRegisterForm(prev => ({ ...prev, lastName: e.target.value }))}
+                      className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[9px] text-zinc-500 font-black block mb-1">DISCORD USERNAME OR ID</label>
+                  <input 
+                    type="text"
+                    required
+                    placeholder="e.g. max_pigeon"
+                    value={registerForm.discordId}
+                    onChange={e => setRegisterForm(prev => ({ ...prev, discordId: e.target.value }))}
+                    className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth font-mono"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={gatewayLoading}
+                  className="w-full btn-primary-gradient py-2.5 text-white text-xs font-title font-black italic tracking-wide rounded-xl shadow-[0_0_10px_rgba(168,85,247,0.15)] hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer uppercase flex items-center justify-center gap-1.5"
+                >
+                  Submit Registration
+                </button>
+              </form>
+            ) : (
+              /* Login Form */
+              <form onSubmit={handleLoginSubmit} className="space-y-4 font-sans text-xs">
+                <div>
+                  <label className="text-[9px] text-zinc-500 font-black block mb-1">DISCORD USERNAME OR ID</label>
+                  <input 
+                    type="text"
+                    required
+                    placeholder="Enter registered Discord username/ID"
+                    value={loginForm.discordId}
+                    onChange={e => setLoginForm(prev => ({ ...prev, discordId: e.target.value }))}
+                    className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth text-center font-mono"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={gatewayLoading}
+                  className="w-full btn-primary-gradient py-2.5 text-white text-xs font-title font-black italic tracking-wide rounded-xl shadow-[0_0_10px_rgba(168,85,247,0.15)] hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer uppercase flex items-center justify-center gap-1.5"
+                >
+                  Log In
+                </button>
+              </form>
+            )}
+
+            {/* Footer Admin Entry Link */}
+            <div className="mt-8 border-t border-[#1c1a2a]/60 pt-4 text-center">
+              <button
+                type="button"
+                onClick={() => setIsPasscodeModalOpen(true)}
+                className="text-[10px] text-purple-400 hover:text-purple-300 font-title font-bold italic tracking-wide flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+              >
+                <Shield className="w-3.5 h-3.5" /> ADMINISTRATOR ACCESS CONTROL
+              </button>
             </div>
-          ) : gatewayTab === 'register' ? (
-            /* Register Form */
-            <form onSubmit={handleRegisterSubmit} className="space-y-4 font-sans text-xs">
-              <div>
-                <label className="text-[9px] text-zinc-500 font-black block mb-1">IN-GAME ID (CHARACTER ID)</label>
-                <input 
-                  type="text"
-                  required
-                  placeholder="e.g. 70941"
-                  value={registerForm.inGameId}
-                  onChange={e => setRegisterForm(prev => ({ ...prev, inGameId: e.target.value }))}
-                  className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[9px] text-zinc-500 font-black block mb-1">FIRST NAME</label>
-                  <input 
-                    type="text"
-                    required
-                    placeholder="First Name"
-                    value={registerForm.firstName}
-                    onChange={e => setRegisterForm(prev => ({ ...prev, firstName: e.target.value }))}
-                    className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] text-zinc-500 font-black block mb-1">LAST NAME</label>
-                  <input 
-                    type="text"
-                    required
-                    placeholder="Last Name"
-                    value={registerForm.lastName}
-                    onChange={e => setRegisterForm(prev => ({ ...prev, lastName: e.target.value }))}
-                    className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-[9px] text-zinc-500 font-black block mb-1">DISCORD USERNAME OR ID</label>
-                <input 
-                  type="text"
-                  required
-                  placeholder="e.g. max_pigeon"
-                  value={registerForm.discordId}
-                  onChange={e => setRegisterForm(prev => ({ ...prev, discordId: e.target.value }))}
-                  className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth font-mono"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={gatewayLoading}
-                className="w-full btn-primary-gradient py-2.5 text-white text-xs font-title font-black italic tracking-wide rounded-xl shadow-[0_0_10px_rgba(168,85,247,0.15)] hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer uppercase flex items-center justify-center gap-1.5"
-              >
-                Submit Registration
-              </button>
-            </form>
-          ) : (
-            /* Login Form */
-            <form onSubmit={handleLoginSubmit} className="space-y-4 font-sans text-xs">
-              <div>
-                <label className="text-[9px] text-zinc-500 font-black block mb-1">DISCORD USERNAME OR ID</label>
-                <input 
-                  type="text"
-                  required
-                  placeholder="Enter registered Discord username/ID"
-                  value={loginForm.discordId}
-                  onChange={e => setLoginForm(prev => ({ ...prev, discordId: e.target.value }))}
-                  className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth text-center font-mono"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={gatewayLoading}
-                className="w-full btn-primary-gradient py-2.5 text-white text-xs font-title font-black italic tracking-wide rounded-xl shadow-[0_0_10px_rgba(168,85,247,0.15)] hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer uppercase flex items-center justify-center gap-1.5"
-              >
-                Log In
-              </button>
-            </form>
-          )}
-
-          {/* Footer Admin Entry Link */}
-          <div className="mt-8 border-t border-[#1c1a2a]/60 pt-4 text-center">
-            <button
-              onClick={() => setIsPasscodeModalOpen(true)}
-              className="text-[10px] text-purple-400 hover:text-purple-300 font-title font-bold italic tracking-wide flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
-            >
-              <Shield className="w-3.5 h-3.5" /> ADMINISTRATOR ACCESS CONTROL
-            </button>
           </div>
         </div>
-      </div>
+        <PasscodeModal 
+          isOpen={isPasscodeModalOpen} 
+          onClose={() => setIsPasscodeModalOpen(false)} 
+          onSuccess={() => router.push('/admin')}
+        />
+      </>
     );
   }
 
