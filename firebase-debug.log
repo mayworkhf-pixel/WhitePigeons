@@ -1,0 +1,16 @@
+[debug] [2026-06-02T00:54:17.018Z] ----------------------------------------------------------------------
+[debug] [2026-06-02T00:54:17.020Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Max\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js deploy
+[debug] [2026-06-02T00:54:17.021Z] CLI Version:   15.19.0
+[debug] [2026-06-02T00:54:17.021Z] Platform:      win32
+[debug] [2026-06-02T00:54:17.021Z] Node Version:  v24.16.0
+[debug] [2026-06-02T00:54:17.021Z] Time:          Tue Jun 02 2026 06:24:17 GMT+0530 (India Standard Time)
+[debug] [2026-06-02T00:54:17.021Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-02T00:54:19.126Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-02T00:54:19.127Z] > authorizing via signed-in user (mayworkhf@gmail.com)
+[debug] [2026-06-02T00:54:19.127Z] [iam] checking project whitepigeons-35431 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-06-02T00:54:19.129Z] Checked if tokens are valid: true, expires at: 1780363244731
+[debug] [2026-06-02T00:54:19.130Z] Checked if tokens are valid: true, expires at: 1780363244731
+[debug] [2026-06-02T00:54:19.131Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/whitepigeons-35431:testIamPermissions [none]
+[debug] [2026-06-02T00:54:19.131Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/whitepigeons-35431:testIamPermissions  x-goog-user-project=whitepigeons-35431
+[debug] [2026-06-02T00:54:19.131Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/whitepigeons-35431:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}

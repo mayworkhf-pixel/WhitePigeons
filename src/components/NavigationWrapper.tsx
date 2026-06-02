@@ -123,16 +123,13 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
     <div className="flex flex-col h-full bg-[#070709] border-r border-[#151419] font-sans text-xs select-none">
       
       {/* Brand pigeon shield logo */}
-      <div className="p-6 flex flex-col items-center justify-center border-b border-[#131218]/85 text-center bg-gradient-to-b from-[#121118]/20 to-transparent">
-        {/* Shield outline */}
-        <div className="relative w-16 h-16 flex items-center justify-center bg-[#131218] border-2 border-purple-600/35 rounded-2xl shadow-[0_0_12px_rgba(168,85,247,0.15)] mb-3">
-          <svg viewBox="0 0 200 200" className="w-12 h-12 text-purple-400 animate-pulse">
-            <path fill="currentColor" d="M100 15L20 45v60c0 55 35 90 80 100 45-10 80-45 80-100V45l-80-30zm0 155c-30-10-53-35-58-70h116c-5 35-28 60-58 70zm58-90H42V55l58-22 58 22v25z"/>
-          </svg>
-        </div>
-        <div className="font-title font-black text-xl italic tracking-tight text-white select-none">
-          WHITE PIGEONS
-        </div>
+      <div className="p-6 flex flex-col items-center justify-center border-b border-[#131218]/85 text-center bg-gradient-to-b from-[#121118]/20 to-transparent select-none">
+        {/* Original Logo with embedded text */}
+        <img 
+          src="/logo.png" 
+          alt="White Pigeons Logo" 
+          className="w-40 h-auto object-contain hover:scale-105 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(168,85,247,0.3)] mb-2"
+        />
         <div className="text-[9px] font-tech tracking-[0.2em] text-purple-500 text-glow-magenta font-bold uppercase mt-1">
           TOP FAMILY IN GRAND RP EN3
         </div>
