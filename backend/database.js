@@ -1836,9 +1836,14 @@ const db = {
       try {
         const doc = await firebaseDb.collection('event_states').doc(eventId).get();
         if (doc.exists) {
-          return doc.data().state || 'closed';
+          const d = doc.data();
+          return {
+            state: d.state || 'closed',
+            title: d.title || '',
+            description: d.description || ''
+          };
         }
-        return 'closed';
+        return { state: 'closed', title: '', description: '' };
       } catch (err) {
         console.error('Firestore getEventState failed:', err.message);
       }
@@ -1847,13 +1852,20 @@ const db = {
     if (!data.eventStates) {
       data.eventStates = {};
     }
-    return data.eventStates[eventId] || 'closed';
+    const val = data.eventStates[eventId];
+    if (typeof val === 'string') {
+      return { state: val, title: '', description: '' };
+    }
+    return val || { state: 'closed', title: '', description: '' };
   },
 
-  setEventState: async (eventId, state) => {
+  setEventState: async (eventId, state, title = null, description = null) => {
     if (firebaseDb) {
       try {
-        await firebaseDb.collection('event_states').doc(eventId).set({ state });
+        const updateObj = { state };
+        if (title !== null) updateObj.title = title;
+        if (description !== null) updateObj.description = description;
+        await firebaseDb.collection('event_states').doc(eventId).set(updateObj, { merge: true });
         return true;
       } catch (err) {
         console.error('Firestore setEventState failed:', err.message);
@@ -1863,7 +1875,15 @@ const db = {
     if (!data.eventStates) {
       data.eventStates = {};
     }
-    data.eventStates[eventId] = state;
+    const existing = data.eventStates[eventId] || {};
+    const existingObj = typeof existing === 'string' ? { state: existing } : existing;
+    
+    data.eventStates[eventId] = {
+      ...existingObj,
+      state,
+      ...(title !== null && { title }),
+      ...(description !== null && { description })
+    };
     writeDb(data);
     return true;
   },
@@ -2032,6 +2052,42 @@ const db = {
     data.priorityList = priorityList;
     writeDb(data);
     return priorityList;
+  },
+
+  getEventSchedule: async (eventId) => {
+    if (firebaseDb) {
+      try {
+        const doc = await firebaseDb.collection('event_schedules').doc(eventId).get();
+        if (doc.exists) {
+          return doc.data();
+        }
+      } catch (err) {
+        console.error('Firestore getEventSchedule failed:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.eventSchedules) {
+      data.eventSchedules = {};
+    }
+    return data.eventSchedules[eventId] || { times: ['', '', '', ''], mode: 'once', enabled: false };
+  },
+
+  setEventSchedule: async (eventId, scheduleData) => {
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('event_schedules').doc(eventId).set(scheduleData);
+        return true;
+      } catch (err) {
+        console.error('Firestore setEventSchedule failed:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.eventSchedules) {
+      data.eventSchedules = {};
+    }
+    data.eventSchedules[eventId] = scheduleData;
+    writeDb(data);
+    return true;
   }
 };
 

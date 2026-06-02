@@ -107,6 +107,10 @@ export default function RootDashboard() {
   // Roster registration states
   const [rpState, setRpState] = useState<'open' | 'closed'>('closed');
   const [informalState, setInformalState] = useState<'open' | 'closed'>('closed');
+  const [rpTitle, setRpTitle] = useState<string>('Roster control');
+  const [rpDescription, setRpDescription] = useState<string>('Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.');
+  const [informalTitle, setInformalTitle] = useState<string>('Roster control');
+  const [informalDescription, setInformalDescription] = useState<string>('Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.');
   
   // Core Data states
   const [members, setMembers] = useState<Member[]>([]);
@@ -133,6 +137,22 @@ export default function RootDashboard() {
   const [infTriggerDelay, setInfTriggerDelay] = useState('5');
   const [infScheduledTime, setInfScheduledTime] = useState<string | null>(null);
   const [infTriggerCountdown, setInfTriggerCountdown] = useState<number | null>(null);
+  
+  // Schedule states for both events
+  const [rpSchedule, setRpSchedule] = useState<{ times: string[]; mode: 'once' | 'day' | 'ever'; enabled: boolean; title: string; description: string }>({
+    times: ['', '', '', ''],
+    mode: 'once',
+    enabled: false,
+    title: '',
+    description: ''
+  });
+  const [infSchedule, setInfSchedule] = useState<{ times: string[]; mode: 'once' | 'day' | 'ever'; enabled: boolean; title: string; description: string }>({
+    times: ['', '', '', ''],
+    mode: 'once',
+    enabled: false,
+    title: '',
+    description: ''
+  });
   
   // Kick & Swap admin states
   const [rpSwapFirstId, setRpSwapFirstId] = useState<string | null>(null);
@@ -357,13 +377,71 @@ export default function RootDashboard() {
         fetch(`${API_BASE_URL}/api/events/signup/rp-signup`).then(r => r.ok ? r.json() : null).then(data => data && setRpSignups(data)),
         fetch(`${API_BASE_URL}/api/events/signup/informal-signup`).then(r => r.ok ? r.json() : null).then(data => data && setInformalSignups(data)),
         fetch(`${API_BASE_URL}/api/events/state/rp-signup`).then(r => r.ok ? r.json() : null).then(data => {
-          if (data) setRpState(data.state || 'closed');
+          if (data) {
+            setRpState(data.state || 'closed');
+            if (data.title) setRpTitle(data.title);
+            if (data.description) setRpDescription(data.description);
+          }
         }),
         fetch(`${API_BASE_URL}/api/events/state/informal-signup`).then(r => r.ok ? r.json() : null).then(data => {
-          if (data) setInformalState(data.state || 'closed');
+          if (data) {
+            setInformalState(data.state || 'closed');
+            if (data.title) setInformalTitle(data.title);
+            if (data.description) setInformalDescription(data.description);
+          }
         })
       ]);
     } catch (e) {}
+  };
+
+  const loadSchedules = async () => {
+    try {
+      const rpRes = await fetch(`${API_BASE_URL}/api/events/schedule/rp-signup`);
+      if (rpRes.ok) {
+        const rpData = await rpRes.json();
+        setRpSchedule({
+          times: rpData.times || ['', '', '', ''],
+          mode: rpData.mode || 'once',
+          enabled: rpData.enabled || false,
+          title: rpData.title || '',
+          description: rpData.description || ''
+        });
+      }
+      const infRes = await fetch(`${API_BASE_URL}/api/events/schedule/informal-signup`);
+      if (infRes.ok) {
+        const infData = await infRes.json();
+        setInfSchedule({
+          times: infData.times || ['', '', '', ''],
+          mode: infData.mode || 'once',
+          enabled: infData.enabled || false,
+          title: infData.title || '',
+          description: infData.description || ''
+        });
+      }
+    } catch (err) {}
+  };
+
+  const handleSaveSchedule = async (eventId: 'rp-signup' | 'informal-signup', scheduleData: any) => {
+    try {
+      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+      const res = await fetch(`${API_BASE_URL}/api/events/schedule-times/${eventId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${passcode}`
+        },
+        body: JSON.stringify(scheduleData)
+      });
+      if (res.ok) {
+        addNotification('Schedule Saved', `Roster schedule saved successfully.`, 'success');
+        loadSchedules();
+      } else {
+        const err = await res.json();
+        addNotification('Save Failed', err.error || 'Failed to update schedule.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message, 'error');
+    }
   };
 
   // Countdown timers tickers
@@ -397,6 +475,7 @@ export default function RootDashboard() {
   useEffect(() => {
     loadDashboardData();
     loadSignups();
+    loadSchedules();
     const interval = setInterval(loadSignups, 5000);
     return () => clearInterval(interval);
   }, [user, activeTab]);
@@ -405,12 +484,16 @@ export default function RootDashboard() {
   useEffect(() => {
     if (!socket) return;
     
-    const handleStateChange = (data: { eventId: string; state: 'open' | 'closed' }) => {
+    const handleStateChange = (data: { eventId: string; state: 'open' | 'closed'; title?: string; description?: string }) => {
       if (data.eventId === 'rp-signup') {
         setRpState(data.state);
+        if (data.title) setRpTitle(data.title);
+        if (data.description) setRpDescription(data.description);
         loadSignups();
       } else if (data.eventId === 'informal-signup') {
         setInformalState(data.state);
+        if (data.title) setInformalTitle(data.title);
+        if (data.description) setInformalDescription(data.description);
         loadSignups();
       }
     };
@@ -442,6 +525,14 @@ export default function RootDashboard() {
       setPriorityList(updatedList);
     };
 
+    const handleScheduleChange = (data: { eventId: string; schedule: any }) => {
+      if (data.eventId === 'rp-signup') {
+        setRpSchedule(data.schedule);
+      } else if (data.eventId === 'informal-signup') {
+        setInfSchedule(data.schedule);
+      }
+    };
+
     socket.on('event_state_change', handleStateChange);
     socket.on('signup_change', handleSignupChange);
     socket.on('tickets_update', handleTicketsUpdate);
@@ -450,6 +541,7 @@ export default function RootDashboard() {
     socket.on('kills_update', handleLeaderboardUpdate);
     socket.on('weekly_kills_update', handleLeaderboardUpdate);
     socket.on('priority_list_update', handlePriorityListUpdate);
+    socket.on('event_schedule_change', handleScheduleChange);
     return () => {
       socket.off('event_state_change', handleStateChange);
       socket.off('signup_change', handleSignupChange);
@@ -459,6 +551,7 @@ export default function RootDashboard() {
       socket.off('kills_update', handleLeaderboardUpdate);
       socket.off('weekly_kills_update', handleLeaderboardUpdate);
       socket.off('priority_list_update', handlePriorityListUpdate);
+      socket.off('event_schedule_change', handleScheduleChange);
     };
   }, [socket]);
 
@@ -3455,9 +3548,9 @@ export default function RootDashboard() {
             ) : (
               <span className="bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">SIGNUP ROSTER OPEN</span>
             )}
-            <h2 className="font-title font-black text-xl italic text-zinc-200">Docks Turf Battle</h2>
-            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#0a0a14] p-3 border border-[#1c1a2a] rounded-xl italic font-sans">
-              &quot;Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.&quot;
+            <h2 className="font-title font-black text-xl italic text-zinc-200">{rpTitle}</h2>
+            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#0a0a14] p-3 border border-[#1c1a2a] rounded-xl italic font-sans font-medium">
+              &quot;{rpDescription}&quot;
             </p>
           </div>
 
@@ -3494,51 +3587,88 @@ export default function RootDashboard() {
                 value={eventTriggerForm.description}
                 onChange={(e) => setEventTriggerForm(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Roster Event Directives..." 
-                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-355 outline-none resize-none"
+                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none resize-none"
               />
+              
               <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => handleTriggerSignupWindow('rp-signup', eventTriggerForm.title, eventTriggerForm.description)} className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                <button 
+                  onClick={() => handleTriggerSignupWindow('rp-signup', eventTriggerForm.title || 'Roster control', eventTriggerForm.description || rpDescription)} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                >
                   OPEN
                 </button>
-                <button onClick={() => handleCloseEventSignup('rp-signup')} className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                <button 
+                  onClick={() => handleCloseEventSignup('rp-signup')} 
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                >
                   CLOSE
                 </button>
-                <button onClick={() => handleClearSignupRoster('rp-signup')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
-                  WIPE
+                <button 
+                  onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title || 'Roster control', eventTriggerForm.description || rpDescription, '10', 'seconds')} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                >
+                  10s
                 </button>
               </div>
-              
-              <div className="border-t border-[#1c1a2a] pt-3 mt-2 space-y-2">
-                <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">CUSTOM TIMER TRIGGER</span>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, '10', 'seconds')}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+
+              {rpTriggerCountdown !== null && rpTriggerCountdown >= 0 && (
+                <span className="text-[10px] text-green-400 font-bold block animate-pulse mt-1">
+                  ⏱️ Triggering in {rpTriggerCountdown}s
+                </span>
+              )}
+
+              {/* IST Scheduler section */}
+              <div className="border-t border-[#1c1a2a]/60 pt-3 mt-2 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">IST DAILY TRIGGER TIMES</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={rpSchedule.enabled}
+                      onChange={(e) => setRpSchedule(prev => ({ ...prev, enabled: e.target.checked }))}
+                      className="rounded border-[#1c1a2a] text-purple-600 focus:ring-0 bg-[#111118] w-3 h-3"
+                    />
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase">ENABLED</span>
+                  </label>
+                </div>
+                
+                {/* 4 Time inputs */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[0, 1, 2, 3].map((idx) => (
+                    <input 
+                      key={idx}
+                      type="text"
+                      placeholder="HH:MM"
+                      value={rpSchedule.times[idx] || ''}
+                      onChange={(e) => {
+                        const newTimes = [...rpSchedule.times];
+                        newTimes[idx] = e.target.value;
+                        setRpSchedule(prev => ({ ...prev, times: newTimes }));
+                      }}
+                      className="bg-[#111118] border border-[#1c1a2a] rounded-lg p-1.5 text-center text-[10px] text-zinc-300 outline-none"
+                    />
+                  ))}
+                </div>
+
+                {/* Mode and Apply Button */}
+                <div className="flex items-center justify-between mt-2 gap-2">
+                  <select 
+                    value={rpSchedule.mode}
+                    onChange={(e) => setRpSchedule(prev => ({ ...prev, mode: e.target.value as any }))}
+                    className="bg-[#111118] border border-[#1c1a2a] rounded-lg p-1.5 text-[10px] text-zinc-400 outline-none select-style"
                   >
-                    10s
-                  </button>
+                    <option value="once">set once</option>
+                    <option value="day">set for a day</option>
+                    <option value="ever">set to Ever</option>
+                  </select>
+                  
                   <button 
-                    onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, '20', 'seconds')}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                    onClick={() => handleSaveSchedule('rp-signup', rpSchedule)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-1.5 px-3 rounded-lg cursor-pointer transition-smooth"
                   >
-                    20s
-                  </button>
-                  <button 
-                    onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, '30', 'seconds')}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
-                  >
-                    30s
+                    APPLY
                   </button>
                 </div>
-                {rpTriggerCountdown !== null && rpTriggerCountdown >= 0 ? (
-                  <span className="text-[10px] text-green-400 font-bold block animate-pulse">
-                    ⏱️ Triggering in {rpTriggerCountdown}s
-                  </span>
-                ) : rpScheduledTime ? (
-                  <span className="text-[9px] text-green-400 font-bold block animate-pulse">
-                    ⏱️ Next trigger scheduled at {rpScheduledTime}
-                  </span>
-                ) : null}
               </div>
             </div>
           )}
@@ -3778,9 +3908,9 @@ export default function RootDashboard() {
             ) : (
               <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">INFORMAL BATTLE QUEUE OPEN</span>
             )}
-            <h2 className="font-title font-black text-xl italic text-zinc-200">Informal Roster</h2>
-            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#0a0a14] p-3 border border-[#1c1a2a] rounded-xl italic font-sans">
-              &quot;Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.&quot;
+            <h2 className="font-title font-black text-xl italic text-zinc-200">{informalTitle}</h2>
+            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#0a0a14] p-3 border border-[#1c1a2a] rounded-xl italic font-sans font-medium">
+              &quot;{informalDescription}&quot;
             </p>
           </div>
 
@@ -3817,51 +3947,88 @@ export default function RootDashboard() {
                 value={eventTriggerForm.description}
                 onChange={(e) => setEventTriggerForm(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Roster Event Directives..." 
-                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-355 outline-none resize-none"
+                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none resize-none"
               />
+              
               <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => handleTriggerSignupWindow('informal-signup', eventTriggerForm.title, eventTriggerForm.description)} className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                <button 
+                  onClick={() => handleTriggerSignupWindow('informal-signup', eventTriggerForm.title || 'Roster control', eventTriggerForm.description || informalDescription)} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                >
                   OPEN
                 </button>
-                <button onClick={() => handleCloseEventSignup('informal-signup')} className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                <button 
+                  onClick={() => handleCloseEventSignup('informal-signup')} 
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                >
                   CLOSE
                 </button>
-                <button onClick={() => handleClearSignupRoster('informal-signup')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
-                  WIPE
+                <button 
+                  onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title || 'Roster control', eventTriggerForm.description || informalDescription, '10', 'seconds')} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                >
+                  10s
                 </button>
               </div>
-              
-              <div className="border-t border-[#1c1a2a] pt-3 mt-2 space-y-2">
-                <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">CUSTOM TIMER TRIGGER</span>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, '10', 'seconds')}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+
+              {infTriggerCountdown !== null && infTriggerCountdown >= 0 && (
+                <span className="text-[10px] text-green-400 font-bold block animate-pulse mt-1">
+                  ⏱️ Triggering in {infTriggerCountdown}s
+                </span>
+              )}
+
+              {/* IST Scheduler section */}
+              <div className="border-t border-[#1c1a2a]/60 pt-3 mt-2 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">IST DAILY TRIGGER TIMES</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={infSchedule.enabled}
+                      onChange={(e) => setInfSchedule(prev => ({ ...prev, enabled: e.target.checked }))}
+                      className="rounded border-[#1c1a2a] text-purple-600 focus:ring-0 bg-[#111118] w-3 h-3"
+                    />
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase">ENABLED</span>
+                  </label>
+                </div>
+                
+                {/* 4 Time inputs */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[0, 1, 2, 3].map((idx) => (
+                    <input 
+                      key={idx}
+                      type="text"
+                      placeholder="HH:MM"
+                      value={infSchedule.times[idx] || ''}
+                      onChange={(e) => {
+                        const newTimes = [...infSchedule.times];
+                        newTimes[idx] = e.target.value;
+                        setInfSchedule(prev => ({ ...prev, times: newTimes }));
+                      }}
+                      className="bg-[#111118] border border-[#1c1a2a] rounded-lg p-1.5 text-center text-[10px] text-zinc-300 outline-none"
+                    />
+                  ))}
+                </div>
+
+                {/* Mode and Apply Button */}
+                <div className="flex items-center justify-between mt-2 gap-2">
+                  <select 
+                    value={infSchedule.mode}
+                    onChange={(e) => setInfSchedule(prev => ({ ...prev, mode: e.target.value as any }))}
+                    className="bg-[#111118] border border-[#1c1a2a] rounded-lg p-1.5 text-[10px] text-zinc-400 outline-none select-style"
                   >
-                    10s
-                  </button>
+                    <option value="once">set once</option>
+                    <option value="day">set for a day</option>
+                    <option value="ever">set to Ever</option>
+                  </select>
+                  
                   <button 
-                    onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, '20', 'seconds')}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                    onClick={() => handleSaveSchedule('informal-signup', infSchedule)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-1.5 px-3 rounded-lg cursor-pointer transition-smooth"
                   >
-                    20s
-                  </button>
-                  <button 
-                    onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, '30', 'seconds')}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
-                  >
-                    30s
+                    APPLY
                   </button>
                 </div>
-                {infTriggerCountdown !== null && infTriggerCountdown >= 0 ? (
-                  <span className="text-[10px] text-green-400 font-bold block animate-pulse">
-                    ⏱️ Triggering in {infTriggerCountdown}s
-                  </span>
-                ) : infScheduledTime ? (
-                  <span className="text-[9px] text-green-400 font-bold block animate-pulse">
-                    ⏱️ Next trigger scheduled at {infScheduledTime}
-                  </span>
-                ) : null}
               </div>
             </div>
           )}

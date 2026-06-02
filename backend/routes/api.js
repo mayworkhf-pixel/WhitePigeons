@@ -1016,11 +1016,11 @@ router.post('/events/trigger', requireAdmin, async (req, res) => {
   }
 
   await db.clearSignups(eventId); // Clear previous signups automatically
-  await db.setEventState(eventId, 'open'); // Set registration state to open
+  await db.setEventState(eventId, 'open', title, description || ''); // Set registration state to open
   await botService.triggerEventSignup(eventId, title, description || '');
   
   // Broadcast live change via WebSocket
-  botService.broadcastSocket('event_state_change', { eventId, state: 'open' });
+  botService.broadcastSocket('event_state_change', { eventId, state: 'open', title, description: description || '' });
 
   return res.json({ success: true, message: 'Signup window opened and broadcasted to Discord.' });
 });
@@ -1061,11 +1061,11 @@ router.post('/events/schedule', requireAdmin, async (req, res) => {
   setTimeout(async () => {
     try {
       await db.clearSignups(eventId); // Clear previous signups automatically
-      await db.setEventState(eventId, 'open'); // Set registration state to open
+      await db.setEventState(eventId, 'open', title, description || ''); // Set registration state to open
       await botService.triggerEventSignup(eventId, title, description || '');
       
       // Broadcast live change via WebSocket
-      botService.broadcastSocket('event_state_change', { eventId, state: 'open' });
+      botService.broadcastSocket('event_state_change', { eventId, state: 'open', title, description: description || '' });
       botService.broadcastSocket('signup_change', { eventId, signups: [] });
       
       // Broadcast system notification toast
@@ -1082,6 +1082,35 @@ router.post('/events/schedule', requireAdmin, async (req, res) => {
 
   botService.logSimulated(`Scheduled event "${title}" to trigger in ${delayText}.`);
   return res.json({ success: true, message: `Roster scheduled successfully.`, targetTime: timeStr });
+});
+
+// GET configured schedule for an event
+router.get('/events/schedule/:eventId', async (req, res) => {
+  const { eventId } = req.params;
+  const schedule = await db.getEventSchedule(eventId);
+  return res.json(schedule);
+});
+
+// POST save schedule settings (times, mode, title, description) for an event
+router.post('/events/schedule-times/:eventId', requireAdmin, async (req, res) => {
+  const { eventId } = req.params;
+  const { times, mode, enabled, title, description } = req.body;
+  
+  const scheduleData = {
+    times: times || ['', '', '', ''],
+    mode: mode || 'once',
+    enabled: enabled !== undefined ? enabled : false,
+    title: title || '',
+    description: description || '',
+    lastTriggeredDate: ''
+  };
+
+  await db.setEventSchedule(eventId, scheduleData);
+  
+  // Emit changes via socket
+  botService.broadcastSocket('event_schedule_change', { eventId, schedule: scheduleData });
+
+  return res.json({ success: true, schedule: scheduleData });
 });
 
 // Admin simulates voice state change for a member
@@ -1186,8 +1215,8 @@ router.post('/wins', requireAdmin, async (req, res) => {
 // GET active event registration state (open or closed)
 router.get('/events/state/:eventId', async (req, res) => {
   const { eventId } = req.params;
-  const state = await db.getEventState(eventId);
-  return res.json({ eventId, state });
+  const eventState = await db.getEventState(eventId);
+  return res.json({ eventId, ...eventState });
 });
 
 // Admin closes signup roster and broadcasts final closed stats + roster to Discord channel
