@@ -65,8 +65,8 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   const [mounted, setMounted] = useState(false);
 
   const [gatewayTab, setGatewayTab] = useState<'register' | 'login'>('register');
-  const [registerForm, setRegisterForm] = useState({ inGameId: '', firstName: '', lastName: '', discordId: '', password: '' });
-  const [loginForm, setLoginForm] = useState({ discordId: '', password: '' });
+  const [registerForm, setRegisterForm] = useState({ inGameId: '', firstName: '', lastName: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ password: '' });
   const [gatewayLoading, setGatewayLoading] = useState(false);
   const [gatewayError, setGatewayError] = useState<string | null>(null);
   const [gatewaySuccess, setGatewaySuccess] = useState<string | null>(null);
@@ -87,7 +87,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
       if (res.ok && data.success) {
         setGatewaySuccess(data.message || 'Registration submitted! Awaiting admin approval.');
         addNotification('Registration Submitted', 'Awaiting administrator approval.', 'success');
-        setRegisterForm({ inGameId: '', firstName: '', lastName: '', discordId: '', password: '' });
+        setRegisterForm({ inGameId: '', firstName: '', lastName: '', password: '' });
       } else {
         throw new Error(data.error || 'Registration failed.');
       }
@@ -108,7 +108,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
       const res = await fetch(`${API_BASE_URL}/api/auth/member-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm)
+        body: JSON.stringify({ password: loginForm.password })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -399,17 +399,6 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
                   </div>
                 </div>
                 <div>
-                  <label className="text-[9px] text-zinc-500 font-black block mb-1">DISCORD USERNAME OR ID</label>
-                  <input 
-                    type="text"
-                    required
-                    placeholder="e.g. max_pigeon"
-                    value={registerForm.discordId}
-                    onChange={e => setRegisterForm(prev => ({ ...prev, discordId: e.target.value }))}
-                    className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth font-mono"
-                  />
-                </div>
-                <div>
                   <label className="text-[9px] text-zinc-500 font-black block mb-1">CHOOSE PASSWORD</label>
                   <input 
                     type="password"
@@ -433,22 +422,11 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
               /* Login Form */
               <form onSubmit={handleLoginSubmit} className="space-y-4 font-sans text-xs">
                 <div>
-                  <label className="text-[9px] text-zinc-500 font-black block mb-1">DISCORD USERNAME OR ID</label>
-                  <input 
-                    type="text"
-                    required
-                    placeholder="Enter registered Discord username/ID"
-                    value={loginForm.discordId}
-                    onChange={e => setLoginForm(prev => ({ ...prev, discordId: e.target.value }))}
-                    className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth text-center font-mono"
-                  />
-                </div>
-                <div>
                   <label className="text-[9px] text-zinc-500 font-black block mb-1">PASSWORD</label>
                   <input 
                     type="password"
                     required
-                    placeholder="Enter password"
+                    placeholder="Enter registered password to sign in"
                     value={loginForm.password}
                     onChange={e => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
                     className="w-full bg-[#09090f] border border-[#1c1a2a] rounded-xl p-3 text-zinc-300 focus:border-purple-650/40 outline-none transition-smooth text-center"

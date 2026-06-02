@@ -161,12 +161,12 @@ router.get('/callback', async (req, res) => {
 
 // POST register member request
 router.post('/register', async (req, res) => {
-  const { inGameId, firstName, lastName, discordId, password } = req.body;
-  if (!inGameId || !firstName || !lastName || !discordId || !password) {
+  const { inGameId, firstName, lastName, password } = req.body;
+  if (!inGameId || !firstName || !lastName || !password) {
     return res.status(400).json({ success: false, error: 'All fields, including password, are required.' });
   }
 
-  const normalizedId = discordId.trim().toLowerCase();
+  const normalizedId = inGameId.trim();
   
   // Check if member already exists
   const existing = await db.getMember(normalizedId);
@@ -200,35 +200,29 @@ router.post('/register', async (req, res) => {
     activityScore: 70
   });
 
-  botService.logSimulated(`New registration request submitted for ${firstName} ${lastName} (Discord: ${discordId})`);
+  botService.logSimulated(`New registration request submitted for ${firstName} ${lastName} (In-Game ID: ${inGameId})`);
   return res.json({ success: true, message: 'Registration request submitted successfully. Awaiting admin approval.' });
 });
 
 // POST login as a registered member
 router.post('/member-login', async (req, res) => {
-  const { discordId, password } = req.body;
-  if (!discordId || !password) {
-    return res.status(400).json({ success: false, error: 'Discord Username/ID and password are required.' });
+  const { password } = req.body;
+  if (!password) {
+    return res.status(400).json({ success: false, error: 'Password is required.' });
   }
 
-  const normalizedId = discordId.trim().toLowerCase();
-  let member = await db.getMember(normalizedId);
+  const enteredPassword = password.trim();
+
+  // Find member by password
+  const members = await db.getMembers();
+  const member = members.find(m => m.password && m.password.trim() === enteredPassword);
 
   if (!member) {
-    return res.status(400).json({ success: false, error: 'No registration request found. Please register first.' });
+    return res.status(400).json({ success: false, error: 'Invalid password. No approved member found with this password.' });
   }
 
   if (member.status === 'pending') {
     return res.status(400).json({ success: false, error: 'Your registration request is still pending admin approval.' });
-  }
-
-  // If existing member doesn't have a password set yet, set it on their first login
-  if (!member.password) {
-    await db.updateMember(normalizedId, { password: password.trim() });
-    member = await db.getMember(normalizedId);
-    botService.logSimulated(`Set password for existing approved member ${member.nickname}`);
-  } else if (member.password !== password.trim()) {
-    return res.status(400).json({ success: false, error: 'Invalid password. Please try again.' });
   }
 
   // Approved or pre-existing member
