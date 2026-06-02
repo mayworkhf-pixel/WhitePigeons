@@ -125,7 +125,8 @@ const initialDb = {
       mediaUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800',
       createdAt: '2026-06-01T20:30:00Z'
     }
-  ]
+  ],
+  roleRequests: []
 };
 
 // Encryption Helper
@@ -656,7 +657,8 @@ const db = {
       status: 'confirmed'
     };
 
-    if (eventSignups.length < 25) {
+    const confirmedCount = eventSignups.filter(s => s.status === 'confirmed').length;
+    if (confirmedCount < 25) {
       // Free slot available
       if (firebaseDb) {
         try {
@@ -795,6 +797,110 @@ const db = {
     data.wins.unshift(newWin);
     writeDb(data);
     return newWin;
+  },
+
+  getEventState: async (eventId) => {
+    if (firebaseDb) {
+      try {
+        const doc = await firebaseDb.collection('event_states').doc(eventId).get();
+        if (doc.exists) {
+          return doc.data().state || 'closed';
+        }
+        return 'closed';
+      } catch (err) {
+        console.error('Firestore getEventState failed:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.eventStates) {
+      data.eventStates = {};
+    }
+    return data.eventStates[eventId] || 'closed';
+  },
+
+  setEventState: async (eventId, state) => {
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('event_states').doc(eventId).set({ state });
+        return true;
+      } catch (err) {
+        console.error('Firestore setEventState failed:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.eventStates) {
+      data.eventStates = {};
+    }
+    data.eventStates[eventId] = state;
+    writeDb(data);
+    return true;
+  },
+
+  // Role Requests
+  getRoleRequests: async () => {
+    if (firebaseDb) {
+      try {
+        const snapshot = await firebaseDb.collection('role_requests').orderBy('requestedAt', 'desc').get();
+        return snapshot.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Firestore getRoleRequests failed:', err.message);
+      }
+    }
+    const dbData = readDb();
+    if (!dbData.roleRequests) {
+      dbData.roleRequests = [];
+    }
+    return dbData.roleRequests;
+  },
+
+  createRoleRequest: async (requestData) => {
+    const id = requestData.id || `req-${Math.floor(100000 + Math.random() * 900000)}`;
+    const newRequest = {
+      id,
+      requestedAt: new Date().toISOString(),
+      status: 'pending',
+      ...requestData
+    };
+
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('role_requests').doc(id).set(newRequest);
+        return newRequest;
+      } catch (err) {
+        console.error('Firestore createRoleRequest failed:', err.message);
+      }
+    }
+
+    const data = readDb();
+    if (!data.roleRequests) {
+      data.roleRequests = [];
+    }
+    data.roleRequests.unshift(newRequest);
+    writeDb(data);
+    return newRequest;
+  },
+
+  updateRoleRequest: async (id, updateData) => {
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('role_requests').doc(id).update(updateData);
+        return true;
+      } catch (err) {
+        console.error('Firestore updateRoleRequest failed:', err.message);
+      }
+    }
+
+    const data = readDb();
+    if (!data.roleRequests) {
+      data.roleRequests = [];
+    }
+    const idx = data.roleRequests.findIndex(r => r.id === id);
+    if (idx !== -1) {
+      data.roleRequests[idx] = { ...data.roleRequests[idx], ...updateData };
+      writeDb(data);
+      return true;
+    }
+    return false;
   }
 };
 

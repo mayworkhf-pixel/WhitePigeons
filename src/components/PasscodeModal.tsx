@@ -49,9 +49,9 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
 
       if (res.ok && data.success) {
         setStatus('success');
-        // Clear local storage admin override just in case
         if (typeof window !== 'undefined') {
           localStorage.removeItem('wp_admin_auth');
+          localStorage.setItem('wp_admin_passcode', passcode);
         }
         addNotification('Authentication Granted', 'Security clearance authorized.', 'success');
         await refreshUser();
@@ -68,6 +68,7 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
         
         if (typeof window !== 'undefined') {
           localStorage.setItem('wp_admin_auth', 'true');
+          localStorage.setItem('wp_admin_passcode', passcode);
         }
         
         await refreshUser();

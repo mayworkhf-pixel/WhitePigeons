@@ -99,14 +99,19 @@ const formatCountdownStr = (ms: number) => {
 };
 
 export default function RootDashboard() {
-  const { user, activeTab, setActiveTab, addNotification, timers, refreshUser, API_BASE_URL } = useApp();
-
+  const { user, activeTab, setActiveTab, addNotification, timers, refreshUser, API_BASE_URL, socket } = useApp();
+  
+  // Roster registration states
+  const [rpState, setRpState] = useState<'open' | 'closed'>('closed');
+  const [informalState, setInformalState] = useState<'open' | 'closed'>('closed');
+  
   // Core Data states
   const [members, setMembers] = useState<Member[]>([]);
   const [tickets, setTickets] = useState<TicketModel[]>([]);
   const [activities, setActivities] = useState<ActivityModel[]>([]);
   const [orders, setOrders] = useState<OrderModel[]>([]);
   const [wins, setWins] = useState<WinModel[]>([]);
+  const [roleRequests, setRoleRequests] = useState<any[]>([]);
   
   // Signups
   const [rpSignups, setRpSignups] = useState<SignupModel[]>([]);
@@ -118,7 +123,7 @@ export default function RootDashboard() {
   const [rpTotalStock, setRpTotalStock] = useState(1235);
   
   // Form states
-  const [roleRequestForm, setRoleRequestForm] = useState({ gameId: '', reason: '', currentRoles: '' });
+  const [roleRequestForm, setRoleRequestForm] = useState({ inGameName: '', characterId: '', level: '', rank: '', forumLink: '' });
   const [ticketForm, setTicketForm] = useState({ type: 'complaint', subject: '', description: '' });
   const [activityForm, setActivityForm] = useState({ description: '', mediaUrl: '' });
   const [bizwarForm, setBizwarForm] = useState({ businessName: 'Hotel Factory', amount: '' });
@@ -182,6 +187,9 @@ export default function RootDashboard() {
       if (isLeaderOrAdmin) {
         const orderRes = await fetch(`${API_BASE_URL}/api/shop/orders`);
         if (orderRes.ok) setOrders(await orderRes.json());
+        
+        const reqsRes = await fetch(`${API_BASE_URL}/api/members/role-requests`);
+        if (reqsRes.ok) setRoleRequests(await reqsRes.json());
       }
     } catch (e) {
       console.warn('Failed to load full API datasets.');
@@ -198,6 +206,18 @@ export default function RootDashboard() {
 
       const infRes = await fetch(`${API_BASE_URL}/api/events/signup/informal-signup`);
       if (infRes.ok) setInformalSignups(await infRes.json());
+
+      const rpStateRes = await fetch(`${API_BASE_URL}/api/events/state/rp-signup`);
+      if (rpStateRes.ok) {
+        const rpStateData = await rpStateRes.json();
+        setRpState(rpStateData.state || 'closed');
+      }
+
+      const infStateRes = await fetch(`${API_BASE_URL}/api/events/state/informal-signup`);
+      if (infStateRes.ok) {
+        const infStateData = await infStateRes.json();
+        setInformalState(infStateData.state || 'closed');
+      }
     } catch (e) {}
   };
 
@@ -208,6 +228,62 @@ export default function RootDashboard() {
     const interval = setInterval(loadSignups, 5000);
     return () => clearInterval(interval);
   }, [user, activeTab]);
+
+  // Synchronize event states and signups via websocket in real-time
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleStateChange = (data: { eventId: string; state: 'open' | 'closed' }) => {
+      if (data.eventId === 'rp-signup') {
+        setRpState(data.state);
+        loadSignups();
+      } else if (data.eventId === 'informal-signup') {
+        setInformalState(data.state);
+        loadSignups();
+      }
+    };
+
+    const handleSignupChange = (data: { eventId: string; signups: any[] }) => {
+      if (data.eventId === 'rp-signup') {
+        setRpSignups(data.signups);
+      } else if (data.eventId === 'informal-signup') {
+        setInformalSignups(data.signups);
+      }
+    };
+
+    socket.on('event_state_change', handleStateChange);
+    socket.on('signup_change', handleSignupChange);
+    return () => {
+      socket.off('event_state_change', handleStateChange);
+      socket.off('signup_change', handleSignupChange);
+    };
+  }, [socket]);
+
+  // Admin closes registration roster
+  const handleCloseEventSignup = async (eventId: string) => {
+    try {
+      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+      const res = await fetch(`${API_BASE_URL}/api/events/close/${eventId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({
+          title: eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        addNotification('Registration Closed', `${eventId === 'rp-signup' ? 'RP' : 'Informal'} registration closed and final roster posted.`, 'success');
+        loadSignups();
+      } else {
+        throw new Error(data.error || 'Failed to close registration.');
+      }
+    } catch (err: any) {
+      addNotification('Closure Failed', err.message || 'Could not close registration.', 'error');
+    }
+  };
 
   // RP collection countdown top-of-hour
   useEffect(() => {
@@ -228,7 +304,7 @@ export default function RootDashboard() {
   // Form submission: Role Request
   const handleRoleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roleRequestForm.gameId || !roleRequestForm.reason) {
+    if (!roleRequestForm.inGameName || !roleRequestForm.characterId || !roleRequestForm.level || !roleRequestForm.rank || !roleRequestForm.forumLink) {
       addNotification('Form Error', 'Please complete all fields.', 'warning');
       return;
     }
@@ -239,11 +315,14 @@ export default function RootDashboard() {
         body: JSON.stringify(roleRequestForm)
       });
       if (res.ok) {
-        addNotification('Application Sent', 'Role Request posted to Discord for Leadership audit.', 'success');
-        setRoleRequestForm({ gameId: '', reason: '', currentRoles: '' });
+        addNotification('Application Sent', 'Role Request submitted and posted to review channel.', 'success');
+        setRoleRequestForm({ inGameName: '', characterId: '', level: '', rank: '', forumLink: '' });
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to submit request.');
       }
-    } catch (e) {
-      addNotification('Request Failed', 'Network failure.', 'error');
+    } catch (err: any) {
+      addNotification('Request Failed', err.message || 'Network failure.', 'error');
     }
   };
 
@@ -338,19 +417,29 @@ export default function RootDashboard() {
   };
 
   // Admin audit: Role requests
-  const handleRoleReview = async (memberId: string, status: 'approved' | 'rejected') => {
-    const fields = roleReviewForm[memberId] || { nickname: '', roleToGrant: 'Member', reason: '' };
+  const handleRoleReview = async (requestId: string, status: 'approved' | 'rejected') => {
+    const reqObj = roleRequests.find(r => r.id === requestId);
+    if (!reqObj) return;
+    
+    const memberId = reqObj.discordId;
+    const fields = roleReviewForm[requestId] || { nickname: `WP | ${reqObj.inGameName || reqObj.username}`, roleToGrant: 'Family Member', reason: '' };
+    
     try {
       const res = await fetch(`${API_BASE_URL}/api/members/role-review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId, status, ...fields })
+        body: JSON.stringify({ requestId, memberId, status, ...fields })
       });
       if (res.ok) {
         addNotification('Decision Logged', `Role request review logged as: ${status.toUpperCase()}`, 'success');
         loadDashboardData();
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to log review decision.');
       }
-    } catch (e) {}
+    } catch (err: any) {
+      addNotification('Review Failed', err.message || 'Network failure.', 'error');
+    }
   };
 
   // Admin audit: Strike issue
@@ -855,35 +944,58 @@ export default function RootDashboard() {
         <form onSubmit={handleRoleRequest} className="font-sans text-xs flex flex-col gap-4 mt-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] text-zinc-500 font-bold block mb-1">IN-GAME IDENTIFICATION ID</label>
+              <label className="text-[10px] text-zinc-500 font-bold block mb-1">YOUR NAME (IN-GAME NAME) *</label>
               <input 
                 type="text"
-                value={roleRequestForm.gameId}
-                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, gameId: e.target.value }))}
-                placeholder="e.g. 28402"
+                value={roleRequestForm.inGameName}
+                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, inGameName: e.target.value }))}
+                placeholder="Enter your in-game name"
+                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-zinc-500 font-bold block mb-1">YOUR ID *</label>
+              <input 
+                type="text"
+                value={roleRequestForm.characterId}
+                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, characterId: e.target.value }))}
+                placeholder="Enter your character ID"
+                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] text-zinc-500 font-bold block mb-1">LEVEL IN CITY *</label>
+              <input 
+                type="text"
+                value={roleRequestForm.level}
+                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, level: e.target.value }))}
+                placeholder="Enter your current level"
                 className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
               />
             </div>
             <div>
-              <label className="text-[10px] text-zinc-500 font-bold block mb-1">CURRENT RANK/ROLES</label>
+              <label className="text-[10px] text-zinc-500 font-bold block mb-1">RANK IN FAMILY *</label>
               <input 
                 type="text"
-                value={roleRequestForm.currentRoles}
-                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, currentRoles: e.target.value }))}
-                placeholder="e.g. Recruit / Member"
+                value={roleRequestForm.rank}
+                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, rank: e.target.value }))}
+                placeholder="Enter your desired rank"
                 className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] text-zinc-500 font-bold block mb-1">REASON FOR APPLICATION</label>
-            <textarea 
-              rows={4}
-              value={roleRequestForm.reason}
-              onChange={(e) => setRoleRequestForm(prev => ({ ...prev, reason: e.target.value }))}
-              placeholder="Detail your request..."
-              className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
+            <label className="text-[10px] text-zinc-500 font-bold block mb-1">FORUM ACCOUNT LINK *</label>
+            <input 
+              type="text"
+              value={roleRequestForm.forumLink}
+              onChange={(e) => setRoleRequestForm(prev => ({ ...prev, forumLink: e.target.value }))}
+              placeholder="Enter your forum account Link"
+              className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
             />
           </div>
 
@@ -891,7 +1003,7 @@ export default function RootDashboard() {
             type="submit"
             className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
           >
-            DISPATCH TO DISCORD WEBHOOK
+            SUBMIT ROLE REQUEST
           </button>
         </form>
       </div>
@@ -901,11 +1013,7 @@ export default function RootDashboard() {
   const renderRoleReqReview = () => {
     if (!checkAccess('admin')) return renderAccessDenied('Leadership authority authorization required');
     
-    // Roster queue list
-    const pendingApplicants = [
-      { id: 'mock-member1', username: 'VitoScaletta', gameId: '28402', reason: 'I am active in turf wars daily. Requesting Fighter rank.', currentRoles: 'Recruit' },
-      { id: 'mock-member2', username: 'TonyMontana', gameId: '39482', reason: 'Need access to the points system and point store.', currentRoles: 'None' }
-    ];
+    const pendingReqs = roleRequests.filter(r => r.status === 'pending');
 
     return (
       <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto shadow-xl">
@@ -914,66 +1022,97 @@ export default function RootDashboard() {
         </h2>
         
         <div className="space-y-4 font-sans text-xs">
-          {pendingApplicants.map((req) => {
-            const fields = roleReviewForm[req.id] || { nickname: `WP | ${req.username}`, roleToGrant: 'Member', reason: '' };
-            
-            return (
-              <div key={req.id} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between">
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-zinc-200">@{req.username}</span>
-                    <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded font-mono">ID: {req.gameId}</span>
-                    <span className="text-[9px] bg-zinc-950 text-zinc-400 px-1.5 py-0.5 rounded border border-[#1c1a24]">Role: {req.currentRoles}</span>
-                  </div>
-                  <p className="text-zinc-400 italic bg-[#09080d] p-2.5 rounded-lg border border-[#1e1b29] leading-relaxed">
-                    &quot;{req.reason}&quot;
-                  </p>
-                </div>
-
-                <div className="w-full md:w-64 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1e1b29]/65 pt-4 md:pt-0 md:pl-4">
-                  <div>
-                    <label className="text-[9px] text-zinc-500 font-bold block mb-1">CORRECT NICKNAME HANDLE</label>
-                    <input 
-                      type="text"
-                      value={fields.nickname}
-                      onChange={(e) => setRoleReviewForm(prev => ({
-                        ...prev,
-                        [req.id]: { ...(prev[req.id] || { nickname: '', roleToGrant: 'Member', reason: '' }), nickname: e.target.value }
-                      }))}
-                      placeholder="WP | VitoFighter" 
-                      className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-[9px] text-zinc-500 font-bold block mb-1">GRANT ROLE</label>
-                    <select 
-                      value={fields.roleToGrant}
-                      onChange={(e) => setRoleReviewForm(prev => ({
-                        ...prev,
-                        [req.id]: { ...(prev[req.id] || { nickname: '', roleToGrant: 'Member', reason: '' }), roleToGrant: e.target.value }
-                      }))}
-                      className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
-                    >
-                      <option value="Member">Member</option>
-                      <option value="Fighter">Fighter</option>
-                      <option value="Elite Shooter">Elite Shooter</option>
-                      <option value="Top-10">Top-10 Priority</option>
-                    </select>
+          {pendingReqs.length === 0 ? (
+            <div className="text-center py-12 text-zinc-500 italic">
+              NO PENDING ROLE REQUESTS REGISTERED.
+            </div>
+          ) : (
+            pendingReqs.map((req) => {
+              const fields = roleReviewForm[req.id] || { nickname: `WP | ${req.inGameName || req.username}`, roleToGrant: 'Family Member', reason: '' };
+              
+              return (
+                <div key={req.id} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between hover:border-purple-500/20 transition-smooth">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-[#1c1a24] pb-2">
+                      <span className="font-bold text-zinc-200">@{req.username}</span>
+                      <span className="text-[9px] bg-purple-950/40 text-purple-400 px-2 py-0.5 rounded-full border border-purple-900/30 font-mono">ID: {req.characterId}</span>
+                      <span className="text-[9px] bg-amber-950/40 text-amber-500 px-2 py-0.5 rounded-full border border-amber-900/30">City Lvl: {req.level}</span>
+                      <span className="text-[9px] bg-zinc-900 text-zinc-400 px-2 py-0.5 rounded-full border border-zinc-800">Family Rank: {req.rank}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-zinc-500 block uppercase">In-Game Name</span>
+                      <span className="text-zinc-300 font-sans font-bold block">{req.inGameName}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-zinc-500 block uppercase">Forum Account Link</span>
+                      <a href={req.forumLink} target="_blank" rel="noreferrer" className="text-purple-400 hover:underline font-mono truncate block max-w-md">
+                        {req.forumLink}
+                      </a>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 mt-1">
-                    <button onClick={() => handleRoleReview(req.id, 'approved')} className="bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
-                      APPROVE
-                    </button>
-                    <button onClick={() => handleRoleReview(req.id, 'rejected')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
-                      REJECT
-                    </button>
+                  <div className="w-full md:w-64 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1e1b29]/65 pt-4 md:pt-0 md:pl-4">
+                    <div>
+                      <label className="text-[9px] text-zinc-500 font-bold block mb-1">CORRECT NICKNAME HANDLE</label>
+                      <input 
+                        type="text"
+                        value={fields.nickname}
+                        onChange={(e) => setRoleReviewForm(prev => ({
+                          ...prev,
+                          [req.id]: { ...(prev[req.id] || { nickname: '', roleToGrant: 'Family Member', reason: '' }), nickname: e.target.value }
+                        }))}
+                        placeholder="WP | Nickname" 
+                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="text-[9px] text-zinc-500 font-bold block mb-1">GRANT ROLE</label>
+                      <select 
+                        value={fields.roleToGrant}
+                        onChange={(e) => setRoleReviewForm(prev => ({
+                          ...prev,
+                          [req.id]: { ...(prev[req.id] || { nickname: '', roleToGrant: 'Family Member', reason: '' }), roleToGrant: e.target.value }
+                        }))}
+                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
+                      >
+                        <option value="Family Member">Family Member</option>
+                        <option value="Informal Role">Informal Role</option>
+                        <option value="Events Role">Events Role</option>
+                        <option value="RP Ticket Roaster">RP Ticket Roaster</option>
+                        <option value="Turfer">Turfer</option>
+                        <option value="Top 10">Top-10 Priority</option>
+                        <option value="Broski">Broski</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] text-zinc-500 font-bold block mb-1">REASON / NOTES (IF REJECTING)</label>
+                      <input 
+                        type="text"
+                        value={fields.reason}
+                        onChange={(e) => setRoleReviewForm(prev => ({
+                          ...prev,
+                          [req.id]: { ...(prev[req.id] || { nickname: '', roleToGrant: 'Family Member', reason: '' }), reason: e.target.value }
+                        }))}
+                        placeholder="Notes or reject reason..." 
+                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <button onClick={() => handleRoleReview(req.id, 'approved')} className="bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px] transition-smooth uppercase">
+                        APPROVE
+                      </button>
+                      <button onClick={() => handleRoleReview(req.id, 'rejected')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px] transition-smooth uppercase">
+                        REJECT
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
     );
@@ -2005,7 +2144,11 @@ export default function RootDashboard() {
         {/* Directive details */}
         <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-5 h-fit">
           <div className="space-y-1.5">
-            <span className="bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">SIGNUP ROSTER OPEN</span>
+            {rpState === 'closed' ? (
+              <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">REGISTRATION CLOSED</span>
+            ) : (
+              <span className="bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">SIGNUP ROSTER OPEN</span>
+            )}
             <h2 className="font-title font-black text-xl italic text-zinc-200">Docks Turf Battle</h2>
             <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#09080d] p-3 border border-[#1e1b29] rounded-xl italic font-sans">
               &quot;Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.&quot;
@@ -2014,9 +2157,10 @@ export default function RootDashboard() {
 
           <button 
             onClick={() => handleEventSignup('rp-signup')}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
+            disabled={rpState === 'closed'}
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-900 disabled:border-transparent disabled:text-zinc-500 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta disabled:shadow-none transition-smooth cursor-pointer"
           >
-            CLAIM CONFIRMED SLOT
+            {rpState === 'closed' ? 'REGISTRATION CLOSED' : 'CLAIM CONFIRMED SLOT'}
           </button>
 
           {isAuditor && (
@@ -2037,12 +2181,15 @@ export default function RootDashboard() {
                 placeholder="Roster Event Directives..." 
                 className="w-full bg-[#121118] border border-[#1e1b29] rounded-lg p-2 text-xs text-zinc-350 outline-none resize-none"
               />
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => handleTriggerSignupWindow('rp-signup', eventTriggerForm.title, eventTriggerForm.description)} className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[10px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth">
-                  BROADCAST
+              <div className="grid grid-cols-3 gap-2">
+                <button onClick={() => handleTriggerSignupWindow('rp-signup', eventTriggerForm.title, eventTriggerForm.description)} className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                  OPEN
                 </button>
-                <button onClick={() => handleClearSignupRoster('rp-signup')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[10px] font-bold py-2 rounded-lg cursor-pointer transition-smooth">
-                  WIPE ROSTER
+                <button onClick={() => handleCloseEventSignup('rp-signup')} className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                  CLOSE
+                </button>
+                <button onClick={() => handleClearSignupRoster('rp-signup')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                  WIPE
                 </button>
               </div>
             </div>
@@ -2056,6 +2203,26 @@ export default function RootDashboard() {
               ⏰ RP SIGNUP TEAM LIST
             </h2>
             <span className="text-xs text-zinc-400">CONFIRMED: <span className="font-bold text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
+          </div>
+
+          {/* Roster Statistics Breakdown */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0a090f] p-4 border border-[#1e1b29] rounded-2xl font-sans text-xs">
+            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Total Signups</span>
+              <span className="text-base font-title font-black text-purple-400 font-mono">{confirmedQueue.length + reserveQueue.length}</span>
+            </div>
+            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Top Shooters</span>
+              <span className="text-base font-title font-black text-amber-500 font-mono">{confirmedQueue.filter(s => s.isTop10).length}</span>
+            </div>
+            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Confirmed</span>
+              <span className="text-base font-title font-black text-zinc-300 font-mono">{confirmedQueue.filter(s => !s.isTop10).length}</span>
+            </div>
+            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Reserve List</span>
+              <span className="text-base font-title font-black text-red-400 font-mono">{reserveQueue.length}</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs">
@@ -2120,7 +2287,11 @@ export default function RootDashboard() {
         {/* directives */}
         <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-5 h-fit">
           <div className="space-y-1.5">
-            <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">INFORMAL BATTLE QUEUE OPEN</span>
+            {informalState === 'closed' ? (
+              <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">REGISTRATION CLOSED</span>
+            ) : (
+              <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">INFORMAL BATTLE QUEUE OPEN</span>
+            )}
             <h2 className="font-title font-black text-xl italic text-zinc-200">Informal Roster</h2>
             <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#09080d] p-3 border border-[#1e1b29] rounded-xl italic font-sans">
               &quot;Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.&quot;
@@ -2129,17 +2300,41 @@ export default function RootDashboard() {
 
           <button 
             onClick={() => handleEventSignup('informal-signup')}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
+            disabled={informalState === 'closed'}
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-900 disabled:border-transparent disabled:text-zinc-500 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
           >
-            CLAIM CONFIRMED SLOT
+            {informalState === 'closed' ? 'REGISTRATION CLOSED' : 'CLAIM CONFIRMED SLOT'}
           </button>
 
           {isAuditor && (
             <div className="bg-[#09080d] p-4 border border-[#1e1b29] rounded-xl space-y-3">
-              <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">ADMIN ROSTER FLUSH</span>
-              <button onClick={() => handleClearSignupRoster('informal-signup')} className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[10px] font-bold py-2.5 rounded-lg transition-smooth cursor-pointer">
-                WIPE INFORMAL ROSTER LIST
-              </button>
+              <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">ADMIN CONTROLS</span>
+              
+              <input 
+                type="text"
+                value={eventTriggerForm.title}
+                onChange={(e) => setEventTriggerForm(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Roster Event Title..." 
+                className="w-full bg-[#121118] border border-[#1e1b29] rounded-lg p-2 text-xs text-zinc-300 outline-none"
+              />
+              <textarea 
+                rows={2}
+                value={eventTriggerForm.description}
+                onChange={(e) => setEventTriggerForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Roster Event Directives..." 
+                className="w-full bg-[#121118] border border-[#1e1b29] rounded-lg p-2 text-xs text-zinc-355 outline-none resize-none"
+              />
+              <div className="grid grid-cols-3 gap-2">
+                <button onClick={() => handleTriggerSignupWindow('informal-signup', eventTriggerForm.title, eventTriggerForm.description)} className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                  OPEN
+                </button>
+                <button onClick={() => handleCloseEventSignup('informal-signup')} className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                  CLOSE
+                </button>
+                <button onClick={() => handleClearSignupRoster('informal-signup')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
+                  WIPE
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -2151,6 +2346,26 @@ export default function RootDashboard() {
               ⏰╭𝐈𝐧𝐟𝐨𝐫𝐦𝐚𝐥-𝐒𝐢𝐠𝐧𝐮𝐩 LIST
             </h2>
             <span className="text-xs text-zinc-400">CONFIRMED: <span className="font-bold text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
+          </div>
+
+          {/* Roster Statistics Breakdown */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0a090f] p-4 border border-[#1e1b29] rounded-2xl font-sans text-xs">
+            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Total Signups</span>
+              <span className="text-base font-title font-black text-purple-400 font-mono">{confirmedQueue.length + reserveQueue.length}</span>
+            </div>
+            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Top Shooters</span>
+              <span className="text-base font-title font-black text-amber-500 font-mono">{confirmedQueue.filter(s => s.isTop10).length}</span>
+            </div>
+            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Confirmed</span>
+              <span className="text-base font-title font-black text-zinc-300 font-mono">{confirmedQueue.filter(s => !s.isTop10).length}</span>
+            </div>
+            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Reserve List</span>
+              <span className="text-base font-title font-black text-red-400 font-mono">{reserveQueue.length}</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs">
