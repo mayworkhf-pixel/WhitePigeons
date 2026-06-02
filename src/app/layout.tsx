@@ -38,10 +38,6 @@ export default function RootLayout({
       className={`${montserrat.variable} ${spaceGrotesk.variable} ${inter.className} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground flex flex-col relative select-none">
-        {/* Retro scanlines & Vignette */}
-        <div className="scanlines"></div>
-        <div className="vignette"></div>
-
         <AppProvider>
           {/* Navigation and layout wrapper */}
           <NavigationWrapper>

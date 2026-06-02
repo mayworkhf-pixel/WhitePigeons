@@ -89,16 +89,16 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#050508]/80 backdrop-blur-md font-sans">
-      <div className="absolute inset-0 bg-[#0c0a15]/30 filter blur-3xl pointer-events-none" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm font-sans">
+      <div className="absolute inset-0 pointer-events-none" />
       
       {/* Outer Glow Container */}
-      <div className={`relative w-full max-w-sm mx-4 bg-[#121118] border rounded-2xl p-6 shadow-2xl transition-smooth overflow-hidden ${
+      <div className={`relative w-full max-w-md mx-4 bg-[#111118] border rounded-xl p-8 shadow-2xl transition-smooth overflow-hidden ${
         status === 'success' 
-          ? 'border-green-500/50 shadow-[0_0_25px_rgba(34,197,94,0.2)]'
+          ? 'border-green-500/50'
           : status === 'error'
-            ? 'border-red-500/50 shadow-[0_0_25px_rgba(239,68,68,0.25)] animate-shake'
-            : 'border-[#1e1b29] hover:border-purple-600/30 shadow-[0_0_30px_rgba(147,51,234,0.15)]'
+            ? 'border-red-500/50 animate-shake'
+            : 'border-[#1c1a2a]'
       }`}>
         {/* Top Indicator Strip */}
         <div className={`absolute top-0 left-0 right-0 h-1.5 transition-colors duration-300 ${
@@ -131,7 +131,7 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
               <Lock className="w-6 h-6" />
             )}
           </div>
-          <h3 className="font-title font-black text-sm italic tracking-widest text-zinc-100 uppercase">
+          <h3 className="font-title font-bold text-xl text-white">
             {status === 'success' ? 'ACCESS CONFIRMED' : status === 'error' ? 'AUTHENTICATION FAILED' : 'ENTER MASTER CRYPTOKEY'}
           </h3>
           <p className="text-[10px] text-zinc-500 font-sans tracking-wide mt-1">
@@ -148,12 +148,12 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
               placeholder="Enter passcode"
-              className={`w-full bg-[#09080d] border rounded-xl py-3 px-4 pr-12 text-center text-sm font-mono outline-none transition-smooth ${
+              className={`w-full bg-[#0a0a14] border rounded-lg py-3 px-4 pr-12 text-center text-sm font-mono outline-none transition-smooth ${
                 status === 'success'
                   ? 'border-green-500/40 text-green-400'
                   : status === 'error'
                     ? 'border-red-500/40 text-red-400 font-bold'
-                    : 'border-[#1e1b29] focus:border-purple-600/40 text-purple-400'
+                    : 'border-[#1c1a2a] focus:border-purple-500/50 text-purple-400'
               }`}
             />
             <button
@@ -169,7 +169,7 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
           <button
             type="submit"
             disabled={!passcode || loading || status === 'success'}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-900 text-white disabled:text-zinc-500 font-title text-xs font-black italic tracking-wider py-3.5 rounded-xl border border-purple-500 disabled:border-transparent glow-magenta disabled:shadow-none transition-smooth cursor-pointer"
+            className="w-full btn-primary-gradient disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm py-2.5 px-6 rounded-lg font-title font-bold transition-smooth cursor-pointer"
           >
             {loading ? 'VALIDATING KEY...' : 'TRANSMIT PASSCODE'}
           </button>

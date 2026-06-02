@@ -1,0 +1,992 @@
+{
+  "config": {
+    "botToken": "",
+    "guildId": "",
+    "clientId": "",
+    "clientSecret": "",
+    "webhooks": {},
+    "factoryVoiceChannelId": "mock-voice-id"
+  },
+  "members": [
+    {
+      "discordId": "mock-admin",
+      "username": "PigeonBoss",
+      "nickname": "WP | PigeonBoss",
+      "roles": [
+        "Leadership",
+        "Admin"
+      ],
+      "kills": 542,
+      "weeklyKills": 38,
+      "balance": 15400000,
+      "strikes": [],
+      "points": 2450,
+      "isTop10": true,
+      "activityScore": 92,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "mock-member1",
+      "username": "VitoScaletta",
+      "nickname": "WP | VitoScaletta",
+      "roles": [
+        "Member"
+      ],
+      "kills": 310,
+      "weeklyKills": 15,
+      "balance": 4200000,
+      "strikes": [
+        {
+          "id": "str-1",
+          "reason": "Missed Informal battle without notice",
+          "date": "2026-05-28T18:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 850,
+      "isTop10": true,
+      "activityScore": 75,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "mock-member2",
+      "username": "TonyMontana",
+      "nickname": "WP | TonyMontana",
+      "roles": [
+        "Member"
+      ],
+      "kills": 890,
+      "weeklyKills": 67,
+      "balance": 8900000,
+      "strikes": [],
+      "points": 1200,
+      "isTop10": true,
+      "activityScore": 88,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "123-xan",
+      "username": "Xan Envision",
+      "nickname": "@Xan Envision",
+      "roles": [
+        "Member"
+      ],
+      "kills": 12,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-xan-1",
+          "reason": "Unexcused absence from event",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        },
+        {
+          "id": "str-xan-2",
+          "reason": "Failed to collect bizwar task",
+          "date": "2026-05-22T14:30:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 50,
+      "isTop10": false,
+      "activityScore": 60,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "123-kagaya",
+      "username": "kagaya ubuyashiki",
+      "nickname": "@kagaya ubuyashiki | 77658",
+      "roles": [
+        "Member"
+      ],
+      "kills": 8,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-kag-1",
+          "reason": "Unexcused absence from event",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        },
+        {
+          "id": "str-kag-2",
+          "reason": "Rule infraction",
+          "date": "2026-05-23T11:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 40,
+      "isTop10": false,
+      "activityScore": 55,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "123-trolix",
+      "username": "Trolix Amphetamine123",
+      "nickname": "@Trolix Amphetamine123",
+      "roles": [
+        "Member"
+      ],
+      "kills": 15,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-trol-1",
+          "reason": "Warning issued for behavior",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 90,
+      "isTop10": false,
+      "activityScore": 70,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "123-tom",
+      "username": "tom scofielt",
+      "nickname": "@tom scofielt/118681",
+      "roles": [
+        "Member"
+      ],
+      "kills": 4,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-tom-1",
+          "reason": "Warning issued for behavior",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 30,
+      "isTop10": false,
+      "activityScore": 65,
+      "weeklyPoints": 52.5
+    },
+    {
+      "discordId": "123-zayed",
+      "username": "Zayed Masood",
+      "nickname": "@Zayed Masood | 116523",
+      "roles": [
+        "Member"
+      ],
+      "kills": 10,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-zay-1",
+          "reason": "Warning issued for behavior",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 70,
+      "isTop10": false,
+      "activityScore": 80,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "1186312745910550610",
+      "username": "Player_118631",
+      "nickname": "<@1186312745910550610>",
+      "roles": [
+        "Member"
+      ],
+      "kills": 2,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-118-1",
+          "reason": "Warning issued for behavior",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 20,
+      "isTop10": false,
+      "activityScore": 50,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "1289935268400467979",
+      "username": "Player_128993",
+      "nickname": "<@1289935268400467979>",
+      "roles": [
+        "Member"
+      ],
+      "kills": 0,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-128-1",
+          "reason": "Warning issued for behavior",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 10,
+      "isTop10": false,
+      "activityScore": 40,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "123-akash",
+      "username": "Akash",
+      "nickname": "@Akash | 155077",
+      "roles": [
+        "Member"
+      ],
+      "kills": 9,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-aka-1",
+          "reason": "Warning issued for behavior",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 65,
+      "isTop10": false,
+      "activityScore": 75,
+      "weeklyPoints": 38.5
+    },
+    {
+      "discordId": "123-tekila",
+      "username": "Tekila Edge",
+      "nickname": "@Tekila Edge | 112356",
+      "roles": [
+        "Member"
+      ],
+      "kills": 14,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-tek-1",
+          "reason": "Warning issued for behavior",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 80,
+      "isTop10": false,
+      "activityScore": 85,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "123-rohat",
+      "username": "rohat solar",
+      "nickname": "@rohat solar 91226",
+      "roles": [
+        "Member"
+      ],
+      "kills": 3,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-roh-1",
+          "reason": "Warning issued for behavior",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 25,
+      "isTop10": false,
+      "activityScore": 55,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "123-sergej",
+      "username": "Sergej Kuznecov",
+      "nickname": "@Sergej Kuznecov | 133578",
+      "roles": [
+        "Member"
+      ],
+      "kills": 7,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [
+        {
+          "id": "str-serg-1",
+          "reason": "Warning issued for behavior",
+          "date": "2026-05-20T10:00:00Z",
+          "issuedBy": "PigeonBoss"
+        }
+      ],
+      "points": 50,
+      "isTop10": false,
+      "activityScore": 60,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "110116",
+      "username": "Prem Cullen",
+      "nickname": "@Prem Cullen | 110116",
+      "roles": [
+        "Member"
+      ],
+      "kills": 70,
+      "weeklyKills": 24,
+      "balance": 0,
+      "strikes": [],
+      "points": 500,
+      "weeklyPoints": 62.5,
+      "isTop10": false,
+      "activityScore": 90
+    },
+    {
+      "discordId": "70941",
+      "username": "Chloe Veneta",
+      "nickname": "@Chloe Veneta | 70941",
+      "roles": [
+        "Member"
+      ],
+      "kills": 100,
+      "weeklyKills": 60,
+      "balance": 0,
+      "strikes": [],
+      "points": 480,
+      "weeklyPoints": 62,
+      "isTop10": false,
+      "activityScore": 88
+    },
+    {
+      "discordId": "101254",
+      "username": "Melissa MakarovVicious",
+      "nickname": "@Melissa MakarovVicious | 101254",
+      "roles": [
+        "Member"
+      ],
+      "kills": 81,
+      "weeklyKills": 49,
+      "balance": 0,
+      "strikes": [],
+      "points": 510,
+      "weeklyPoints": 61,
+      "isTop10": false,
+      "activityScore": 91
+    },
+    {
+      "discordId": "133338",
+      "username": "Aayush MakarovVicious",
+      "nickname": "@Aayush MakarovVicious | 133338",
+      "roles": [
+        "Member"
+      ],
+      "kills": 40,
+      "weeklyKills": 25,
+      "balance": 0,
+      "strikes": [],
+      "points": 400,
+      "weeklyPoints": 60.5,
+      "isTop10": false,
+      "activityScore": 85
+    },
+    {
+      "discordId": "144778",
+      "username": "Evan Verlice",
+      "nickname": "@Evan Verlice | 144778",
+      "roles": [
+        "Member"
+      ],
+      "kills": 35,
+      "weeklyKills": 7,
+      "balance": 0,
+      "strikes": [],
+      "points": 380,
+      "weeklyPoints": 60,
+      "isTop10": false,
+      "activityScore": 82
+    },
+    {
+      "discordId": "61783",
+      "username": "Quaresma | Dona ~",
+      "nickname": "@Quaresma | Dona ~ 61783",
+      "roles": [
+        "Member"
+      ],
+      "kills": 89,
+      "weeklyKills": 29,
+      "balance": 0,
+      "strikes": [],
+      "points": 350,
+      "weeklyPoints": 57,
+      "isTop10": false,
+      "activityScore": 80
+    },
+    {
+      "discordId": "151867",
+      "username": "Rex Nocap",
+      "nickname": "@Rex Nocap | 151867",
+      "roles": [
+        "Member"
+      ],
+      "kills": 28,
+      "weeklyKills": 6,
+      "balance": 0,
+      "strikes": [],
+      "points": 310,
+      "weeklyPoints": 55.5,
+      "isTop10": false,
+      "activityScore": 78
+    },
+    {
+      "discordId": "anvy-mock",
+      "username": "Anvy",
+      "nickname": "@Anvy",
+      "roles": [
+        "Leadership"
+      ],
+      "kills": 55,
+      "weeklyKills": 15,
+      "balance": 1200000,
+      "strikes": [],
+      "points": 540,
+      "weeklyPoints": 54,
+      "isTop10": false,
+      "activityScore": 92
+    },
+    {
+      "discordId": "60696",
+      "username": "Eve Riviera",
+      "nickname": "@Eve Riviera | 60696",
+      "roles": [
+        "Member"
+      ],
+      "kills": 22,
+      "weeklyKills": 4,
+      "balance": 0,
+      "strikes": [],
+      "points": 290,
+      "weeklyPoints": 52.5,
+      "isTop10": false,
+      "activityScore": 75
+    },
+    {
+      "discordId": "82934",
+      "username": "SUKUNA MAKAROVVICIOUS",
+      "nickname": "@SUKUNA MAKAROVVICIOUS | 82934",
+      "roles": [
+        "Member"
+      ],
+      "kills": 86,
+      "weeklyKills": 37,
+      "balance": 0,
+      "strikes": [],
+      "points": 300,
+      "weeklyPoints": 50.5,
+      "isTop10": false,
+      "activityScore": 77
+    },
+    {
+      "discordId": "48079",
+      "username": "Yasseen Riviera",
+      "nickname": "@Yasseen Riviera | 48079",
+      "roles": [
+        "Member"
+      ],
+      "kills": 103,
+      "weeklyKills": 19,
+      "balance": 0,
+      "strikes": [],
+      "points": 250,
+      "weeklyPoints": 45.5,
+      "isTop10": true,
+      "activityScore": 72
+    },
+    {
+      "discordId": "alikagan-mock",
+      "username": "Alikagan",
+      "nickname": "@Alikagan",
+      "roles": [
+        "Member"
+      ],
+      "kills": 93,
+      "weeklyKills": 33,
+      "balance": 0,
+      "strikes": [],
+      "points": 200,
+      "weeklyPoints": 45,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "52589",
+      "username": "Fred Riviera",
+      "nickname": "@Fred Riviera 52589",
+      "roles": [
+        "Member"
+      ],
+      "kills": 18,
+      "weeklyKills": 3,
+      "balance": 0,
+      "strikes": [],
+      "points": 220,
+      "weeklyPoints": 44.5,
+      "isTop10": false,
+      "activityScore": 71
+    },
+    {
+      "discordId": "24644",
+      "username": "Yash Riviera",
+      "nickname": "@Yash Riviera 24644",
+      "roles": [
+        "Member"
+      ],
+      "kills": 45,
+      "weeklyKills": 30,
+      "balance": 0,
+      "strikes": [],
+      "points": 210,
+      "weeklyPoints": 44,
+      "isTop10": false,
+      "activityScore": 68
+    },
+    {
+      "discordId": "68192",
+      "username": "Ace Verlice",
+      "nickname": "@Ace Verlice | 68192",
+      "roles": [
+        "Member"
+      ],
+      "kills": 14,
+      "weeklyKills": 1,
+      "balance": 0,
+      "strikes": [],
+      "points": 180,
+      "weeklyPoints": 40,
+      "isTop10": false,
+      "activityScore": 65
+    },
+    {
+      "discordId": "cobra-mock",
+      "username": "Cobra Entity",
+      "nickname": "@Cobra Entity",
+      "roles": [
+        "Member"
+      ],
+      "kills": 116,
+      "weeklyKills": 46,
+      "balance": 0,
+      "strikes": [],
+      "points": 150,
+      "weeklyPoints": 38,
+      "isTop10": true,
+      "activityScore": 60
+    },
+    {
+      "discordId": "105776",
+      "username": "Rjay Entity",
+      "nickname": "@Rjay Entity | 105776",
+      "roles": [
+        "Member"
+      ],
+      "kills": 11,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 140,
+      "weeklyPoints": 38,
+      "isTop10": false,
+      "activityScore": 59
+    },
+    {
+      "discordId": "171896",
+      "username": "Louis Silva",
+      "nickname": "@Louis Silva | 171896",
+      "roles": [
+        "Member"
+      ],
+      "kills": 137,
+      "weeklyKills": 20,
+      "balance": 0,
+      "strikes": [],
+      "points": 130,
+      "weeklyPoints": 38,
+      "isTop10": true,
+      "activityScore": 58
+    },
+    {
+      "discordId": "155077",
+      "username": "Akash",
+      "nickname": "@Akash | 155077",
+      "roles": [
+        "Member"
+      ],
+      "kills": 134,
+      "weeklyKills": 50,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 38.5,
+      "isTop10": true,
+      "activityScore": 70
+    },
+    {
+      "discordId": "130686",
+      "username": "Mikey Bonz",
+      "nickname": "@Mikey Bonz | 130686",
+      "roles": [
+        "Member"
+      ],
+      "kills": 132,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": true,
+      "activityScore": 70
+    },
+    {
+      "discordId": "48888",
+      "username": "Michael Makarovvicious 48888",
+      "nickname": "@Michael Makarovvicious 48888",
+      "roles": [
+        "Member"
+      ],
+      "kills": 110,
+      "weeklyKills": 36,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": true,
+      "activityScore": 70
+    },
+    {
+      "discordId": "170715",
+      "username": "Clark Turechad 170715",
+      "nickname": "@Clark Turechad 170715",
+      "roles": [
+        "Member"
+      ],
+      "kills": 107,
+      "weeklyKills": 56,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": true,
+      "activityScore": 70
+    },
+    {
+      "discordId": "12623",
+      "username": "winston wir",
+      "nickname": "@winston wir | 12623",
+      "roles": [
+        "Member"
+      ],
+      "kills": 101,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "dick-supplier-mock",
+      "username": "Dick Supplier",
+      "nickname": "@Dick Supplier",
+      "roles": [
+        "Member"
+      ],
+      "kills": 86,
+      "weeklyKills": 23,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "172247",
+      "username": "Dryhes Mattis 172247",
+      "nickname": "@Dryhes Mattis 172247",
+      "roles": [
+        "Member"
+      ],
+      "kills": 81,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "3572",
+      "username": "Lokmane Bonz",
+      "nickname": "@Lokmane Bonz | 3572",
+      "roles": [
+        "Member"
+      ],
+      "kills": 77,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "116365",
+      "username": "Calm Vicious",
+      "nickname": "@Calm Vicious 116365",
+      "roles": [
+        "Member"
+      ],
+      "kills": 74,
+      "weeklyKills": 19,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "127353",
+      "username": "Franz Barnicht",
+      "nickname": "@Franz Barnicht | 127353",
+      "roles": [
+        "Member"
+      ],
+      "kills": 72,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "gardy-mock",
+      "username": "Gardy",
+      "nickname": "@Gardy",
+      "roles": [
+        "Member"
+      ],
+      "kills": 71,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "7386",
+      "username": "Bruno Dior",
+      "nickname": "@Bruno Dior | 7386",
+      "roles": [
+        "Member"
+      ],
+      "kills": 70,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "152194",
+      "username": "Calvin Reyy",
+      "nickname": "@Calvin Reyy | 152194",
+      "roles": [
+        "Member"
+      ],
+      "kills": 68,
+      "weeklyKills": 26,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "43022",
+      "username": "Aditya/Fake Vicious 43022",
+      "nickname": "@Aditya/Fake Vicious 43022",
+      "roles": [
+        "Member"
+      ],
+      "kills": 67,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "can-mock",
+      "username": "can",
+      "nickname": "@can",
+      "roles": [
+        "Member"
+      ],
+      "kills": 64,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "harry-mock",
+      "username": "[Harry]",
+      "nickname": "@[Harry]",
+      "roles": [
+        "Member"
+      ],
+      "kills": 64,
+      "weeklyKills": 33,
+      "balance": 0,
+      "strikes": [],
+      "points": 100,
+      "weeklyPoints": 0,
+      "isTop10": false,
+      "activityScore": 70
+    },
+    {
+      "discordId": "arthur-mock",
+      "username": "Arthur",
+      "nickname": "@Arthur",
+      "roles": [
+        "Member"
+      ],
+      "kills": 0,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 0,
+      "isTop10": false,
+      "activityScore": 70,
+      "weeklyPoints": 0
+    },
+    {
+      "discordId": "abu-omar-mock",
+      "username": "Abu Omar Bonz",
+      "nickname": "@Abu Omar Bonz",
+      "roles": [
+        "Member"
+      ],
+      "kills": 0,
+      "weeklyKills": 0,
+      "balance": 0,
+      "strikes": [],
+      "points": 0,
+      "isTop10": false,
+      "activityScore": 70,
+      "weeklyPoints": 0
+    }
+  ],
+  "tickets": [
+    {
+      "id": "tkt-101",
+      "memberId": "mock-member1",
+      "username": "VitoScaletta",
+      "type": "complaint",
+      "subject": "Car stolen by green family",
+      "description": "They stole my sports car during a non-RP event. Need backup to retrieve it or file a complaint.",
+      "status": "open",
+      "response": "",
+      "createdAt": "2026-06-01T12:00:00Z"
+    }
+  ],
+  "activities": [
+    {
+      "id": "act-201",
+      "memberId": "mock-member1",
+      "username": "VitoScaletta",
+      "description": "Collected BizWar profits from the hotel factory.",
+      "mediaUrl": "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=500",
+      "pointsAwarded": 150,
+      "status": "approved",
+      "reason": "Valid proof, well done.",
+      "reviewedBy": "PigeonBoss",
+      "createdAt": "2026-05-30T10:00:00Z"
+    }
+  ],
+  "orders": [],
+  "bizwarLogs": [
+    {
+      "id": "biz-301",
+      "memberId": "mock-member2",
+      "username": "TonyMontana",
+      "businessName": "Hotel Factory",
+      "amount": 450000,
+      "timeCollected": "2026-06-02T01:00:00Z",
+      "createdAt": "2026-06-02T01:05:00Z"
+    }
+  ],
+  "rpTicketLogs": [
+    {
+      "id": "rp-401",
+      "memberId": "mock-member2",
+      "username": "TonyMontana",
+      "ticketsCollected": 5,
+      "timeCollected": "2026-06-02T02:00:00Z",
+      "createdAt": "2026-06-02T02:02:00Z"
+    }
+  ],
+  "signups": [],
+  "wins": [
+    {
+      "id": "win-501",
+      "type": "event",
+      "title": "BizWar Win vs Marabunta",
+      "description": "Captured the docks area. Full team coordination was flawless.",
+      "date": "2026-06-01T20:00:00Z",
+      "participants": "PigeonBoss, VitoScaletta, TonyMontana, and 12 others",
+      "mediaUrl": "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800",
+      "createdAt": "2026-06-01T20:30:00Z"
+    }
+  ],
+  "priorityList": {
+    "top5": [
+      "arthur-mock",
+      "abu-omar-mock",
+      "anvy-mock",
+      "116365",
+      "dick-supplier-mock"
+    ],
+    "top10": [
+      "155077",
+      "130686",
+      "48079",
+      "alikagan-mock",
+      "82934",
+      "harry-mock",
+      "101254",
+      "3572",
+      "70941",
+      "cobra-mock"
+    ]
+  }
+}

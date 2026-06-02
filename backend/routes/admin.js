@@ -23,7 +23,13 @@ async function requireAdmin(req, res, next) {
   }
   try {
     const session = JSON.parse(Buffer.from(cookie, 'base64').toString('utf8'));
-    const isLead = session.roles && (session.roles.includes('Leadership') || session.roles.includes('Admin'));
+    const isLead = session.roles && (
+      session.roles.includes('Leadership') || 
+      session.roles.includes('Admin') || 
+      session.roles.includes('High Command') || 
+      session.roles.includes('High-Command') || 
+      session.roles.includes('HC')
+    );
     if (!isLead) {
       return res.status(403).json({ error: 'Access denied. Leadership role required.' });
     }
@@ -48,6 +54,9 @@ router.get('/discord-config', requireAdmin, async (req, res) => {
     clientId: config.clientId || '',
     clientSecret: config.clientSecret ? '••••••••••••••••' : '',
     adminPassword: config.adminPassword ? '••••••••••••••••' : '',
+    rpTicketTimes: config.rpTicketTimes || ["08:30", "15:00", "20:00", "22:30"],
+    factoryVoiceChannelId: config.factoryVoiceChannelId || '',
+    simulatedVoice: config.simulatedVoice || [],
     webhooks: {}
   };
 
@@ -67,13 +76,15 @@ router.get('/discord-config', requireAdmin, async (req, res) => {
 
 // POST save config
 router.post('/discord-config', requireAdmin, async (req, res) => {
-  const { botToken, guildId, clientId, clientSecret, adminPassword, webhooks } = req.body;
+  const { botToken, guildId, clientId, clientSecret, adminPassword, webhooks, rpTicketTimes, factoryVoiceChannelId, simulatedVoice } = req.body;
   const currentConfig = await db.getConfig();
 
   // If a field is sent as masked (i.e. '••••••••••••••••'), do not overwrite, keep the current value
-  const finalBotToken = botToken === '••••••••••••••••' ? currentConfig.botToken : (botToken || '');
-  const finalClientSecret = clientSecret === '••••••••••••••••' ? currentConfig.clientSecret : (clientSecret || '');
-  const finalAdminPassword = adminPassword === '••••••••••••••••' ? currentConfig.adminPassword : (adminPassword || '');
+  const finalBotToken = botToken === undefined ? currentConfig.botToken : (botToken === '••••••••••••••••' ? currentConfig.botToken : (botToken || ''));
+  const finalGuildId = guildId === undefined ? currentConfig.guildId : (guildId || '');
+  const finalClientId = clientId === undefined ? currentConfig.clientId : (clientId || '');
+  const finalClientSecret = clientSecret === undefined ? currentConfig.clientSecret : (clientSecret === '••••••••••••••••' ? currentConfig.clientSecret : (clientSecret || ''));
+  const finalAdminPassword = adminPassword === undefined ? currentConfig.adminPassword : (adminPassword === '••••••••••••••••' ? currentConfig.adminPassword : (adminPassword || ''));
 
   const finalWebhooks = { ...(currentConfig.webhooks || {}) };
   if (webhooks) {
@@ -86,13 +97,42 @@ router.post('/discord-config', requireAdmin, async (req, res) => {
     }
   }
 
+  let finalRpTicketTimes = currentConfig.rpTicketTimes || ["08:30", "15:00", "20:00", "22:30"];
+  if (rpTicketTimes !== undefined) {
+    if (Array.isArray(rpTicketTimes)) {
+      finalRpTicketTimes = rpTicketTimes;
+    } else if (typeof rpTicketTimes === 'string') {
+      finalRpTicketTimes = rpTicketTimes
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => /^([01]\d|2[0-3]):([0-5]\d)$/.test(t));
+    }
+  }
+
+  const finalFactoryVoiceChannelId = factoryVoiceChannelId === undefined ? (currentConfig.factoryVoiceChannelId || '') : (factoryVoiceChannelId || '');
+
+  let finalSimulatedVoice = currentConfig.simulatedVoice || [];
+  if (simulatedVoice !== undefined) {
+    if (Array.isArray(simulatedVoice)) {
+      finalSimulatedVoice = simulatedVoice;
+    } else if (typeof simulatedVoice === 'string') {
+      finalSimulatedVoice = simulatedVoice
+        .split(',')
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+    }
+  }
+
   const newConfig = {
     botToken: finalBotToken,
-    guildId: guildId || '',
-    clientId: clientId || '',
+    guildId: finalGuildId,
+    clientId: finalClientId,
     clientSecret: finalClientSecret,
     adminPassword: finalAdminPassword,
-    webhooks: finalWebhooks
+    webhooks: finalWebhooks,
+    rpTicketTimes: finalRpTicketTimes,
+    factoryVoiceChannelId: finalFactoryVoiceChannelId,
+    simulatedVoice: finalSimulatedVoice
   };
 
   await db.saveConfig(newConfig);

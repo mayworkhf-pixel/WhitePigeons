@@ -61,7 +61,10 @@ export default function AdminDashboard() {
     guildId: '',
     clientId: '',
     clientSecret: '',
-    adminPassword: ''
+    adminPassword: '',
+    rpTicketTimes: '08:30, 15:00, 20:00, 22:30',
+    factoryVoiceChannelId: '',
+    simulatedVoice: ''
   });
   const [credsLoading, setCredsLoading] = useState(false);
 
@@ -93,7 +96,10 @@ export default function AdminDashboard() {
             guildId: data.guildId || '',
             clientId: data.clientId || '',
             clientSecret: data.clientSecret || '',
-            adminPassword: data.adminPassword || ''
+            adminPassword: data.adminPassword || '',
+            rpTicketTimes: Array.isArray(data.rpTicketTimes) ? data.rpTicketTimes.join(', ') : (data.rpTicketTimes || ''),
+            factoryVoiceChannelId: data.factoryVoiceChannelId || '',
+            simulatedVoice: Array.isArray(data.simulatedVoice) ? data.simulatedVoice.join(', ') : (data.simulatedVoice || '')
           });
 
           // Sync backend webhooks if they exist
@@ -256,7 +262,10 @@ export default function AdminDashboard() {
           guildId: data.guildId || '',
           clientId: data.clientId || '',
           clientSecret: data.clientSecret || '',
-          adminPassword: data.adminPassword || ''
+          adminPassword: data.adminPassword || '',
+          rpTicketTimes: Array.isArray(data.rpTicketTimes) ? data.rpTicketTimes.join(', ') : (data.rpTicketTimes || ''),
+          factoryVoiceChannelId: data.factoryVoiceChannelId || '',
+          simulatedVoice: Array.isArray(data.simulatedVoice) ? data.simulatedVoice.join(', ') : (data.simulatedVoice || '')
         });
         addNotification('Sync Successful', 'Synced bot credentials from backend.', 'success');
       } else {
@@ -319,7 +328,10 @@ export default function AdminDashboard() {
           guildId: '',
           clientId: '',
           clientSecret: '',
-          adminPassword: ''
+          adminPassword: '',
+          rpTicketTimes: '',
+          factoryVoiceChannelId: '',
+          simulatedVoice: ''
         });
       }
     } catch (err: any) {
@@ -356,7 +368,7 @@ export default function AdminDashboard() {
   return (
     <div className="flex flex-col gap-6 pb-12 font-sans max-w-7xl mx-auto">
       {/* HUD Redesigned Premium Header */}
-      <div className="bg-gradient-to-r from-[#111016]/95 to-[#1c1a24]/95 border border-[#1e1b29] p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-[#111016]/95 to-[#1c1a24]/95 border border-[#1c1a2a] p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xl relative overflow-hidden">
         {/* Glow decoration */}
         <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-[80px]" />
         <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-500/10 rounded-full blur-[80px]" />
@@ -386,7 +398,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Tabs Menu */}
-      <div className="flex border-b border-[#201d2d]/60 gap-1 bg-[#09080d]/40 p-1.5 rounded-xl border border-[#1e1b29]/40 w-fit">
+      <div className="flex border-b border-[#201d2d]/60 gap-1 bg-[#09080d]/40 p-1.5 rounded-xl border border-[#1c1a2a]/40 w-fit">
         <button
           onClick={() => setActiveSubTab('dispatch')}
           className={`py-2 px-5 rounded-lg font-title font-black text-xs italic tracking-wider transition-smooth cursor-pointer flex items-center gap-2 ${
@@ -415,7 +427,7 @@ export default function AdminDashboard() {
           
           {/* Left Column: Announcement terminal */}
           <div className="lg:col-span-1 flex flex-col gap-6">
-            <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl flex flex-col gap-4 shadow-xl">
+            <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col gap-4 shadow-xl">
               <div className="border-b border-[#201d2d]/60 pb-2 flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-purple-900/10">
                   <Megaphone className="w-4 h-4 text-purple-400 animate-pulse" />
@@ -489,7 +501,7 @@ export default function AdminDashboard() {
 
             {/* Quick Panel Deployment Card */}
             {['role-request', 'strikes', 'tickets', 'check-balance', 'weekly-kill-list'].includes(broadcastForm.channelKey) && (
-              <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl flex flex-col gap-4 shadow-xl animate-fade-in">
+              <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col gap-4 shadow-xl animate-fade-in">
                 <div className="border-b border-[#201d2d]/60 pb-2 flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-amber-900/10">
                     <Server className="w-4 h-4 text-amber-500" />
@@ -677,7 +689,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Right Column: Webhook config grid */}
-          <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl flex flex-col gap-4 shadow-xl">
+          <div className="lg:col-span-2 bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col gap-4 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#201d2d]/60 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-purple-900/10">
@@ -718,7 +730,7 @@ export default function AdminDashboard() {
                     key={ch.key} 
                     className={`p-4 rounded-xl border flex flex-col gap-2.5 transition-smooth bg-[#09080d]/30 ${
                       isConfigured 
-                        ? 'border-[#1e1b29] hover:border-purple-500/20' 
+                        ? 'border-[#1c1a2a] hover:border-purple-500/20' 
                         : 'border-red-950/20 hover:border-red-900/10'
                     }`}
                   >
@@ -771,7 +783,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-fade-in">
           {/* Left Advice Column */}
           <div className="lg:col-span-1 flex flex-col gap-4">
-            <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl flex flex-col gap-3 shadow-xl">
+            <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col gap-3 shadow-xl">
               <div className="border-b border-[#201d2d]/60 pb-2 flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-purple-900/10">
                   <Info className="w-4 h-4 text-purple-400" />
@@ -793,7 +805,7 @@ export default function AdminDashboard() {
                   <li>Under OAuth2, copy your **Client ID** and **Client Secret**.</li>
                   <li>Generate an invite link, add the Bot to your Discord server, and paste your **Guild ID** (Server ID) into the form.</li>
                 </ol>
-                <p className="text-[9px] text-zinc-550 pt-2 border-t border-[#1e1b29] leading-tight">
+                <p className="text-[9px] text-zinc-550 pt-2 border-t border-[#1c1a2a] leading-tight">
                   All bot credentials are stored securely and encrypted in the backend db.json registry.
                 </p>
               </div>
@@ -801,7 +813,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Form Column */}
-          <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl flex flex-col gap-6 shadow-xl">
+          <div className="lg:col-span-2 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl flex flex-col gap-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-[#201d2d]/60 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-purple-900/10">
@@ -898,6 +910,45 @@ export default function AdminDashboard() {
                     placeholder="Enter new master passcode (defaults to 'anvy2026')" 
                     className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
                   />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-[9px] text-zinc-500 font-black block mb-1">AUTOMATED RP TICKET TIMES (HH:MM COMMA SEPARATED)</label>
+                  <input 
+                    type="text"
+                    name="rpTicketTimes"
+                    value={credentials.rpTicketTimes}
+                    onChange={handleCredChange}
+                    placeholder="e.g. 08:30, 15:00, 20:00, 22:30" 
+                    className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                  />
+                  <span className="text-[9px] text-zinc-500 mt-1 block">Specify the local times (24-hour HH:MM format) when the bot should automatically open the RP Ticket signup and trigger the Discord embed.</span>
+                </div>
+
+                <div>
+                  <label className="text-[9px] text-zinc-500 font-black block mb-1">RP ROSTER VOICE CHANNEL ID</label>
+                  <input 
+                    type="text"
+                    name="factoryVoiceChannelId"
+                    value={credentials.factoryVoiceChannelId}
+                    onChange={handleCredChange}
+                    placeholder="e.g. 10482938491829384" 
+                    className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                  />
+                  <span className="text-[9px] text-zinc-500 mt-1 block">The voice channel ID where members must be present to get a green checkmark in the active roster.</span>
+                </div>
+
+                <div>
+                  <label className="text-[9px] text-zinc-500 font-black block mb-1">SIMULATED VOICE USERS (DISCORD IDS COMMA SEPARATED)</label>
+                  <input 
+                    type="text"
+                    name="simulatedVoice"
+                    value={credentials.simulatedVoice}
+                    onChange={handleCredChange}
+                    placeholder="e.g. 123456789012345, 98765432109876" 
+                    className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                  />
+                  <span className="text-[9px] text-zinc-500 mt-1 block">Comma-separated list of user IDs to force simulate as being inside the voice channel for testing.</span>
                 </div>
               </div>
 

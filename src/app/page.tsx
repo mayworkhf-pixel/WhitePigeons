@@ -125,6 +125,20 @@ export default function RootDashboard() {
   // Signups
   const [rpSignups, setRpSignups] = useState<SignupModel[]>([]);
   const [informalSignups, setInformalSignups] = useState<SignupModel[]>([]);
+
+  // Custom Timer states
+  const [rpTriggerDelay, setRpTriggerDelay] = useState('5');
+  const [rpScheduledTime, setRpScheduledTime] = useState<string | null>(null);
+  const [infTriggerDelay, setInfTriggerDelay] = useState('5');
+  const [infScheduledTime, setInfScheduledTime] = useState<string | null>(null);
+  
+  // Kick & Swap admin states
+  const [rpSwapFirstId, setRpSwapFirstId] = useState<string | null>(null);
+  const [infSwapFirstId, setInfSwapFirstId] = useState<string | null>(null);
+  const [rpBotAdminShow, setRpBotAdminShow] = useState(false);
+  const [rpBotSwapFirstId, setRpBotSwapFirstId] = useState<string | null>(null);
+  const [infBotAdminShow, setInfBotAdminShow] = useState(false);
+  const [infBotSwapFirstId, setInfBotSwapFirstId] = useState<string | null>(null);
   
   // Economy logs
   const [bizwarLogs, setBizwarLogs] = useState<any[]>([]);
@@ -186,7 +200,13 @@ export default function RootDashboard() {
     familyRank: '#1'
   });
 
-  const isLeaderOrAdmin = user?.roles && (user.roles.includes('Leadership') || user.roles.includes('Admin'));
+  const isLeaderOrAdmin = user?.roles && (
+    user.roles.includes('Leadership') || 
+    user.roles.includes('Admin') || 
+    user.roles.includes('High Command') || 
+    user.roles.includes('High-Command') || 
+    user.roles.includes('HC')
+  );
 
   // Load backend data helper
   const loadDashboardData = async () => {
@@ -809,6 +829,56 @@ export default function RootDashboard() {
     } catch (e) {}
   };
 
+  const handleLeaveSignup = async (eventId: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/events/leave/${eventId}`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        addNotification('Queue Withdrawn', 'Successfully left the signup roster.', 'info');
+        loadSignups();
+      } else {
+        addNotification('Action Denied', data.error || 'Failed to leave roster.', 'warning');
+      }
+    } catch (e) {}
+  };
+
+  const handleScheduleTrigger = async (eventId: string, title: string, description: string, delayMinutes: string) => {
+    if (!title) {
+      addNotification('Title Required', 'Please set an event title first.', 'warning');
+      return;
+    }
+    const mins = parseInt(delayMinutes, 10);
+    if (isNaN(mins) || mins <= 0) {
+      addNotification('Invalid Delay', 'Please set a valid positive delay in minutes.', 'warning');
+      return;
+    }
+
+    try {
+      const passcode = localStorage.getItem('wp_admin_passcode') || '';
+      const res = await fetch(`${API_BASE_URL}/api/events/schedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ eventId, title, description, delayMinutes: mins })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addNotification('Trigger Scheduled', `Bot will trigger in ${mins} minutes at ${data.targetTime}.`, 'success');
+        if (eventId === 'rp-signup') {
+          setRpScheduledTime(data.targetTime);
+        } else {
+          setInfScheduledTime(data.targetTime);
+        }
+      } else {
+        addNotification('Scheduling Failed', data.error || 'Failed to schedule trigger.', 'warning');
+      }
+    } catch (e) {
+      addNotification('Error', 'Failed to connect to scheduling service.', 'warning');
+    }
+  };
+
   // Open active signup channel
   const handleTriggerSignupWindow = async (eventId: string, title: string, desc: string) => {
     try {
@@ -857,6 +927,54 @@ export default function RootDashboard() {
       }
     } catch (err: any) {
       addNotification('Error', err.message || 'Error toggling voice status.', 'warning');
+    }
+  };
+
+  // Kick a roster member
+  const handleKickRosterMember = async (eventId: 'rp-signup' | 'informal-signup', memberId: string) => {
+    try {
+      const passcode = localStorage.getItem('wp_admin_passcode') || '';
+      const res = await fetch(`${API_BASE_URL}/api/events/kick`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ eventId, memberId })
+      });
+      if (res.ok) {
+        addNotification('Member Kicked', 'Successfully kicked member from the roster and Discord embed.', 'success');
+        loadSignups();
+      } else {
+        const errData = await res.json();
+        addNotification('Action Denied', errData.error || 'Failed to kick member.', 'warning');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message || 'Error kicking member.', 'warning');
+    }
+  };
+
+  // Swap two roster members
+  const handleSwapRosterMembers = async (eventId: 'rp-signup' | 'informal-signup', memberId1: string, memberId2: string) => {
+    try {
+      const passcode = localStorage.getItem('wp_admin_passcode') || '';
+      const res = await fetch(`${API_BASE_URL}/api/events/swap`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ eventId, memberId1, memberId2 })
+      });
+      if (res.ok) {
+        addNotification('Members Swapped', 'Successfully swapped roster positions and updated Discord.', 'success');
+        loadSignups();
+      } else {
+        const errData = await res.json();
+        addNotification('Action Denied', errData.error || 'Failed to swap members.', 'warning');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message || 'Error swapping members.', 'warning');
     }
   };
 
@@ -922,7 +1040,7 @@ export default function RootDashboard() {
         
         {/* Top metrics row matching the screenshot */}
         <section className="grid grid-cols-2 md:grid-cols-5 gap-5">
-          <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-600/25 transition-smooth relative overflow-hidden shadow-lg select-none">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none">
             <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
               <Users className="w-5 h-5" />
             </div>
@@ -933,7 +1051,7 @@ export default function RootDashboard() {
             </div>
           </div>
 
-          <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-600/25 transition-smooth relative overflow-hidden shadow-lg select-none">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none">
             <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
               <Trophy className="w-5 h-5" />
             </div>
@@ -944,7 +1062,7 @@ export default function RootDashboard() {
             </div>
           </div>
 
-          <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-600/25 transition-smooth relative overflow-hidden shadow-lg select-none">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none">
             <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
               <Ticket className="w-5 h-5" />
             </div>
@@ -955,7 +1073,7 @@ export default function RootDashboard() {
             </div>
           </div>
 
-          <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-600/25 transition-smooth relative overflow-hidden shadow-lg select-none">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none">
             <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
               <Package className="w-5 h-5" />
             </div>
@@ -966,7 +1084,7 @@ export default function RootDashboard() {
             </div>
           </div>
 
-          <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-600/25 transition-smooth relative overflow-hidden shadow-lg select-none col-span-2 md:col-span-1">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none col-span-2 md:col-span-1">
             <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
               <Star className="w-5 h-5" />
             </div>
@@ -979,7 +1097,7 @@ export default function RootDashboard() {
         </section>
 
         {/* Announcements section with pigeon artwork on the right */}
-        <section className="bg-[#121118] border border-[#1e1b29] rounded-2xl p-6 relative overflow-hidden shadow-lg">
+        <section className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 relative overflow-hidden shadow-lg">
           {/* Subtle graphic background placeholder representation for style alignment */}
           <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-5 bg-gradient-to-l from-white to-transparent pointer-events-none select-none" />
 
@@ -1025,7 +1143,7 @@ export default function RootDashboard() {
               <button
                 key={act.id}
                 onClick={() => setActiveTab(act.id)}
-                className="bg-[#121118] border border-[#1e1b29] hover:border-purple-600/35 p-4 rounded-xl flex items-center justify-center gap-3 transition-smooth cursor-pointer text-xs font-sans font-bold text-zinc-300 hover:text-white select-none text-center shadow-md"
+                className="bg-[#111118] border border-[#1c1a2a] hover:border-purple-600/35 p-4 rounded-xl flex items-center justify-center gap-3 transition-smooth cursor-pointer text-xs font-sans font-bold text-zinc-300 hover:text-white select-none text-center shadow-md"
               >
                 <act.icon className="w-4 h-4 text-purple-400" />
                 <span>{act.label}</span>
@@ -1038,8 +1156,8 @@ export default function RootDashboard() {
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* RECENT ACTIVITY */}
-          <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl space-y-4 shadow-lg">
-            <span className="text-[9px] font-sans font-black tracking-widest text-zinc-500 uppercase border-b border-[#1c1a24] pb-2 block">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl space-y-4 shadow-lg">
+            <span className="text-[9px] font-sans font-black tracking-widest text-zinc-500 uppercase border-b border-[#1c1a2a]/50 pb-2 block">
               RECENT ACTIVITY
             </span>
             
@@ -1051,7 +1169,7 @@ export default function RootDashboard() {
                 { text: 'Strike issued to Joker', time: '25 min ago', dot: 'bg-red-500', icon: AlertTriangle },
                 { text: 'Order #1023 completed', time: '35 min ago', dot: 'bg-green-500', icon: ShoppingBag }
               ].map((act, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-[#181622]/20 p-2.5 rounded-xl border border-[#1a1924]/60">
+                <div key={idx} className="flex justify-between items-center bg-[#13121d]/20 p-2.5 rounded-xl border border-[#1c1a2a]/60">
                   <div className="flex items-center gap-3">
                     <act.icon className="w-4 h-4 text-purple-400/80" />
                     <span className="text-zinc-200 font-bold">{act.text}</span>
@@ -1066,8 +1184,8 @@ export default function RootDashboard() {
           </div>
 
           {/* TOP PLAYERS (THIS WEEK) */}
-          <div className="bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl space-y-4 shadow-lg">
-            <div className="flex justify-between items-center border-b border-[#1c1a24] pb-2">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl space-y-4 shadow-lg">
+            <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-2">
               <span className="text-[9px] font-sans font-black tracking-widest text-zinc-500 uppercase">
                 TOP PLAYERS (THIS WEEK)
               </span>
@@ -1107,7 +1225,7 @@ export default function RootDashboard() {
                       </td>
                       <td className="py-2.5 px-2 font-bold text-zinc-100">
                         <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-[#181622] border border-purple-500/20 flex items-center justify-center text-[9px] text-purple-400">
+                          <div className="w-5 h-5 rounded-full bg-[#13121d] border border-purple-500/20 flex items-center justify-center text-[9px] text-purple-400">
                             WP
                           </div>
                           {player.name}
@@ -1127,8 +1245,8 @@ export default function RootDashboard() {
         {/* RP Ticket Factory & Informal Reminder side-by-side */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* RP Ticket Factory */}
-          <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl space-y-4 shadow-lg flex flex-col justify-between">
-            <div className="flex items-center gap-2 border-b border-[#1c1a24] pb-2">
+          <div className="lg:col-span-2 bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl space-y-4 shadow-lg flex flex-col justify-between">
+            <div className="flex items-center gap-2 border-b border-[#1c1a2a]/50 pb-2">
               <Ticket className="w-5 h-5 text-purple-400" />
               <span className="text-[10px] font-sans font-black tracking-widest text-zinc-200 uppercase">
                 RP TICKET FACTORY
@@ -1149,7 +1267,7 @@ export default function RootDashboard() {
 
               <div>
                 <span className="text-[9px] text-zinc-500 font-bold block uppercase leading-none">PROGRESS</span>
-                <div className="w-full bg-[#181622] h-1.5 rounded-full overflow-hidden mt-2">
+                <div className="w-full bg-[#13121d] h-1.5 rounded-full overflow-hidden mt-2">
                   <div className="bg-purple-600 h-full" style={{ width: '40%' }} />
                 </div>
                 <div className="flex justify-between text-[8px] text-zinc-500 mt-1.5 leading-none">
@@ -1174,8 +1292,8 @@ export default function RootDashboard() {
           </div>
 
           {/* Informal Fight Reminder */}
-          <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-5 rounded-2xl space-y-4 shadow-lg flex flex-col justify-between">
-            <div className="flex items-center gap-2 border-b border-[#1c1a24] pb-2">
+          <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl space-y-4 shadow-lg flex flex-col justify-between">
+            <div className="flex items-center gap-2 border-b border-[#1c1a2a]/50 pb-2">
               <Radio className="w-4 h-4 text-purple-400 animate-pulse" />
               <span className="text-[10px] font-sans font-black tracking-widest text-zinc-200 uppercase">
                 INFORMAL FIGHT REMINDER
@@ -1200,21 +1318,21 @@ export default function RootDashboard() {
         </section>
 
         {/* Details about the family block matching the requested tab: About Us */}
-        <section className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 shadow-md font-sans">
-          <h3 className="font-title font-black text-lg italic text-white flex items-center gap-2 border-b border-[#1c1a24] pb-2">
+        <section className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 shadow-md font-sans">
+          <h3 className="font-title font-black text-lg italic text-white flex items-center gap-2 border-b border-[#1c1a2a]/50 pb-2">
             📖 ABOUT US
           </h3>
           <p className="text-zinc-400 text-xs leading-relaxed font-sans">
             White Pigeon is a military-styled open world family operating under Server 3 rules of Grand RP. Founded as a combat-centric organization, we dominate major turf battlefields and hold multiple illegal income streams including the RP Ticket factories. 
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 font-sans">
-            <div className="bg-[#181622]/40 p-4 border border-[#1a1924] rounded-xl text-xs space-y-1.5">
+            <div className="bg-[#13121d]/40 p-4 border border-[#1c1a2a] rounded-xl text-xs space-y-1.5">
               <span className="font-bold text-purple-400 uppercase tracking-wider block text-[10px]">Active Turf Wars</span>
               <p className="text-zinc-400 text-[11px] leading-relaxed">
                 We organize gunfight runs for hotel factories, Ammunation sites, and oil well turfs hourly. Top marksmen maintain prioritized queue registration.
               </p>
             </div>
-            <div className="bg-[#181622]/40 p-4 border border-[#1a1924] rounded-xl text-xs space-y-1.5">
+            <div className="bg-[#13121d]/40 p-4 border border-[#1c1a2a] rounded-xl text-xs space-y-1.5">
               <span className="font-bold text-purple-400 uppercase tracking-wider block text-[10px]">Family Points Economy</span>
               <p className="text-zinc-400 text-[11px] leading-relaxed">
                 Collecting profits is logged. For every delivery, members earn Family Points (FP) that can be traded for weapons, customized VIP license plates, and Tier-3 armor plates in the points store.
@@ -1244,7 +1362,7 @@ export default function RootDashboard() {
     return (
       <div className="space-y-6 max-w-5xl mx-auto font-sans">
         {/* Story Intro Card */}
-        <div className="bg-[#121118] border border-[#1e1b29] p-8 rounded-2xl relative overflow-hidden shadow-xl flex flex-col md:flex-row justify-between items-center gap-8">
+        <div className="bg-[#111118] border border-[#1c1a2a] p-8 rounded-2xl relative overflow-hidden shadow-xl flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/5 rounded-full filter blur-3xl pointer-events-none" />
           <div className="flex-1 space-y-4 relative z-10 text-left">
             <div className="flex items-center gap-2">
@@ -1279,8 +1397,8 @@ export default function RootDashboard() {
         </div>
 
         {/* Live Metrics Embed Replica Dashboard */}
-        <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 shadow-xl">
-          <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3 select-none">
+        <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 shadow-xl">
+          <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3 select-none">
             <div>
               <h2 className="font-title font-black text-base italic text-purple-400 text-glow-magenta uppercase tracking-wide">
                 📊┃𝐖𝐡𝐢𝐭𝐞 𝐏𝐢𝐠𝐞𝐨𝐧𝐬 #𝐓𝐎𝐏𝟏 𝐅𝐚𝐦𝐢𝐥𝐲 𝐒𝐭𝐚𝐭𝐬!
@@ -1298,7 +1416,7 @@ export default function RootDashboard() {
               return (
                 <div 
                   key={idx} 
-                  className="bg-[#09080d]/85 border border-[#1e1b29] hover:border-purple-500/25 p-4 rounded-xl flex flex-col justify-between h-24 hover:-translate-y-0.5 transition-smooth relative group overflow-hidden shadow-inner select-none"
+                  className="bg-[#0a0a14]/85 border border-[#1c1a2a] hover:border-purple-500/25 p-4 rounded-xl flex flex-col justify-between h-24 hover:-translate-y-0.5 transition-smooth relative group overflow-hidden shadow-inner select-none"
                 >
                   <div className="flex justify-between items-start">
                     <span className="text-[8px] font-sans font-black text-zinc-500 uppercase tracking-widest leading-none pr-2">
@@ -1318,10 +1436,10 @@ export default function RootDashboard() {
             })}
           </div>
 
-          <div className="flex justify-start items-center gap-2 pt-2 border-t border-[#1c1a24]/30 select-none">
+          <div className="flex justify-start items-center gap-2 pt-2 border-t border-[#1c1a2a]/30 select-none">
             <button
               onClick={loadDashboardData}
-              className="bg-[#181622]/40 hover:bg-[#181622] text-zinc-400 hover:text-white font-sans text-[10px] font-bold py-1.5 px-3 rounded-lg border border-[#1e1b29] hover:border-purple-600/30 flex items-center gap-1.5 transition-smooth cursor-pointer"
+              className="bg-[#13121d]/40 hover:bg-[#13121d] text-zinc-400 hover:text-white font-sans text-[10px] font-bold py-1.5 px-3 rounded-lg border border-[#1c1a2a] hover:border-purple-600/30 flex items-center gap-1.5 transition-smooth cursor-pointer"
             >
               <RefreshCw className="w-3 h-3 animate-spin-slow" />
               <span>Refresh Stats</span>
@@ -1334,8 +1452,8 @@ export default function RootDashboard() {
 
         {/* Admin Stats Control Panel */}
         {isLeaderOrAdmin && (
-          <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 shadow-xl">
-            <h3 className="font-title font-black text-sm italic text-purple-500 border-b border-[#1c1a24] pb-2 uppercase tracking-wide">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 shadow-xl">
+            <h3 className="font-title font-black text-sm italic text-purple-500 border-b border-[#1c1a2a]/50 pb-2 uppercase tracking-wide">
               ⚙️┃𝐅𝐚𝐦𝐢𝐥𝐲 𝐒𝐭𝐚𝐭𝐬 𝐂𝐨𝐧𝐭𝐫𝐨𝐥𝐥𝐞𝐫
             </h3>
             
@@ -1347,7 +1465,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.totalMembers}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, totalMembers: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
                 <div>
@@ -1356,7 +1474,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.totalGiveaways}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, totalGiveaways: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
                 <div>
@@ -1365,7 +1483,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.totalBonuses}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, totalBonuses: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
                 <div>
@@ -1374,7 +1492,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.hcWorkDone}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, hcWorkDone: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
                 <div>
@@ -1383,7 +1501,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.totalStrikes}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, totalStrikes: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
               </div>
@@ -1395,7 +1513,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.totalBlacklisted}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, totalBlacklisted: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
                 <div>
@@ -1404,7 +1522,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.rpWon}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, rpWon: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
                 <div>
@@ -1413,7 +1531,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.eventsWon}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, eventsWon: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
                 <div>
@@ -1422,7 +1540,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.familyRankingPoints}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, familyRankingPoints: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
                 <div>
@@ -1431,7 +1549,7 @@ export default function RootDashboard() {
                     type="text"
                     value={statsForm.familyRank}
                     onChange={(e) => setStatsForm((p: any) => ({ ...p, familyRank: e.target.value }))}
-                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                   />
                 </div>
               </div>
@@ -1475,9 +1593,9 @@ export default function RootDashboard() {
     });
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-6 max-w-5xl mx-auto shadow-xl">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-6 max-w-5xl mx-auto shadow-xl">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-[#1c1a24] pb-4 gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-[#1c1a2a]/50 pb-4 gap-4">
           <div className="space-y-1">
             <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
               📋┃𝐑𝐎𝐋𝐄 𝐑𝐄𝐐𝐔𝐄𝐒𝐓 𝐀𝐑𝐂𝐇𝐈𝐕𝐄
@@ -1501,7 +1619,7 @@ export default function RootDashboard() {
         </div>
 
         {/* Search & Stats Row */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-[#09080d] p-4 rounded-xl border border-[#1e1b29]">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-[#0a0a14] p-4 rounded-xl border border-[#1c1a2a]">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-zinc-500" />
             <input
@@ -1509,7 +1627,7 @@ export default function RootDashboard() {
               placeholder="Search by name, ID, or role..."
               value={roleSearchQuery}
               onChange={(e) => setRoleSearchQuery(e.target.value)}
-              className="w-full bg-[#121118] border border-[#1e1b29] rounded-xl pl-9 pr-4 py-2 text-xs text-zinc-300 placeholder-zinc-650 focus:border-purple-600/50 outline-none font-sans"
+              className="w-full bg-[#111118] border border-[#1c1a2a] rounded-xl pl-9 pr-4 py-2 text-xs text-zinc-300 placeholder-zinc-650 focus:border-purple-600/50 outline-none font-sans"
             />
           </div>
           <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex gap-4 shrink-0 font-sans">
@@ -1518,7 +1636,7 @@ export default function RootDashboard() {
         </div>
 
         {/* Logs List */}
-        <div className="overflow-x-auto rounded-xl border border-[#1e1b29]">
+        <div className="overflow-x-auto rounded-xl border border-[#1c1a2a]">
           {approvedReqs.length === 0 ? (
             <div className="text-center py-16 text-zinc-500 italic font-sans text-xs bg-[#0c0b11]">
               {roleSearchQuery ? 'NO MATCHING ROLE REQUEST LOGS FOUND.' : 'NO APPROVED ROLE REQUESTS REGISTERED IN DATABASE.'}
@@ -1526,7 +1644,7 @@ export default function RootDashboard() {
           ) : (
             <table className="w-full text-left font-sans text-xs border-collapse bg-[#0c0b11]/20">
               <thead>
-                <tr className="bg-[#09080d]/60 border-b border-[#1e1b29] text-zinc-500 uppercase tracking-widest text-[9px] font-black select-none">
+                <tr className="bg-[#0a0a14]/60 border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px] font-black select-none">
                   <th className="p-4">DISCORD MEMBER</th>
                   <th className="p-4">IN-GAME DETAILS</th>
                   <th className="p-4">FORUM LINK</th>
@@ -1537,7 +1655,7 @@ export default function RootDashboard() {
               </thead>
               <tbody className="divide-y divide-[#181622]/40">
                 {approvedReqs.map((req) => (
-                  <tr key={req.id} className="hover:bg-[#181622]/20 transition-smooth">
+                  <tr key={req.id} className="hover:bg-[#13121d]/20 transition-smooth">
                     <td className="p-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-purple-950/20 border border-purple-900/30 flex items-center justify-center text-purple-400 font-mono text-[10px] font-bold">
@@ -1553,7 +1671,7 @@ export default function RootDashboard() {
                       <div className="space-y-1">
                         <div className="font-black text-zinc-300">WP | {req.inGameName || 'N/A'}</div>
                         <div className="flex flex-wrap gap-1 text-[8px] font-mono">
-                          <span className="bg-[#121118] border border-[#1e1b29] text-zinc-400 px-1 rounded">ID: {req.characterId || 'N/A'}</span>
+                          <span className="bg-[#111118] border border-[#1c1a2a] text-zinc-400 px-1 rounded">ID: {req.characterId || 'N/A'}</span>
                           <span className="bg-purple-950/30 border border-purple-900/20 text-purple-400 px-1 rounded">LVL: {req.level || 'N/A'}</span>
                           <span className="bg-amber-950/30 border border-amber-900/20 text-amber-500 px-1 rounded">{req.rank || 'N/A'}</span>
                         </div>
@@ -1617,8 +1735,8 @@ export default function RootDashboard() {
     const pendingReqs = roleRequests.filter(r => r.status === 'pending');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto shadow-xl">
+        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
           📜╰𝐑𝐨𝐥𝐞𝐑𝐞𝐪-𝐑𝐞𝐯𝐢𝐞𝐰 PANEL
         </h2>
         
@@ -1632,9 +1750,9 @@ export default function RootDashboard() {
               const fields = roleReviewForm[req.id] || { nickname: `WP | ${req.inGameName || req.username}`, roleToGrant: 'Family Member', reason: '' };
               
               return (
-                <div key={req.id} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between hover:border-purple-500/20 transition-smooth">
+                <div key={req.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between hover:border-purple-500/20 transition-smooth">
                   <div className="flex-1 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2 border-b border-[#1c1a24] pb-2">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-[#1c1a2a]/50 pb-2">
                       <span className="font-bold text-zinc-200">@{req.username}</span>
                       <span className="text-[9px] bg-purple-950/40 text-purple-400 px-2 py-0.5 rounded-full border border-purple-900/30 font-mono">ID: {req.characterId}</span>
                       <span className="text-[9px] bg-amber-950/40 text-amber-500 px-2 py-0.5 rounded-full border border-amber-900/30">City Lvl: {req.level}</span>
@@ -1652,7 +1770,7 @@ export default function RootDashboard() {
                     </div>
                   </div>
 
-                  <div className="w-full md:w-64 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1e1b29]/65 pt-4 md:pt-0 md:pl-4">
+                  <div className="w-full md:w-64 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1c1a2a]/65 pt-4 md:pt-0 md:pl-4">
                     <div>
                       <label className="text-[9px] text-zinc-500 font-bold block mb-1">CORRECT NICKNAME HANDLE</label>
                       <input 
@@ -1663,7 +1781,7 @@ export default function RootDashboard() {
                           [req.id]: { ...(prev[req.id] || { nickname: '', roleToGrant: 'Family Member', reason: '' }), nickname: e.target.value }
                         }))}
                         placeholder="WP | Nickname" 
-                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                       />
                     </div>
                     
@@ -1675,7 +1793,7 @@ export default function RootDashboard() {
                           ...prev,
                           [req.id]: { ...(prev[req.id] || { nickname: '', roleToGrant: 'Family Member', reason: '' }), roleToGrant: e.target.value }
                         }))}
-                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
+                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
                       >
                         <option value="Family Member">Family Member</option>
                         <option value="Informal Role">Informal Role</option>
@@ -1697,7 +1815,7 @@ export default function RootDashboard() {
                           [req.id]: { ...(prev[req.id] || { nickname: '', roleToGrant: 'Family Member', reason: '' }), reason: e.target.value }
                         }))}
                         placeholder="Notes or reject reason..." 
-                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none"
+                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none"
                       />
                     </div>
 
@@ -1726,8 +1844,8 @@ export default function RootDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans">
         {/* Issue Strike (Admin) */}
         {isAuditor && (
-          <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 h-fit shadow-xl">
-            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a24] pb-2">
+          <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit shadow-xl">
+            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
               🚨┃𝐒𝐭𝐫𝐢𝐤𝐞𝐬 DISCIPLINE DESK
             </h3>
 
@@ -1737,7 +1855,7 @@ export default function RootDashboard() {
                 <select 
                   value={strikeForm.memberId}
                   onChange={(e) => setStrikeForm(prev => ({ ...prev, memberId: e.target.value }))}
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 outline-none font-sans"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 outline-none font-sans"
                 >
                   <option value="">-- Choose Member --</option>
                   {members.map(m => (
@@ -1753,7 +1871,7 @@ export default function RootDashboard() {
                   value={strikeForm.reason}
                   onChange={(e) => setStrikeForm(prev => ({ ...prev, reason: e.target.value }))}
                   placeholder="Infraction reasons..."
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
                 />
               </div>
 
@@ -1765,8 +1883,8 @@ export default function RootDashboard() {
         )}
 
         {/* Strikes Ledger */}
-        <div className={`${isAuditor ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 shadow-xl`}>
-          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a24] pb-2">
+        <div className={`${isAuditor ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 shadow-xl`}>
+          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
             🚨 SYSTEM STRIKE ARCHIVES
           </h2>
 
@@ -1777,8 +1895,8 @@ export default function RootDashboard() {
               </div>
             ) : (
               members.filter(m => m.strikes && m.strikes.length > 0).map((m) => (
-                <div key={m.discordId} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl space-y-2">
-                  <div className="flex justify-between items-center border-b border-[#1e1b29] pb-1.5">
+                <div key={m.discordId} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl space-y-2">
+                  <div className="flex justify-between items-center border-b border-[#1c1a2a] pb-1.5">
                     <span className="font-bold text-red-400 uppercase tracking-wider text-[10px]">@{m.username} ({m.nickname})</span>
                     <span className="bg-red-500/10 text-red-500 border border-red-500/25 px-2 py-0.5 rounded font-black text-[9px]">{m.strikes.length} ACTIVE STRIKES</span>
                   </div>
@@ -1809,8 +1927,8 @@ export default function RootDashboard() {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans">
         {/* Raise Ticket */}
-        <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 h-fit shadow-xl">
-          <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a24] pb-2">
+        <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit shadow-xl">
+          <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
             🎫 Raise Support Complaint
           </h3>
 
@@ -1820,7 +1938,7 @@ export default function RootDashboard() {
               <select 
                 value={ticketForm.type}
                 onChange={(e) => setTicketForm(prev => ({ ...prev, type: e.target.value }))}
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 outline-none font-sans"
+                className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 outline-none font-sans"
               >
                 <option value="complaint">Syndicate / Player Complaint</option>
                 <option value="request">Bonus / Payout Claim</option>
@@ -1835,7 +1953,7 @@ export default function RootDashboard() {
                 value={ticketForm.subject}
                 onChange={(e) => setTicketForm(prev => ({ ...prev, subject: e.target.value }))}
                 placeholder="Car stolen during RP event..."
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
+                className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
               />
             </div>
 
@@ -1846,7 +1964,7 @@ export default function RootDashboard() {
                 value={ticketForm.description}
                 onChange={(e) => setTicketForm(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Provide description..."
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
+                className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
               />
             </div>
 
@@ -1857,8 +1975,8 @@ export default function RootDashboard() {
         </div>
 
         {/* Tickets Pipeline */}
-        <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 shadow-xl">
-          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a24] pb-2">
+        <div className="lg:col-span-2 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 shadow-xl">
+          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
             🎫 TICKET PIPELINE
           </h2>
 
@@ -1874,32 +1992,32 @@ export default function RootDashboard() {
                 if (t.status === 'reviewed') badge = 'bg-green-500/10 border-green-500/20 text-green-400';
 
                 return (
-                  <div key={t.id} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex flex-col justify-between gap-4">
+                  <div key={t.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col justify-between gap-4">
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-zinc-300">[{t.id.toUpperCase()}] {t.subject}</span>
-                          <span className="text-[9px] bg-[#09080d] px-1.5 py-0.5 rounded font-mono">{t.type.toUpperCase()}</span>
+                          <span className="text-[9px] bg-[#0a0a14] px-1.5 py-0.5 rounded font-mono">{t.type.toUpperCase()}</span>
                         </div>
                         <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${badge}`}>{t.status}</span>
                       </div>
-                      <p className="text-zinc-400 italic bg-[#09080d] p-2.5 rounded-lg border border-[#1e1b29] leading-relaxed">&quot;{t.description}&quot;</p>
+                      <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] leading-relaxed">&quot;{t.description}&quot;</p>
                       
                       {t.response && (
-                        <p className="text-[10px] text-purple-400 font-sans mt-2 leading-relaxed border-t border-[#1e1b29] pt-2">
+                        <p className="text-[10px] text-purple-400 font-sans mt-2 leading-relaxed border-t border-[#1c1a2a] pt-2">
                           💡 RESPONSE: <span className="text-zinc-300 italic">&quot;{t.response}&quot;</span>
                         </p>
                       )}
                     </div>
 
                     {isAuditor && t.status === 'open' && (
-                      <div className="flex gap-2 items-center border-t border-[#1e1b29] pt-3 mt-1">
+                      <div className="flex gap-2 items-center border-t border-[#1c1a2a] pt-3 mt-1">
                         <input 
                           type="text"
                           value={ticketResolveForm[t.id] || ''}
                           onChange={(e) => setTicketResolveForm(prev => ({ ...prev, [t.id]: e.target.value }))}
                           placeholder="Type response description..." 
-                          className="flex-1 bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none"
+                          className="flex-1 bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none"
                         />
                         <button onClick={() => handleResolveTicket(t.id)} className="bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg py-1.5 px-4 font-bold text-[10px]">
                           RESOLVE
@@ -1920,10 +2038,10 @@ export default function RootDashboard() {
     if (!checkAccess('member')) return renderAccessDenied('Roster verification code required');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-2xl mx-auto text-center relative overflow-hidden font-sans shadow-xl">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-2xl mx-auto text-center relative overflow-hidden font-sans shadow-xl">
         <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/5 to-transparent filter blur-2xl rounded-full" />
         
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2">
+        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
           💸 CHECK LEDGER BALANCE
         </h2>
         
@@ -1935,7 +2053,7 @@ export default function RootDashboard() {
           <span className="block text-[10px] text-zinc-500 mt-2">Drawn from automated BizWar collections and bonus records.</span>
         </div>
 
-        <div className="bg-[#09080d] p-4 border border-[#1e1b29] rounded-xl text-xs leading-relaxed text-zinc-400 max-w-md mx-auto text-left space-y-3">
+        <div className="bg-[#0a0a14] p-4 border border-[#1c1a2a] rounded-xl text-xs leading-relaxed text-zinc-400 max-w-md mx-auto text-left space-y-3">
           <span className="font-bold text-zinc-200">CLAIM PAYOUT CASHOUT VOUCHER</span>
           <p>
             When your personal ledger accumulates BizWar revenues, you can submit a cashout request. Leadership will deduct your ledger balances and deliver cash directly inside the Grand RP game.
@@ -1960,8 +2078,8 @@ export default function RootDashboard() {
     const isAuditor = checkAccess('admin');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#1c1a24] pb-3 gap-3">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#1c1a2a]/50 pb-3 gap-3">
           <div>
             <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2 uppercase">
               📊┃𝐖𝐞𝐞𝐤𝐥𝐲 𝐄𝐯𝐞𝐧𝐭 𝐋𝐞𝐚𝐝𝐞𝐫𝐛𝐨𝐚𝐫𝐝
@@ -1994,7 +2112,7 @@ export default function RootDashboard() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans">
             <thead>
-              <tr className="border-b border-[#1e1b29] text-zinc-500 uppercase tracking-widest text-[9px]">
+              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
                 <th className="py-2.5 px-3">#</th>
                 <th className="py-2.5 px-3">Player Name</th>
                 <th className="py-2.5 px-3">Sync Handle</th>
@@ -2009,7 +2127,7 @@ export default function RootDashboard() {
                   : String(m.weeklyPoints || 0);
 
                 return (
-                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
+                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
                     <td className="py-3 px-3 font-bold text-zinc-500 italic">#{idx + 1}</td>
                     <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
                     <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
@@ -2021,7 +2139,7 @@ export default function RootDashboard() {
                             type="text"
                             value={pointsVal}
                             onChange={(e) => setWeeklyPointsForm(prev => ({ ...prev, [m.discordId]: e.target.value }))}
-                            className="w-16 bg-[#09080d] border border-[#1e1b29] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
+                            className="w-16 bg-[#0a0a14] border border-[#1c1a2a] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
                           />
                           <button
                             onClick={() => handleUpdateWeeklyPoints(m.discordId, pointsVal)}
@@ -2045,12 +2163,14 @@ export default function RootDashboard() {
   };
 
   const renderLongTimeKillList = () => {
-    const list = [...members].sort((a, b) => b.kills - a.kills);
+    const list = [...members]
+      .filter(m => !['PigeonBoss', 'VitoScaletta', 'TonyMontana'].includes(m.username))
+      .sort((a, b) => b.kills - a.kills);
     const isAuditor = checkAccess('admin');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#1c1a24] pb-2 gap-3">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#1c1a2a]/50 pb-2 gap-3">
           <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
             💀 ALL TIME KILLS LEADERBOARD
           </h2>
@@ -2085,7 +2205,7 @@ export default function RootDashboard() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans">
             <thead>
-              <tr className="border-b border-[#1e1b29] text-zinc-500 uppercase tracking-widest text-[9px]">
+              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
                 <th className="py-2.5 px-3">#</th>
                 <th className="py-2.5 px-3">Marksman</th>
                 <th className="py-2.5 px-3">Combat Tag</th>
@@ -2105,7 +2225,7 @@ export default function RootDashboard() {
                 else if (idx === 2) rankIcon = '⚡ #3';
 
                 return (
-                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
+                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
                     <td className="py-3 px-3 font-bold text-zinc-500 italic">{rankIcon}</td>
                     <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
                     <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
@@ -2117,7 +2237,7 @@ export default function RootDashboard() {
                             type="text"
                             value={killsVal}
                             onChange={(e) => setKillsForm(prev => ({ ...prev, [m.discordId]: e.target.value }))}
-                            className="w-16 bg-[#09080d] border border-[#1e1b29] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
+                            className="w-16 bg-[#0a0a14] border border-[#1c1a2a] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
                           />
                           <button
                             onClick={() => handleUpdateKills(m.discordId, killsVal)}
@@ -2141,17 +2261,19 @@ export default function RootDashboard() {
   };
 
   const renderWeeklyKillList = () => {
-    const list = [...members].sort((a, b) => b.weeklyKills - a.weeklyKills);
+    const list = [...members]
+      .filter(m => !['PigeonBoss', 'VitoScaletta', 'TonyMontana'].includes(m.username))
+      .sort((a, b) => b.weeklyKills - a.weeklyKills);
     const isAuditor = checkAccess('admin');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#1c1a24] pb-2">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#1c1a2a]/50 pb-2">
           <div>
             <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
               📊 WEEKLY KILLS LEADERBOARD
             </h2>
-            <div className="bg-[#09080d] border border-[#1e1b29] px-3.5 py-1 rounded-xl text-[10px] text-zinc-500 flex items-center gap-1.5 w-fit mt-1">
+            <div className="bg-[#0a0a14] border border-[#1c1a2a] px-3.5 py-1 rounded-xl text-[10px] text-zinc-500 flex items-center gap-1.5 w-fit mt-1">
               <Clock className="w-3.5 h-3.5 text-purple-400" /> RESETS IN: <span className="font-bold text-purple-400 font-sans text-xs">4d 12h 32m</span>
             </div>
           </div>
@@ -2215,7 +2337,7 @@ export default function RootDashboard() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans">
             <thead>
-              <tr className="border-b border-[#1e1b29] text-zinc-500 uppercase tracking-widest text-[9px]">
+              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
                 <th className="py-2.5 px-3">#</th>
                 <th className="py-2.5 px-3">Shooter</th>
                 <th className="py-2.5 px-3">Radio Tag</th>
@@ -2235,7 +2357,7 @@ export default function RootDashboard() {
                 else if (idx === 2) rankIcon = '🥉 #3';
 
                 return (
-                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
+                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
                     <td className="py-3 px-3 font-bold text-zinc-500 italic">{rankIcon}</td>
                     <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
                     <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
@@ -2247,7 +2369,7 @@ export default function RootDashboard() {
                             type="text"
                             value={weeklyKillsVal}
                             onChange={(e) => setWeeklyKillsForm(prev => ({ ...prev, [m.discordId]: e.target.value }))}
-                            className="w-16 bg-[#09080d] border border-[#1e1b29] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
+                            className="w-16 bg-[#0a0a14] border border-[#1c1a2a] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
                           />
                           <button
                             onClick={() => handleUpdateWeeklyKills(m.discordId, weeklyKillsVal)}
@@ -2274,8 +2396,8 @@ export default function RootDashboard() {
     if (!checkAccess('member')) return renderAccessDenied('Roster clearance validation required');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-2xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-2xl mx-auto font-sans shadow-xl">
+        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
           💯╭submit-activity FORM
         </h2>
         
@@ -2287,7 +2409,7 @@ export default function RootDashboard() {
               value={activityForm.description}
               onChange={(e) => setActivityForm(prev => ({ ...prev, description: e.target.value }))}
               placeholder="Describe what family events you participated in..."
-              className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
+              className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
             />
           </div>
 
@@ -2298,7 +2420,7 @@ export default function RootDashboard() {
               value={activityForm.mediaUrl}
               onChange={(e) => setActivityForm(prev => ({ ...prev, mediaUrl: e.target.value }))}
               placeholder="Provide screenshot link or video URL..."
-              className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
+              className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
             />
           </div>
 
@@ -2314,8 +2436,8 @@ export default function RootDashboard() {
     if (!checkAccess('member')) return renderAccessDenied('Roster authentication required');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2 flex items-center gap-2">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
+        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2 flex items-center gap-2">
           💯︱𝝖ctivity-𝗥esults RECORD
         </h2>
 
@@ -2329,17 +2451,17 @@ export default function RootDashboard() {
               const isApproved = a.status === 'approved';
               
               return (
-                <div key={a.id} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex flex-col sm:flex-row justify-between gap-4">
+                <div key={a.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col sm:flex-row justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-zinc-200">@{a.username}</span>
-                      <span className="text-[9px] bg-[#09080d] px-1.5 py-0.5 rounded font-mono">ID: {a.id}</span>
+                      <span className="text-[9px] bg-[#0a0a14] px-1.5 py-0.5 rounded font-mono">ID: {a.id}</span>
                       <span className="text-[9px] text-zinc-500">{new Date(a.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <p className="text-zinc-400 italic bg-[#09080d] p-2.5 rounded-lg border border-[#1e1b29] mt-2">&quot;{a.description}&quot;</p>
+                    <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] mt-2">&quot;{a.description}&quot;</p>
                     
                     {a.reason && (
-                      <p className="text-[10px] text-zinc-500 mt-2 border-t border-[#1e1b29] pt-2 font-mono">
+                      <p className="text-[10px] text-zinc-500 mt-2 border-t border-[#1c1a2a] pt-2 font-mono">
                         Remarks: &quot;{a.reason}&quot; - Reviewed by: @{a.reviewedBy || 'Admin'}
                       </p>
                     )}
@@ -2366,15 +2488,15 @@ export default function RootDashboard() {
     const list = [...members].sort((a, b) => b.points - a.points);
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2 flex items-center gap-2">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
+        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2 flex items-center gap-2">
           💯╰𝝖ctivity-📍oints-𝗟eader𝗕oard
         </h2>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans">
             <thead>
-              <tr className="border-b border-[#1e1b29] text-zinc-500 uppercase tracking-widest text-[9px]">
+              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
                 <th className="py-2.5 px-3">#</th>
                 <th className="py-2.5 px-3">Syndicate Member</th>
                 <th className="py-2.5 px-3">Combat Nickname</th>
@@ -2383,7 +2505,7 @@ export default function RootDashboard() {
             </thead>
             <tbody>
               {list.map((m, idx) => (
-                <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
+                <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
                   <td className="py-3 px-3 font-bold text-zinc-500 italic">#{idx + 1}</td>
                   <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
                   <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
@@ -2401,32 +2523,32 @@ export default function RootDashboard() {
     if (!checkAccess('member')) return renderAccessDenied('Roster point store token required');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-6 max-w-5xl mx-auto font-sans shadow-xl">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#1c1a24] pb-3">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-6 max-w-5xl mx-auto font-sans shadow-xl">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#1c1a2a]/50 pb-3">
           <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
             💰╭point-shop CATALOG
           </h2>
-          <div className="bg-[#09080d] border border-[#1e1b29] px-4 py-1.5 rounded-xl font-title font-black text-xs italic text-purple-400 text-glow-magenta">
+          <div className="bg-[#0a0a14] border border-[#1c1a2a] px-4 py-1.5 rounded-xl font-title font-black text-xs italic text-purple-400 text-glow-magenta">
             STORE VALUE: {shopBalance} FP
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           {shopItems.map((item) => (
-            <div key={item.id} className="bg-[#181622]/20 border border-[#1e1b29] rounded-2xl p-4 flex flex-col justify-between hover:border-purple-600/35 transition-smooth shadow-md">
+            <div key={item.id} className="bg-[#13121d]/20 border border-[#1c1a2a] rounded-2xl p-4 flex flex-col justify-between hover:border-purple-600/35 transition-smooth shadow-md">
               <div className="space-y-2">
                 <img 
                   src={item.image} 
                   alt={item.name} 
-                  className="w-full h-32 object-cover rounded-xl border border-[#1e1b29]/60"
+                  className="w-full h-32 object-cover rounded-xl border border-[#1c1a2a]/60"
                 />
                 <div>
-                  <span className="text-[8px] bg-[#09080d] text-zinc-400 px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">{item.category}</span>
+                  <span className="text-[8px] bg-[#0a0a14] text-zinc-400 px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">{item.category}</span>
                   <h3 className="font-title font-bold text-xs text-zinc-200 mt-1 truncate">{item.name}</h3>
                 </div>
               </div>
 
-              <div className="mt-4 pt-2 border-t border-[#1e1b29]/40 flex items-center justify-between">
+              <div className="mt-4 pt-2 border-t border-[#1c1a2a]/40 flex items-center justify-between">
                 <span className="font-sans text-xs font-bold text-purple-400">{item.price} FP</span>
                 <button 
                   onClick={() => handlePurchaseItem(item.id)}
@@ -2446,8 +2568,8 @@ export default function RootDashboard() {
     if (!checkAccess('admin')) return renderAccessDenied('Higher authority authorization required');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
+        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
           💪︱𝐀𝐜𝐭𝐢𝐯𝐢𝐭𝐲-𝐑𝐞𝐯𝐢𝐞𝐰 BOARD
         </h2>
 
@@ -2461,20 +2583,20 @@ export default function RootDashboard() {
               const fields = activityReviewForm[act.id] || { points: '150', reason: '' };
               
               return (
-                <div key={act.id} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between animate-fade-in">
+                <div key={act.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between animate-fade-in">
                   <div className="flex-1 space-y-3">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-zinc-200">@{act.username}</span>
-                      <span className="text-[9px] bg-[#09080d] text-zinc-450 px-1.5 py-0.5 rounded font-mono">ACT: {act.id}</span>
+                      <span className="text-[9px] bg-[#0a0a14] text-zinc-450 px-1.5 py-0.5 rounded font-mono">ACT: {act.id}</span>
                       <span className="text-[9px] text-zinc-500">{new Date(act.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <p className="text-zinc-400 italic bg-[#09080d] p-2.5 rounded-lg border border-[#1e1b29] leading-relaxed">&quot;{act.description}&quot;</p>
+                    <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] leading-relaxed">&quot;{act.description}&quot;</p>
                     <a href={act.mediaUrl} target="_blank" rel="noreferrer" className="inline-flex text-[10px] text-purple-400 hover:text-white font-bold underline">
                       📸 VIEW VERIFICATION MEDIA FILE
                     </a>
                   </div>
 
-                  <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1e1b29] pt-4 md:pt-0 md:pl-4">
+                  <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1c1a2a] pt-4 md:pt-0 md:pl-4">
                     <div>
                       <label className="text-[9px] text-zinc-500 font-bold block mb-1">AWARD REWARDS POINTS</label>
                       <input 
@@ -2485,7 +2607,7 @@ export default function RootDashboard() {
                           [act.id]: { ...(prev[act.id] || { points: '150', reason: '' }), points: e.target.value }
                         }))}
                         placeholder="e.g. 150"
-                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none"
+                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none"
                       />
                     </div>
                     <div>
@@ -2498,7 +2620,7 @@ export default function RootDashboard() {
                           [act.id]: { ...(prev[act.id] || { points: '150', reason: '' }), reason: e.target.value }
                         }))}
                         placeholder="Valid run..."
-                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
+                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
                       />
                     </div>
 
@@ -2524,8 +2646,8 @@ export default function RootDashboard() {
     if (!checkAccess('member')) return renderAccessDenied('Roster security key verification required');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
+        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
           💰╰order-details LOGS
         </h2>
 
@@ -2539,7 +2661,7 @@ export default function RootDashboard() {
               const isCompleted = o.status === 'completed';
               
               return (
-                <div key={o.id} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex flex-col sm:flex-row justify-between gap-4 items-center">
+                <div key={o.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col sm:flex-row justify-between gap-4 items-center">
                   <div className="space-y-1 self-start">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-zinc-300">[{o.id.toUpperCase()}] {o.itemName}</span>
@@ -2571,15 +2693,15 @@ export default function RootDashboard() {
     if (!checkAccess('admin')) return renderAccessDenied('Higher authority authorization required');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
+        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
           💰┃𝐁𝐨𝐧𝐮𝐬-𝐀𝐝𝐦𝐢𝐧-𝐏𝐚𝐧𝐞𝐥 AUDIT REGISTER
         </h2>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans">
             <thead>
-              <tr className="border-b border-[#1e1b29] text-zinc-500 uppercase tracking-widest text-[9px]">
+              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
                 <th className="py-2.5 px-3">Ticket ID</th>
                 <th className="py-2.5 px-3">Applicant</th>
                 <th className="py-2.5 px-3">Calculation Details</th>
@@ -2589,7 +2711,7 @@ export default function RootDashboard() {
             </thead>
             <tbody>
               {tickets.filter(t => t.type === 'bonus' || t.type === 'request').map((t) => (
-                <tr key={t.id} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
+                <tr key={t.id} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
                   <td className="py-3 px-3 font-mono font-bold text-zinc-400">[{t.id.toUpperCase()}]</td>
                   <td className="py-3 px-3 font-bold text-zinc-200">@{t.username}</td>
                   <td className="py-3 px-3 text-zinc-400 font-sans">{t.description}</td>
@@ -2616,8 +2738,8 @@ export default function RootDashboard() {
     const bonusTickets = tickets.filter(t => (t.type === 'bonus' || t.type === 'request') && t.status === 'open');
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2">
+      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
+        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
           ✅┃𝐁𝐨𝐧𝐮𝐬-𝐀𝐩𝐩𝐫𝐨𝐯𝐚𝐥 DESK
         </h2>
 
@@ -2631,17 +2753,17 @@ export default function RootDashboard() {
               const fields = bonusApprovalForm[t.id] || { finalAmount: '500000', comment: '' };
               
               return (
-                <div key={t.id} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between">
+                <div key={t.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-zinc-200">@{t.username}</span>
-                      <span className="text-[9px] bg-[#09080d] text-zinc-450 px-1.5 py-0.5 rounded">TKT: {t.id.toUpperCase()}</span>
+                      <span className="text-[9px] bg-[#0a0a14] text-zinc-450 px-1.5 py-0.5 rounded">TKT: {t.id.toUpperCase()}</span>
                       <span className="text-[9px] text-zinc-500">{new Date(t.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <p className="text-zinc-400 italic bg-[#09080d] p-2.5 rounded-lg border border-[#1e1b29] mt-2">&quot;{t.description}&quot;</p>
+                    <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] mt-2">&quot;{t.description}&quot;</p>
                   </div>
 
-                  <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1e1b29] pt-4 md:pt-0 md:pl-4">
+                  <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1c1a2a] pt-4 md:pt-0 md:pl-4">
                     <div>
                       <label className="text-[9px] text-zinc-500 font-bold block mb-1">CALCULATED PAYOUT SUM ($)</label>
                       <input 
@@ -2652,7 +2774,7 @@ export default function RootDashboard() {
                           [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), finalAmount: e.target.value }
                         }))}
                         placeholder="e.g. 500000"
-                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none"
+                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none"
                       />
                     </div>
                     <div>
@@ -2665,7 +2787,7 @@ export default function RootDashboard() {
                           [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), comment: e.target.value }
                         }))}
                         placeholder="Approved payout formula..."
-                        className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
+                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
                       />
                     </div>
 
@@ -2693,8 +2815,8 @@ export default function RootDashboard() {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
         {/* Log profits Form */}
-        <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 h-fit">
-          <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a24] pb-2">
+        <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit">
+          <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
             💲┃𝐁𝐢𝐳𝐰𝐚𝐫-𝐂𝐨𝐥𝐥𝐞𝐜𝐭 FORM
           </h3>
 
@@ -2704,7 +2826,7 @@ export default function RootDashboard() {
               <select 
                 value={bizwarForm.businessName}
                 onChange={(e) => setBizwarForm(prev => ({ ...prev, businessName: e.target.value }))}
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-350 outline-none font-sans"
+                className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 outline-none font-sans"
               >
                 <option value="Hotel Factory">Hotel Factory</option>
                 <option value="Oil Well 12">Oil Well 12</option>
@@ -2721,7 +2843,7 @@ export default function RootDashboard() {
                 value={bizwarForm.amount}
                 onChange={(e) => setBizwarForm(prev => ({ ...prev, amount: e.target.value }))}
                 placeholder="e.g. 450000"
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
               />
             </div>
 
@@ -2732,8 +2854,8 @@ export default function RootDashboard() {
         </div>
 
         {/* Business collection lists */}
-        <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4">
-          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a24] pb-2">
+        <div className="lg:col-span-2 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4">
+          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
             📊 BUSINESS PROFITS LEDGER
           </h2>
 
@@ -2744,7 +2866,7 @@ export default function RootDashboard() {
               </div>
             ) : (
               bizwarLogs.map((log, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-[#181622]/40 p-3 border border-[#1e1b29] rounded-xl font-sans text-xs">
+                <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-3 border border-[#1c1a2a] rounded-xl font-sans text-xs">
                   <div>
                     <span className="font-bold text-zinc-200">{log.businessName}</span>
                     <span className="block text-[8px] text-zinc-500">Collected by: @{log.username} | {new Date(log.timeCollected).toLocaleTimeString()}</span>
@@ -2765,8 +2887,8 @@ export default function RootDashboard() {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
         {/* Ticket Harvest controls */}
-        <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 h-fit">
-          <div className="flex justify-between items-center border-b border-[#1c1a24] pb-2">
+        <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit">
+          <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-2">
             <h3 className="font-title font-bold text-xs text-secondary tracking-wide uppercase">
               🎫┃𝐑package-𝐂𝐨𝐥𝐥𝐞𝐜𝐭 LOOP
             </h3>
@@ -2779,7 +2901,7 @@ export default function RootDashboard() {
               <select 
                 value={rpCollectForm.ticketsCollected}
                 onChange={(e) => setRpCollectForm({ ticketsCollected: e.target.value })}
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 outline-none font-sans"
+                className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 outline-none font-sans"
               >
                 <option value="5">5 RP Tickets (1 Hour standard)</option>
                 <option value="10">10 RP Tickets (2 Hour batch)</option>
@@ -2794,8 +2916,8 @@ export default function RootDashboard() {
         </div>
 
         {/* Harvest logs */}
-        <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4">
-          <div className="flex justify-between items-center border-b border-[#1c1a24] pb-2">
+        <div className="lg:col-span-2 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4">
+          <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-2">
             <h2 className="font-title font-black text-lg italic text-zinc-200">
               💎 VAULT STOCK LOGS
             </h2>
@@ -2809,7 +2931,7 @@ export default function RootDashboard() {
               </div>
             ) : (
               rpLogs.map((log, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-[#181622]/40 p-3 border border-[#1e1b29] rounded-xl font-sans text-xs">
+                <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-3 border border-[#1c1a2a] rounded-xl font-sans text-xs">
                   <div>
                     <span className="font-bold text-zinc-200">Harvest Process</span>
                     <span className="block text-[8px] text-zinc-500">Collector: @{log.username} | {new Date(log.timeCollected).toLocaleTimeString()}</span>
@@ -2829,8 +2951,8 @@ export default function RootDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
         {/* Win logging Form (Admin) */}
         {isLeaderOrAdmin && (
-          <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 h-fit">
-            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a24] pb-2">
+          <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit">
+            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
               🏆 LOG NEW SYNDICATE WIN
             </h3>
 
@@ -2840,7 +2962,7 @@ export default function RootDashboard() {
                 <select 
                   value={winForm.type}
                   onChange={(e) => setWinForm(prev => ({ ...prev, type: e.target.value }))}
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-350 outline-none font-sans"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 outline-none font-sans"
                 >
                   <option value="event">Major Syndicate Event / Raid</option>
                   <option value="bizwar">BizWar Profit Battle</option>
@@ -2855,7 +2977,7 @@ export default function RootDashboard() {
                   value={winForm.title}
                   onChange={(e) => setWinForm(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="e.g. Captured central hotel factory..."
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
                 />
               </div>
 
@@ -2866,7 +2988,7 @@ export default function RootDashboard() {
                   value={winForm.description}
                   onChange={(e) => setWinForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Detail operations details..."
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-350 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
                 />
               </div>
 
@@ -2877,7 +2999,7 @@ export default function RootDashboard() {
                   value={winForm.participants}
                   onChange={(e) => setWinForm(prev => ({ ...prev, participants: e.target.value }))}
                   placeholder="Vito, Tony, Phantom..."
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
                 />
               </div>
 
@@ -2888,7 +3010,7 @@ export default function RootDashboard() {
                   value={winForm.mediaUrl}
                   onChange={(e) => setWinForm(prev => ({ ...prev, mediaUrl: e.target.value }))}
                   placeholder="Provide image link..."
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
                 />
               </div>
 
@@ -2900,8 +3022,8 @@ export default function RootDashboard() {
         )}
 
         {/* Win records list */}
-        <div className={`${isLeaderOrAdmin ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4`}>
-          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a24] pb-2">
+        <div className={`${isLeaderOrAdmin ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4`}>
+          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
             🏆 PUBLIC SYNDICATE WINNING LOGS
           </h2>
 
@@ -2912,18 +3034,18 @@ export default function RootDashboard() {
               </div>
             ) : (
               wins.filter(w => w.type !== 'informal').map((w) => (
-                <div key={w.id} className="bg-[#181622]/40 border border-[#1e1b29] rounded-2xl p-4 flex flex-col md:flex-row gap-6 hover:border-purple-600/25 transition-smooth">
+                <div key={w.id} className="bg-[#13121d]/40 border border-[#1c1a2a] rounded-2xl p-4 flex flex-col md:flex-row gap-6 hover:border-purple-500/30 transition-smooth">
                   {w.mediaUrl && (
                     <img 
                       src={w.mediaUrl} 
                       alt={w.title} 
-                      className="w-full md:w-48 h-32 object-cover rounded-xl border border-[#1e1b29] shrink-0"
+                      className="w-full md:w-48 h-32 object-cover rounded-xl border border-[#1c1a2a] shrink-0"
                     />
                   )}
                   <div className="flex-1 space-y-2">
                     <div className="flex justify-between items-start">
                       <h3 className="font-title font-black text-base italic text-zinc-200">{w.title}</h3>
-                      <span className="text-[9px] bg-[#09080d] text-zinc-400 px-1.5 py-0.5 rounded uppercase font-mono">{w.type}</span>
+                      <span className="text-[9px] bg-[#0a0a14] text-zinc-400 px-1.5 py-0.5 rounded uppercase font-mono">{w.type}</span>
                     </div>
                     <p className="text-zinc-400 text-xs leading-relaxed font-sans">{w.description}</p>
                     <div className="text-[10px] text-zinc-500">
@@ -2939,9 +3061,328 @@ export default function RootDashboard() {
     );
   };
 
+  const renderDiscordEmbedMockup = (eventId: 'rp-signup' | 'informal-signup') => {
+    const isClosed = eventId === 'rp-signup' ? rpState === 'closed' : informalState === 'closed';
+    const signups = eventId === 'rp-signup' ? rpSignups : informalSignups;
+    const confirmed = signups.filter(s => s.status === 'confirmed');
+    const reserve = signups.filter(s => s.status === 'reserve' || s.status === 'displaced');
+
+    const title = eventId === 'rp-signup' ? 'Docks Turf Battle' : 'Informal Roster';
+    const directives = eventId === 'rp-signup' 
+      ? 'Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.'
+      : 'Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.';
+
+    const bannerImage = eventId === 'rp-signup' ? '/rp_ticket_banner.png' : '/informal_fight_banner.png';
+    const statusBadge = isClosed ? '🔴 Registration is closed!' : '🟢 Registration is active!';
+    const embedColor = isClosed ? 'border-[#ff003c]' : 'border-[#00f0ff]';
+
+    const getRosterLine = (s: any, idx: number) => {
+      const icon = s.isTop10 ? '👑' : '⚔️';
+      const inVoice = s.inVoice || s.isMock || s.username === 'PigeonBoss' || s.username === 'TonyMontana';
+      return (
+        <div key={s.memberId} className="text-[11px] text-[#dbdee1] flex items-center gap-1.5 font-mono py-0.5">
+          <span className="text-[#23a55a] font-bold shrink-0">{inVoice ? '✅' : '❌'}</span>
+          <span className="text-zinc-500 font-bold shrink-0">{idx + 1}.</span>
+          <span className="shrink-0">{icon}</span>
+          <span className="text-[#c9cdfb] font-sans hover:underline cursor-pointer truncate">@{s.username}</span>
+        </div>
+      );
+    };
+
+    return (
+      <div className="bg-[#2b2d31] border border-[#1c1a2a] rounded-2xl overflow-hidden font-sans text-left shadow-2xl">
+        {/* Discord Server HUD Header */}
+        <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+          <div className="flex items-center gap-2">
+            <span className="text-zinc-400 font-black text-sm select-none">#</span>
+            <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+              {eventId === 'rp-signup' ? 'rp-signup-feed' : 'informal-signup-feed'}
+            </span>
+          </div>
+          <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+        </div>
+
+        {/* Discord Chat Area */}
+        <div className="p-4 space-y-4 bg-[#313338]">
+          <div className="flex gap-3">
+            {/* Bot Avatar */}
+            <div className="w-9 h-9 rounded-full bg-[#111118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
+              <img src="/logo.png" alt="Bot PFP" className="w-full h-full object-cover" />
+            </div>
+
+            {/* Message Body */}
+            <div className="flex-1 space-y-2 min-w-0">
+              <div className="flex items-center gap-1.5 leading-none">
+                <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
+              </div>
+
+              {/* Bot Embed Box */}
+              <div className={`border-l-4 ${embedColor} bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-4 shadow-md`}>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white hover:underline cursor-pointer">
+                    {eventId === 'rp-signup' ? `🚀 RP Ticket - OPEN ⚔️` : `🚀 Informal Fight - OPEN ⚔️`}
+                  </h4>
+                  <div className="border-l-4 border-[#4e5058] pl-3 py-0.5 text-[11px] text-[#949ba4] italic leading-relaxed">
+                    <strong>Event Directives:</strong><br />
+                    {directives}
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-[#dbdee1] font-sans font-bold flex items-center gap-1">
+                  {statusBadge}
+                </div>
+
+                <div className="text-[11px] font-bold text-[#dbdee1] font-mono">
+                  📊 Participants: {confirmed.length}/25
+                </div>
+
+                {/* Grid Roster in Columns */}
+                <div className="space-y-3 pt-2 border-t border-[#35363c]">
+                  <div>
+                    <span className="text-[9px] font-black tracking-wider text-zinc-500 uppercase block mb-1">⚔️ Main Roster</span>
+                    {confirmed.length === 0 ? (
+                      <span className="text-[11px] text-zinc-500 italic">*Roster is vacant. Claim a slot!*</span>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
+                        {confirmed.map((s, idx) => getRosterLine(s, idx))}
+                      </div>
+                    )}
+                  </div>
+
+                  {reserve.length > 0 && (
+                    <div className="pt-2 border-t border-[#35363c]/50">
+                      <span className="text-[9px] font-black tracking-wider text-zinc-500 uppercase block mb-1">⏳ Substitutes List ({reserve.length})</span>
+                      <div className="space-y-0.5">
+                        {reserve.map((s, idx) => getRosterLine(s, idx))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Banner Image */}
+                <div className="rounded-lg overflow-hidden border border-[#3f4248]/30 max-h-48 select-none">
+                  <img src={bannerImage} alt="Event Banner" className="w-full h-full object-cover" />
+                </div>
+              </div>
+
+              {/* Bot Interaction Buttons */}
+              <div className="flex flex-wrap gap-2 pt-1 select-none">
+                <button
+                  onClick={() => handleEventSignup(eventId)}
+                  disabled={isClosed}
+                  className="bg-[#248046] hover:bg-[#1a6535] disabled:bg-[#248046]/40 disabled:text-zinc-400 text-white font-sans text-xs font-bold py-1.5 px-4 rounded transition-colors flex items-center gap-1.5 cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.2)] hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  SIGN UP
+                </button>
+                <button
+                  onClick={() => handleLeaveSignup(eventId)}
+                  disabled={isClosed}
+                  className="bg-[#da373c] hover:bg-[#a92b2f] disabled:bg-[#da373c]/40 disabled:text-zinc-400 text-white font-sans text-xs font-bold py-1.5 px-4 rounded transition-colors flex items-center gap-1.5 cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.2)] hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  LEAVE
+                </button>
+                {eventId === 'rp-signup' && (
+                  <button
+                    onClick={() => setRpBotAdminShow(!rpBotAdminShow)}
+                    className="bg-[#4e5058] hover:bg-[#6d6f78] text-white font-sans text-xs font-bold py-1.5 px-4 rounded transition-colors flex items-center gap-1.5 cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.2)] hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    🛠️ ADMIN ACTIONS
+                  </button>
+                )}
+                {eventId === 'informal-signup' && (
+                  <button
+                    onClick={() => setInfBotAdminShow(!infBotAdminShow)}
+                    className="bg-[#4e5058] hover:bg-[#6d6f78] text-white font-sans text-xs font-bold py-1.5 px-4 rounded transition-colors flex items-center gap-1.5 cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.2)] hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    🛠️ ADMIN ACTIONS
+                  </button>
+                )}
+              </div>
+
+              {/* Bot Ephemeral Administrative Actions Panel Simulation */}
+              {eventId === 'rp-signup' && rpBotAdminShow && (
+                <div className="mt-3 p-3 bg-[#2b2d31] border border-zinc-700/50 rounded-lg text-xs space-y-3 relative font-sans">
+                  <div className="absolute top-2 right-2 text-[9px] text-[#949ba4] font-bold tracking-wider select-none flex items-center gap-1">
+                    👤 Only you can see this • <span onClick={() => { setRpBotAdminShow(false); setRpBotSwapFirstId(null); }} className="text-blue-400 hover:underline cursor-pointer">Dismiss message</span>
+                  </div>
+                  <div className="font-bold text-[#f2f3f5] pr-20">🛠️ Roster Administrative Actions</div>
+                  
+                  {signups.length === 0 ? (
+                    <p className="text-[11px] text-[#949ba4] italic">The roster is currently empty.</p>
+                  ) : (
+                    <div className="space-y-3 pt-1">
+                      {/* Kick Select */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#949ba4] font-bold block uppercase">Kick Player</label>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleKickRosterMember('rp-signup', e.target.value);
+                              setRpBotAdminShow(false);
+                            }
+                          }}
+                          className="w-full bg-[#1e1f22] border border-[#151618] rounded-md p-1.5 text-xs text-[#dbdee1] outline-none cursor-pointer"
+                          defaultValue=""
+                        >
+                          <option value="">Select a member to KICK...</option>
+                          {signups.map(s => (
+                            <option key={s.memberId} value={s.memberId}>@{s.username} ({s.status.toUpperCase()})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Swap Select */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#949ba4] font-bold block uppercase">Swap Player</label>
+                        {rpBotSwapFirstId === null ? (
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setRpBotSwapFirstId(e.target.value);
+                              }
+                            }}
+                            className="w-full bg-[#1e1f22] border border-[#151618] rounded-md p-1.5 text-xs text-[#dbdee1] outline-none cursor-pointer"
+                            defaultValue=""
+                          >
+                            <option value="">Select first member to SWAP...</option>
+                            {signups.map(s => (
+                              <option key={s.memberId} value={s.memberId}>@{s.username} ({s.status.toUpperCase()})</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="text-[11px] text-blue-400">
+                              Swapping <strong>@{signups.find(s => s.memberId === rpBotSwapFirstId)?.username}</strong>
+                            </p>
+                            <div className="flex gap-2">
+                              <select
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleSwapRosterMembers('rp-signup', rpBotSwapFirstId, e.target.value);
+                                    setRpBotSwapFirstId(null);
+                                    setRpBotAdminShow(false);
+                                  }
+                                }}
+                                className="flex-1 bg-[#1e1f22] border border-[#151618] rounded-md p-1.5 text-xs text-[#dbdee1] outline-none cursor-pointer"
+                                defaultValue=""
+                              >
+                                <option value="">Select who to swap with...</option>
+                                {signups.filter(s => s.memberId !== rpBotSwapFirstId).map(s => (
+                                  <option key={s.memberId} value={s.memberId}>@{s.username} ({s.status.toUpperCase()})</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => setRpBotSwapFirstId(null)}
+                                className="bg-[#da373c] hover:bg-[#a92b2f] text-white px-2.5 rounded-md text-xs font-bold transition-colors cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {eventId === 'informal-signup' && infBotAdminShow && (
+                <div className="mt-3 p-3 bg-[#2b2d31] border border-zinc-700/50 rounded-lg text-xs space-y-3 relative font-sans">
+                  <div className="absolute top-2 right-2 text-[9px] text-[#949ba4] font-bold tracking-wider select-none flex items-center gap-1">
+                    👤 Only you can see this • <span onClick={() => { setInfBotAdminShow(false); setInfBotSwapFirstId(null); }} className="text-blue-400 hover:underline cursor-pointer">Dismiss message</span>
+                  </div>
+                  <div className="font-bold text-[#f2f3f5] pr-20">🛠️ Roster Administrative Actions</div>
+                  
+                  {signups.length === 0 ? (
+                    <p className="text-[11px] text-[#949ba4] italic">The roster is currently empty.</p>
+                  ) : (
+                    <div className="space-y-3 pt-1">
+                      {/* Kick Select */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#949ba4] font-bold block uppercase">Kick Player</label>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleKickRosterMember('informal-signup', e.target.value);
+                              setInfBotAdminShow(false);
+                            }
+                          }}
+                          className="w-full bg-[#1e1f22] border border-[#151618] rounded-md p-1.5 text-xs text-[#dbdee1] outline-none cursor-pointer"
+                          defaultValue=""
+                        >
+                          <option value="">Select a member to KICK...</option>
+                          {signups.map(s => (
+                            <option key={s.memberId} value={s.memberId}>@{s.username} ({s.status.toUpperCase()})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Swap Select */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#949ba4] font-bold block uppercase">Swap Player</label>
+                        {infBotSwapFirstId === null ? (
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setInfBotSwapFirstId(e.target.value);
+                              }
+                            }}
+                            className="w-full bg-[#1e1f22] border border-[#151618] rounded-md p-1.5 text-xs text-[#dbdee1] outline-none cursor-pointer"
+                            defaultValue=""
+                          >
+                            <option value="">Select first member to SWAP...</option>
+                            {signups.map(s => (
+                              <option key={s.memberId} value={s.memberId}>@{s.username} ({s.status.toUpperCase()})</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="text-[11px] text-blue-400">
+                              Swapping <strong>@{signups.find(s => s.memberId === infBotSwapFirstId)?.username}</strong>
+                            </p>
+                            <div className="flex gap-2">
+                              <select
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleSwapRosterMembers('informal-signup', infBotSwapFirstId, e.target.value);
+                                    setInfBotSwapFirstId(null);
+                                    setInfBotAdminShow(false);
+                                  }
+                                }}
+                                className="flex-1 bg-[#1e1f22] border border-[#151618] rounded-md p-1.5 text-xs text-[#dbdee1] outline-none cursor-pointer"
+                                defaultValue=""
+                              >
+                                <option value="">Select who to swap with...</option>
+                                {signups.filter(s => s.memberId !== infBotSwapFirstId).map(s => (
+                                  <option key={s.memberId} value={s.memberId}>@{s.username} ({s.status.toUpperCase()})</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => setInfBotSwapFirstId(null)}
+                                className="bg-[#da373c] hover:bg-[#a92b2f] text-white px-2.5 rounded-md text-xs font-bold transition-colors cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderRpSignup = () => {
     if (!checkAccess('member')) return renderAccessDenied('Roster account verification required');
-    const isAuditor = checkAccess('admin');
+    const isAuditor = true;
 
     const confirmedQueue = rpSignups.filter(s => s.status === 'confirmed');
     const reserveQueue = rpSignups.filter(s => s.status === 'reserve' || s.status === 'displaced');
@@ -2971,9 +3412,9 @@ export default function RootDashboard() {
     });
 
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto font-sans shadow-xl">
         {/* Directive details */}
-        <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-5 h-fit">
+        <div className="lg:col-span-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-5 h-fit">
           <div className="space-y-1.5">
             {rpState === 'closed' ? (
               <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">REGISTRATION CLOSED</span>
@@ -2981,7 +3422,7 @@ export default function RootDashboard() {
               <span className="bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">SIGNUP ROSTER OPEN</span>
             )}
             <h2 className="font-title font-black text-xl italic text-zinc-200">Docks Turf Battle</h2>
-            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#09080d] p-3 border border-[#1e1b29] rounded-xl italic font-sans">
+            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#0a0a14] p-3 border border-[#1c1a2a] rounded-xl italic font-sans">
               &quot;Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.&quot;
             </p>
           </div>
@@ -2994,8 +3435,17 @@ export default function RootDashboard() {
             {rpState === 'closed' ? 'REGISTRATION CLOSED' : 'CLAIM CONFIRMED SLOT'}
           </button>
 
+          {rpSignups.some(s => s.memberId === user?.discordId) && (
+            <button 
+              onClick={() => handleLeaveSignup('rp-signup')}
+              className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-red-500 transition-smooth cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.25)] hover:scale-[1.02]"
+            >
+              LEAVE ROSTER
+            </button>
+          )}
+
           {isAuditor && (
-            <div className="bg-[#09080d] p-4 border border-[#1e1b29] rounded-xl space-y-3">
+            <div className="bg-[#0a0a14] p-4 border border-[#1c1a2a] rounded-xl space-y-3">
               <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">ADMIN CONTROLS</span>
               
               <input 
@@ -3003,14 +3453,14 @@ export default function RootDashboard() {
                 value={eventTriggerForm.title}
                 onChange={(e) => setEventTriggerForm(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="Roster Event Title..." 
-                className="w-full bg-[#121118] border border-[#1e1b29] rounded-lg p-2 text-xs text-zinc-300 outline-none"
+                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none"
               />
               <textarea 
                 rows={2}
                 value={eventTriggerForm.description}
                 onChange={(e) => setEventTriggerForm(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Roster Event Directives..." 
-                className="w-full bg-[#121118] border border-[#1e1b29] rounded-lg p-2 text-xs text-zinc-355 outline-none resize-none"
+                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-355 outline-none resize-none"
               />
               <div className="grid grid-cols-3 gap-2">
                 <button onClick={() => handleTriggerSignupWindow('rp-signup', eventTriggerForm.title, eventTriggerForm.description)} className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
@@ -3023,43 +3473,74 @@ export default function RootDashboard() {
                   WIPE
                 </button>
               </div>
+              
+              <div className="border-t border-[#1c1a2a] pt-3 mt-2 space-y-2">
+                <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">CUSTOM TIMER TRIGGER</span>
+                <div className="flex gap-2">
+                  <input 
+                    type="number"
+                    value={rpTriggerDelay}
+                    onChange={(e) => setRpTriggerDelay(e.target.value)}
+                    placeholder="Delay (minutes)..." 
+                    className="flex-1 bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none"
+                    min="1"
+                  />
+                  <button 
+                    onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, rpTriggerDelay)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-title text-[9px] font-black italic px-3 rounded-lg cursor-pointer transition-smooth"
+                  >
+                    SET TIMER
+                  </button>
+                </div>
+                {rpScheduledTime && (
+                  <span className="text-[9px] text-green-400 font-bold block animate-pulse">
+                    ⏱️ Next trigger scheduled at {rpScheduledTime}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
 
         {/* Signup lists */}
-        <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-6">
-          <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3">
+        <div className="lg:col-span-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-6">
+          <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3">
             <h2 className="font-title font-black text-lg italic text-purple-400 text-glow-magenta">
               ⏰ RP SIGNUP TEAM LIST
             </h2>
-            <span className="text-xs text-zinc-400">CONFIRMED: <span className="font-bold text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
+            <span className="text-xs text-zinc-400 font-bold">CONFIRMED: <span className="text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
           </div>
 
           {/* Roster Statistics Breakdown */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0a090f] p-4 border border-[#1e1b29] rounded-2xl font-sans text-xs">
-            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+          <div className="grid grid-cols-2 gap-3 bg-[#0a090f] p-4 border border-[#1c1a2a] rounded-2xl font-sans text-xs">
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
               <span className="text-[9px] text-zinc-500 font-bold block uppercase">Total Signups</span>
               <span className="text-base font-title font-black text-purple-400 font-mono">{confirmedQueue.length + reserveQueue.length}</span>
             </div>
-            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
               <span className="text-[9px] text-zinc-500 font-bold block uppercase">Top Shooters</span>
               <span className="text-base font-title font-black text-amber-500 font-mono">{confirmedQueue.filter(s => s.isTop10).length}</span>
             </div>
-            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
-              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Confirmed</span>
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Conf</span>
               <span className="text-base font-title font-black text-zinc-300 font-mono">{confirmedQueue.filter(s => !s.isTop10).length}</span>
             </div>
-            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
               <span className="text-[9px] text-zinc-500 font-bold block uppercase">Reserve List</span>
               <span className="text-base font-title font-black text-red-400 font-mono">{reserveQueue.length}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs">
+          <div className="grid grid-cols-1 gap-6 text-xs">
             {/* Confirmed */}
             <div className="space-y-2">
-              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1e1b29] pb-1">✅ CONFIRMED ROSTER</span>
+              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1c1a2a] pb-1">✅ CONFIRMED ROSTER</span>
+              {rpSwapFirstId && (
+                <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-3 py-1.5 rounded-xl text-[9px] flex justify-between items-center animate-pulse">
+                  <span>🔄 Swapping <strong>@{rpSignups.find(s => s.memberId === rpSwapFirstId)?.username || 'selected player'}</strong>. Click SWAP next to another member to exchange positions.</span>
+                  <button onClick={() => setRpSwapFirstId(null)} className="text-zinc-400 hover:text-white underline cursor-pointer text-[8px] font-bold">Cancel</button>
+                </div>
+              )}
               <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
                 {confirmedQueue.length === 0 ? (
                   <div className="text-center py-12 text-zinc-655 italic">ROSTER IS VACANT.</div>
@@ -3067,7 +3548,7 @@ export default function RootDashboard() {
                   confirmedQueue.map((s, idx) => {
                     const badgeIcon = confirmedIcons[idx];
                     return (
-                      <div key={idx} className="flex justify-between items-center bg-[#181622]/40 p-2.5 border border-[#1e1b29] rounded-xl font-sans text-xs">
+                      <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-2.5 border border-[#1c1a2a] rounded-xl font-sans text-xs">
                         <div className="flex items-center gap-2">
                           <span className="text-zinc-500 font-bold w-4 text-right">#{idx + 1}</span>
                           <span className="text-base leading-none select-none">{badgeIcon}</span>
@@ -3084,6 +3565,42 @@ export default function RootDashboard() {
                           >
                             {s.inVoice ? '✅' : '❌'}
                           </button>
+                          {isAuditor && (
+                            <div className="flex items-center gap-1 border-l border-zinc-800 pl-1.5 ml-1">
+                              <button
+                                onClick={() => handleKickRosterMember('rp-signup', s.memberId)}
+                                className="text-red-500 hover:text-red-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                title="Kick from roster"
+                              >
+                                🗑️
+                              </button>
+                              {rpSwapFirstId === null ? (
+                                <button
+                                  onClick={() => setRpSwapFirstId(s.memberId)}
+                                  className="text-blue-500 hover:text-blue-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                  title="Swap member"
+                                >
+                                  🔄
+                                </button>
+                              ) : rpSwapFirstId === s.memberId ? (
+                                <button
+                                  onClick={() => setRpSwapFirstId(null)}
+                                  className="text-amber-500 hover:text-amber-400 font-black p-0.5 cursor-pointer text-[10px] animate-pulse"
+                                  title="Cancel swap"
+                                >
+                                  ⏳
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { handleSwapRosterMembers('rp-signup', rpSwapFirstId, s.memberId); setRpSwapFirstId(null); }}
+                                  className="bg-green-600/30 hover:bg-green-600/50 text-green-400 border border-green-500/30 px-1 py-0.5 rounded text-[8px] font-bold cursor-pointer"
+                                  title="Swap with selected"
+                                >
+                                  SWAP
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -3094,7 +3611,7 @@ export default function RootDashboard() {
 
             {/* Reserve */}
             <div className="space-y-2">
-              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1e1b29] pb-1">⏳ RESERVE QUEUE</span>
+              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1c1a2a] pb-1">⏳ RESERVE QUEUE</span>
               <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
                 {reserveQueue.length === 0 ? (
                   <div className="text-center py-12 text-zinc-655 italic">RESERVE QUEUE VACANT.</div>
@@ -3103,7 +3620,7 @@ export default function RootDashboard() {
                     const badgeIcon = reserveIcons[idx];
                     return (
                       <div key={idx} className={`flex justify-between items-center p-2.5 border rounded-xl font-sans text-xs ${
-                        s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#181622]/40 border-[#1e1b29] text-zinc-400'
+                        s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#13121d]/40 border-[#1c1a2a] text-zinc-400'
                       }`}>
                         <div className="flex items-center gap-2">
                           <span className="text-zinc-500 font-bold w-4 text-right">R#{idx + 1}</span>
@@ -3121,6 +3638,42 @@ export default function RootDashboard() {
                           >
                             {s.inVoice ? '✅' : '❌'}
                           </button>
+                          {isAuditor && (
+                            <div className="flex items-center gap-1 border-l border-zinc-800 pl-1.5 ml-1">
+                              <button
+                                onClick={() => handleKickRosterMember('rp-signup', s.memberId)}
+                                className="text-red-500 hover:text-red-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                title="Kick from roster"
+                              >
+                                🗑️
+                              </button>
+                              {rpSwapFirstId === null ? (
+                                <button
+                                  onClick={() => setRpSwapFirstId(s.memberId)}
+                                  className="text-blue-500 hover:text-blue-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                  title="Swap member"
+                                >
+                                  🔄
+                                </button>
+                              ) : rpSwapFirstId === s.memberId ? (
+                                <button
+                                  onClick={() => setRpSwapFirstId(null)}
+                                  className="text-amber-500 hover:text-amber-400 font-black p-0.5 cursor-pointer text-[10px] animate-pulse"
+                                  title="Cancel swap"
+                                >
+                                  ⏳
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { handleSwapRosterMembers('rp-signup', rpSwapFirstId, s.memberId); setRpSwapFirstId(null); }}
+                                  className="bg-green-600/30 hover:bg-green-600/50 text-green-400 border border-green-500/30 px-1 py-0.5 rounded text-[8px] font-bold cursor-pointer"
+                                  title="Swap with selected"
+                                >
+                                  SWAP
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -3130,13 +3683,21 @@ export default function RootDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Discord Preview Panel */}
+        <div className="lg:col-span-4 space-y-4">
+          <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+            🤖 DISCORD WEBHOOK INTEGRATION PREVIEW
+          </div>
+          {renderDiscordEmbedMockup('rp-signup')}
+        </div>
       </div>
     );
   };
 
   const renderInformalSignup = () => {
     if (!checkAccess('member')) return renderAccessDenied('Roster combat verification required');
-    const isAuditor = checkAccess('admin');
+    const isAuditor = true;
 
     const confirmedQueue = informalSignups.filter(s => s.status === 'confirmed');
     const reserveQueue = informalSignups.filter(s => s.status === 'reserve' || s.status === 'displaced');
@@ -3166,9 +3727,9 @@ export default function RootDashboard() {
     });
 
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto font-sans shadow-xl">
         {/* directives */}
-        <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-5 h-fit">
+        <div className="lg:col-span-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-5 h-fit">
           <div className="space-y-1.5">
             {informalState === 'closed' ? (
               <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">REGISTRATION CLOSED</span>
@@ -3176,7 +3737,7 @@ export default function RootDashboard() {
               <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">INFORMAL BATTLE QUEUE OPEN</span>
             )}
             <h2 className="font-title font-black text-xl italic text-zinc-200">Informal Roster</h2>
-            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#09080d] p-3 border border-[#1e1b29] rounded-xl italic font-sans">
+            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#0a0a14] p-3 border border-[#1c1a2a] rounded-xl italic font-sans">
               &quot;Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.&quot;
             </p>
           </div>
@@ -3184,13 +3745,22 @@ export default function RootDashboard() {
           <button 
             onClick={() => handleEventSignup('informal-signup')}
             disabled={informalState === 'closed'}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-900 disabled:border-transparent disabled:text-zinc-500 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-900 disabled:border-transparent disabled:text-zinc-500 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta disabled:shadow-none transition-smooth cursor-pointer"
           >
             {informalState === 'closed' ? 'REGISTRATION CLOSED' : 'CLAIM CONFIRMED SLOT'}
           </button>
 
+          {informalSignups.some(s => s.memberId === user?.discordId) && (
+            <button 
+              onClick={() => handleLeaveSignup('informal-signup')}
+              className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-red-500 transition-smooth cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.25)] hover:scale-[1.02]"
+            >
+              LEAVE ROSTER
+            </button>
+          )}
+
           {isAuditor && (
-            <div className="bg-[#09080d] p-4 border border-[#1e1b29] rounded-xl space-y-3">
+            <div className="bg-[#0a0a14] p-4 border border-[#1c1a2a] rounded-xl space-y-3">
               <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">ADMIN CONTROLS</span>
               
               <input 
@@ -3198,14 +3768,14 @@ export default function RootDashboard() {
                 value={eventTriggerForm.title}
                 onChange={(e) => setEventTriggerForm(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="Roster Event Title..." 
-                className="w-full bg-[#121118] border border-[#1e1b29] rounded-lg p-2 text-xs text-zinc-300 outline-none"
+                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none"
               />
               <textarea 
                 rows={2}
                 value={eventTriggerForm.description}
                 onChange={(e) => setEventTriggerForm(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Roster Event Directives..." 
-                className="w-full bg-[#121118] border border-[#1e1b29] rounded-lg p-2 text-xs text-zinc-355 outline-none resize-none"
+                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-355 outline-none resize-none"
               />
               <div className="grid grid-cols-3 gap-2">
                 <button onClick={() => handleTriggerSignupWindow('informal-signup', eventTriggerForm.title, eventTriggerForm.description)} className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
@@ -3218,43 +3788,74 @@ export default function RootDashboard() {
                   WIPE
                 </button>
               </div>
+              
+              <div className="border-t border-[#1c1a2a] pt-3 mt-2 space-y-2">
+                <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">CUSTOM TIMER TRIGGER</span>
+                <div className="flex gap-2">
+                  <input 
+                    type="number"
+                    value={infTriggerDelay}
+                    onChange={(e) => setInfTriggerDelay(e.target.value)}
+                    placeholder="Delay (minutes)..." 
+                    className="flex-1 bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none"
+                    min="1"
+                  />
+                  <button 
+                    onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, infTriggerDelay)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-title text-[9px] font-black italic px-3 rounded-lg cursor-pointer transition-smooth"
+                  >
+                    SET TIMER
+                  </button>
+                </div>
+                {infScheduledTime && (
+                  <span className="text-[9px] text-green-400 font-bold block animate-pulse">
+                    ⏱️ Next trigger scheduled at {infScheduledTime}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
 
         {/* Signups */}
-        <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-6">
-          <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3">
+        <div className="lg:col-span-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-6">
+          <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3">
             <h2 className="font-title font-black text-lg italic text-purple-400 text-glow-magenta">
               ⏰╭𝐈𝐧𝐟𝐨𝐫𝐦𝐚𝐥-𝐒𝐢𝐠𝐧𝐮𝐩 LIST
             </h2>
-            <span className="text-xs text-zinc-400">CONFIRMED: <span className="font-bold text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
+            <span className="text-xs text-zinc-400 font-bold">CONFIRMED: <span className="text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
           </div>
 
           {/* Roster Statistics Breakdown */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0a090f] p-4 border border-[#1e1b29] rounded-2xl font-sans text-xs">
-            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+          <div className="grid grid-cols-2 gap-3 bg-[#0a090f] p-4 border border-[#1c1a2a] rounded-2xl font-sans text-xs">
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
               <span className="text-[9px] text-zinc-500 font-bold block uppercase">Total Signups</span>
               <span className="text-base font-title font-black text-purple-400 font-mono">{confirmedQueue.length + reserveQueue.length}</span>
             </div>
-            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
               <span className="text-[9px] text-zinc-500 font-bold block uppercase">Top Shooters</span>
               <span className="text-base font-title font-black text-amber-500 font-mono">{confirmedQueue.filter(s => s.isTop10).length}</span>
             </div>
-            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
-              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Confirmed</span>
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Conf</span>
               <span className="text-base font-title font-black text-zinc-300 font-mono">{confirmedQueue.filter(s => !s.isTop10).length}</span>
             </div>
-            <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
               <span className="text-[9px] text-zinc-500 font-bold block uppercase">Reserve List</span>
               <span className="text-base font-title font-black text-red-400 font-mono">{reserveQueue.length}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs">
+          <div className="grid grid-cols-1 gap-6 text-xs">
             {/* Confirmed */}
             <div className="space-y-2">
-              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1e1b29] pb-1">✅ CONFIRMED GRID</span>
+              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1c1a2a] pb-1">✅ CONFIRMED GRID</span>
+              {infSwapFirstId && (
+                <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-3 py-1.5 rounded-xl text-[9px] flex justify-between items-center animate-pulse">
+                  <span>🔄 Swapping <strong>@{informalSignups.find(s => s.memberId === infSwapFirstId)?.username || 'selected player'}</strong>. Click SWAP next to another member to exchange positions.</span>
+                  <button onClick={() => setInfSwapFirstId(null)} className="text-zinc-400 hover:text-white underline cursor-pointer text-[8px] font-bold">Cancel</button>
+                </div>
+              )}
               <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
                 {confirmedQueue.length === 0 ? (
                   <div className="text-center py-12 text-zinc-650 italic">ROSTER IS VACANT.</div>
@@ -3262,7 +3863,7 @@ export default function RootDashboard() {
                   confirmedQueue.map((s, idx) => {
                     const badgeIcon = confirmedIcons[idx];
                     return (
-                      <div key={idx} className="flex justify-between items-center bg-[#181622]/40 p-2.5 border border-[#1e1b29] rounded-xl font-sans text-xs">
+                      <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-2.5 border border-[#1c1a2a] rounded-xl font-sans text-xs">
                         <div className="flex items-center gap-2">
                           <span className="text-zinc-500 font-bold w-4 text-right">#{idx + 1}</span>
                           <span className="text-base leading-none select-none">{badgeIcon}</span>
@@ -3279,6 +3880,42 @@ export default function RootDashboard() {
                           >
                             {s.inVoice ? '✅' : '❌'}
                           </button>
+                          {isAuditor && (
+                            <div className="flex items-center gap-1 border-l border-zinc-800 pl-1.5 ml-1">
+                              <button
+                                onClick={() => handleKickRosterMember('informal-signup', s.memberId)}
+                                className="text-red-500 hover:text-red-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                title="Kick from roster"
+                              >
+                                🗑️
+                              </button>
+                              {infSwapFirstId === null ? (
+                                <button
+                                  onClick={() => setInfSwapFirstId(s.memberId)}
+                                  className="text-blue-500 hover:text-blue-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                  title="Swap member"
+                                >
+                                  🔄
+                                </button>
+                              ) : infSwapFirstId === s.memberId ? (
+                                <button
+                                  onClick={() => setInfSwapFirstId(null)}
+                                  className="text-amber-500 hover:text-amber-400 font-black p-0.5 cursor-pointer text-[10px] animate-pulse"
+                                  title="Cancel swap"
+                                >
+                                  ⏳
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { handleSwapRosterMembers('informal-signup', infSwapFirstId, s.memberId); setInfSwapFirstId(null); }}
+                                  className="bg-green-600/30 hover:bg-green-600/50 text-green-400 border border-green-500/30 px-1 py-0.5 rounded text-[8px] font-bold cursor-pointer"
+                                  title="Swap with selected"
+                                >
+                                  SWAP
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -3289,7 +3926,7 @@ export default function RootDashboard() {
 
             {/* Reserve */}
             <div className="space-y-2">
-              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1e1b29] pb-1">⏳ RESERVE QUEUE</span>
+              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1c1a2a] pb-1">⏳ RESERVE QUEUE</span>
               <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
                 {reserveQueue.length === 0 ? (
                   <div className="text-center py-12 text-zinc-655 italic">RESERVE QUEUE VACANT.</div>
@@ -3298,7 +3935,7 @@ export default function RootDashboard() {
                     const badgeIcon = reserveIcons[idx];
                     return (
                       <div key={idx} className={`flex justify-between items-center p-2.5 border rounded-xl font-sans text-xs ${
-                        s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#181622]/40 border-[#1e1b29] text-zinc-400'
+                        s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#13121d]/40 border-[#1c1a2a] text-zinc-400'
                       }`}>
                         <div className="flex items-center gap-2">
                           <span className="text-zinc-500 font-bold w-4 text-right">R#{idx + 1}</span>
@@ -3316,6 +3953,42 @@ export default function RootDashboard() {
                           >
                             {s.inVoice ? '✅' : '❌'}
                           </button>
+                          {isAuditor && (
+                            <div className="flex items-center gap-1 border-l border-zinc-800 pl-1.5 ml-1">
+                              <button
+                                onClick={() => handleKickRosterMember('informal-signup', s.memberId)}
+                                className="text-red-500 hover:text-red-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                title="Kick from roster"
+                              >
+                                🗑️
+                              </button>
+                              {infSwapFirstId === null ? (
+                                <button
+                                  onClick={() => setInfSwapFirstId(s.memberId)}
+                                  className="text-blue-500 hover:text-blue-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                  title="Swap member"
+                                >
+                                  🔄
+                                </button>
+                              ) : infSwapFirstId === s.memberId ? (
+                                <button
+                                  onClick={() => setInfSwapFirstId(null)}
+                                  className="text-amber-500 hover:text-amber-400 font-black p-0.5 cursor-pointer text-[10px] animate-pulse"
+                                  title="Cancel swap"
+                                >
+                                  ⏳
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { handleSwapRosterMembers('informal-signup', infSwapFirstId, s.memberId); setInfSwapFirstId(null); }}
+                                  className="bg-green-600/30 hover:bg-green-600/50 text-green-400 border border-green-500/30 px-1 py-0.5 rounded text-[8px] font-bold cursor-pointer"
+                                  title="Swap with selected"
+                                >
+                                  SWAP
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -3324,6 +3997,14 @@ export default function RootDashboard() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Discord Preview Panel */}
+        <div className="lg:col-span-4 space-y-4">
+          <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+            🤖 DISCORD WEBHOOK INTEGRATION PREVIEW
+          </div>
+          {renderDiscordEmbedMockup('informal-signup')}
         </div>
       </div>
     );
@@ -3334,8 +4015,8 @@ export default function RootDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
         {/* Log win (Admin) */}
         {isLeaderOrAdmin && (
-          <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 h-fit">
-            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a24] pb-2">
+          <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit">
+            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
               🏆 LOG PUBLIC INFORMAL WIN
             </h3>
 
@@ -3349,7 +4030,7 @@ export default function RootDashboard() {
                   value={winForm.title}
                   onChange={(e) => setWinForm(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="Informal Win vs Vagos..."
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
                 />
               </div>
 
@@ -3360,7 +4041,7 @@ export default function RootDashboard() {
                   value={winForm.description}
                   onChange={(e) => setWinForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Operation execution summary..."
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-350 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
                 />
               </div>
 
@@ -3371,7 +4052,7 @@ export default function RootDashboard() {
                   value={winForm.participants}
                   onChange={(e) => setWinForm(prev => ({ ...prev, participants: e.target.value }))}
                   placeholder="Shooters..."
-                  className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
                 />
               </div>
 
@@ -3383,8 +4064,8 @@ export default function RootDashboard() {
         )}
 
         {/* Win records list */}
-        <div className={`${isLeaderOrAdmin ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4`}>
-          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a24] pb-2">
+        <div className={`${isLeaderOrAdmin ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4`}>
+          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
             📜╰public-informallog RECORDS
           </h2>
 
@@ -3395,12 +4076,12 @@ export default function RootDashboard() {
               </div>
             ) : (
               wins.filter(w => w.type === 'informal').map((w) => (
-                <div key={w.id} className="bg-[#181622]/40 border border-[#1e1b29] rounded-2xl p-4 flex flex-col md:flex-row gap-6 hover:border-purple-600/25 transition-smooth">
+                <div key={w.id} className="bg-[#13121d]/40 border border-[#1c1a2a] rounded-2xl p-4 flex flex-col md:flex-row gap-6 hover:border-purple-500/30 transition-smooth">
                   {w.mediaUrl && (
                     <img 
                       src={w.mediaUrl} 
                       alt={w.title} 
-                      className="w-full md:w-48 h-32 object-cover rounded-xl border border-[#1e1b29] shrink-0"
+                      className="w-full md:w-48 h-32 object-cover rounded-xl border border-[#1c1a2a] shrink-0"
                     />
                   )}
                   <div className="flex-1 space-y-2 font-sans">
@@ -3435,13 +4116,13 @@ export default function RootDashboard() {
       ).slice(0, 6);
 
       return (
-        <div className="absolute left-0 mt-2 w-full bg-[#121118] border border-[#1e1b29] rounded-xl shadow-2xl z-50 p-3 space-y-2">
+        <div className="absolute left-0 mt-2 w-full bg-[#111118] border border-[#1c1a2a] rounded-xl shadow-2xl z-50 p-3 space-y-2">
           <input
             type="text"
             placeholder="Search member by name..."
             value={prioritySearch}
             onChange={(e) => setPrioritySearch(e.target.value)}
-            className="w-full bg-[#09080d] border border-[#1c1a24] text-xs rounded-lg p-2 text-white focus:outline-none focus:border-purple-600 font-sans"
+            className="w-full bg-[#0a0a14] border border-[#1c1a2a]/50 text-xs rounded-lg p-2 text-white focus:outline-none focus:border-purple-600 font-sans"
             autoFocus
           />
           <div className="max-h-40 overflow-y-auto space-y-1">
@@ -3467,7 +4148,7 @@ export default function RootDashboard() {
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
         {/* Page header and deploy */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl shadow-xl">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl">
           <div>
             <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
               🎖️╭𝐓𝐨𝐩-𝟏0-𝐋𝐢𝐬𝐭 PRIORITY MEMBERS
@@ -3491,8 +4172,8 @@ export default function RootDashboard() {
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
           {/* TOP 5 CARD */}
-          <div className="bg-[#121118] border border-[#1e1b29] rounded-2xl p-6 space-y-4 shadow-lg">
-            <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3">
+          <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 space-y-4 shadow-lg">
+            <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3">
               <h3 className="font-title font-black text-sm italic text-amber-400 flex items-center gap-2">
                 🥇 TOP 5 MEMBERS
               </h3>
@@ -3506,7 +4187,7 @@ export default function RootDashboard() {
                 <div className="text-zinc-500 text-xs italic py-6 text-center">No members listed</div>
               ) : (
                 priorityList.top5.map((m, idx) => (
-                  <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a24] p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
+                  <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a2a]/50 p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-6 h-6 bg-amber-950/40 text-amber-400 border border-amber-800/35 rounded-lg flex items-center justify-center font-title font-black italic text-xs shrink-0 select-none">
                         #{idx + 1}
@@ -3550,8 +4231,8 @@ export default function RootDashboard() {
           </div>
 
           {/* TOP 10 CARD */}
-          <div className="bg-[#121118] border border-[#1e1b29] rounded-2xl p-6 space-y-4 shadow-lg">
-            <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3">
+          <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 space-y-4 shadow-lg">
+            <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3">
               <h3 className="font-title font-black text-sm italic text-purple-400 flex items-center gap-2">
                 🎖️ TOP 10 MEMBERS
               </h3>
@@ -3565,7 +4246,7 @@ export default function RootDashboard() {
                 <div className="text-zinc-500 text-xs italic py-6 text-center">No members listed</div>
               ) : (
                 priorityList.top10.map((m, idx) => (
-                  <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a24] p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
+                  <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a2a]/50 p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-6 h-6 bg-purple-950/40 text-purple-400 border border-purple-800/35 rounded-lg flex items-center justify-center font-title font-black italic text-xs shrink-0 select-none">
                         #{idx + 1}
@@ -3610,7 +4291,7 @@ export default function RootDashboard() {
         </div>
 
         {/* Discord Bot Panel Simulator Console Footer */}
-        <div className="bg-[#121118] border border-[#1e1b29] rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-4 text-left shadow-xl">
+        <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-4 text-left shadow-xl">
           <div className="text-left shrink-0">
             <span className="text-[8px] bg-purple-950/40 text-purple-400 px-2 py-0.5 rounded border border-purple-900/30 font-mono tracking-wider">DISCORD BOT LIVE INTEGRATION</span>
             <h4 className="font-title font-black text-xs italic text-zinc-300 mt-2">Interactive Bot Panel Simulator</h4>

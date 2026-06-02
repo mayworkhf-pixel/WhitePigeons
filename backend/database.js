@@ -19,7 +19,10 @@ const initialDb = {
     guildId: '',
     clientId: '',
     clientSecret: '',
-    webhooks: {}
+    webhooks: {},
+    factoryVoiceChannelId: 'mock-voice-id',
+    simulatedVoice: [],
+    rpTicketTimes: ["08:30", "15:00", "20:00", "22:30"]
   },
   familyStats: {
     totalMembers: 403,
@@ -1056,6 +1059,9 @@ const db = {
         } else {
           config.adminPassword = 'anvy2026';
         }
+        if (!config.rpTicketTimes) {
+          config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
+        }
         return config;
       } catch (err) {
         console.error('Firestore getConfig failed, fallback to initial:', err.message);
@@ -1072,6 +1078,9 @@ const db = {
     } else {
       config.adminPassword = 'anvy2026';
     }
+    if (!config.rpTicketTimes) {
+      config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
+    }
     return config;
   },
   
@@ -1085,7 +1094,8 @@ const db = {
       adminPassword: newConfig.adminPassword ? encrypt(newConfig.adminPassword) : encrypt('anvy2026'),
       webhooks: newConfig.webhooks || {},
       factoryVoiceChannelId: newConfig.factoryVoiceChannelId || '',
-      simulatedVoice: newConfig.simulatedVoice || []
+      simulatedVoice: newConfig.simulatedVoice || [],
+      rpTicketTimes: newConfig.rpTicketTimes || ["08:30", "15:00", "20:00", "22:30"]
     };
 
     if (firebaseDb) {
@@ -1580,6 +1590,141 @@ const db = {
     data.signups.push(newSignup);
     writeDb(data);
     return { success: true, signup: newSignup, action: 'reserve' };
+  },
+  
+  removeSignup: async (eventId, memberId) => {
+    if (firebaseDb) {
+      try {
+        const id = `${eventId}-${memberId}`;
+        const docRef = firebaseDb.collection('signups').doc(id);
+        const doc = await docRef.get();
+        if (!doc.exists) {
+          return { success: false, message: 'Not signed up!' };
+        }
+        const leavingSignup = doc.data();
+        await docRef.delete();
+
+        // If the leaving member was confirmed, promote the next reserve
+        if (leavingSignup.status === 'confirmed') {
+          const snapshot = await firebaseDb.collection('signups')
+            .where('eventId', '==', eventId)
+            .get();
+          const signups = snapshot.docs.map(d => d.data());
+          
+          // Get all reserve signups
+          const reserves = signups
+            .filter(s => s.status === 'reserve' || s.status === 'displaced')
+            .sort((a, b) => new Date(a.signedUpAt) - new Date(b.signedUpAt));
+            
+          if (reserves.length > 0) {
+            const nextReserve = reserves[0];
+            const reserveId = `${eventId}-${nextReserve.memberId}`;
+            await firebaseDb.collection('signups').doc(reserveId).update({ status: 'confirmed' });
+            nextReserve.status = 'confirmed';
+            return { success: true, action: 'removed', promoted: nextReserve };
+          }
+        }
+        return { success: true, action: 'removed', promoted: null };
+      } catch (err) {
+        console.error('Firestore removeSignup failed:', err.message);
+      }
+    }
+
+    const data = readDb();
+    const idx = data.signups.findIndex(s => s.eventId === eventId && s.memberId === memberId);
+    if (idx === -1) {
+      return { success: false, message: 'Not signed up!' };
+    }
+    const leavingSignup = data.signups[idx];
+    data.signups.splice(idx, 1);
+
+    if (leavingSignup.status === 'confirmed') {
+      const reserves = data.signups
+        .filter(s => s.eventId === eventId && (s.status === 'reserve' || s.status === 'displaced'))
+        .sort((a, b) => new Date(a.signedUpAt) - new Date(b.signedUpAt));
+
+      if (reserves.length > 0) {
+        const nextReserve = reserves[0];
+        const reserveIdx = data.signups.findIndex(
+          s => s.eventId === eventId && s.memberId === nextReserve.memberId
+        );
+        if (reserveIdx !== -1) {
+          data.signups[reserveIdx].status = 'confirmed';
+          nextReserve.status = 'confirmed';
+          writeDb(data);
+          return { success: true, action: 'removed', promoted: nextReserve };
+        }
+      }
+    }
+
+    writeDb(data);
+    return { success: true, action: 'removed', promoted: null };
+  },
+
+  swapSignups: async (eventId, memberId1, memberId2) => {
+    if (firebaseDb) {
+      try {
+        const id1 = `${eventId}-${memberId1}`;
+        const id2 = `${eventId}-${memberId2}`;
+        const doc1Ref = firebaseDb.collection('signups').doc(id1);
+        const doc2Ref = firebaseDb.collection('signups').doc(id2);
+        
+        const [doc1, doc2] = await Promise.all([doc1Ref.get(), doc2Ref.get()]);
+        if (!doc1.exists || !doc2.exists) {
+          return { success: false, message: 'One or both players are not signed up!' };
+        }
+        
+        const data1 = doc1.data();
+        const data2 = doc2.data();
+        
+        await Promise.all([
+          doc1Ref.update({
+            status: data2.status,
+            signedUpAt: data2.signedUpAt,
+            isTop10: data2.isTop10,
+            inVoice: data2.inVoice !== undefined ? data2.inVoice : false
+          }),
+          doc2Ref.update({
+            status: data1.status,
+            signedUpAt: data1.signedUpAt,
+            isTop10: data1.isTop10,
+            inVoice: data1.inVoice !== undefined ? data1.inVoice : false
+          })
+        ]);
+        return { success: true };
+      } catch (err) {
+        console.error('Firestore swapSignups failed:', err.message);
+        return { success: false, message: err.message };
+      }
+    }
+
+    const data = readDb();
+    const idx1 = data.signups.findIndex(s => s.eventId === eventId && s.memberId === memberId1);
+    const idx2 = data.signups.findIndex(s => s.eventId === eventId && s.memberId === memberId2);
+    if (idx1 === -1 || idx2 === -1) {
+      return { success: false, message: 'One or both players are not signed up!' };
+    }
+    
+    const s1 = data.signups[idx1];
+    const s2 = data.signups[idx2];
+    
+    const tempStatus = s1.status;
+    const tempSignedUpAt = s1.signedUpAt;
+    const tempIsTop10 = s1.isTop10;
+    const tempInVoice = s1.inVoice;
+    
+    s1.status = s2.status;
+    s1.signedUpAt = s2.signedUpAt;
+    s1.isTop10 = s2.isTop10;
+    s1.inVoice = s2.inVoice;
+    
+    s2.status = tempStatus;
+    s2.signedUpAt = tempSignedUpAt;
+    s2.isTop10 = tempIsTop10;
+    s2.inVoice = tempInVoice;
+    
+    writeDb(data);
+    return { success: true };
   },
   
   clearSignups: async (eventId) => {

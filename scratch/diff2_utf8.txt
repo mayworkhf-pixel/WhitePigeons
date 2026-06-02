@@ -1,0 +1,574 @@
+﻿diff --git a/src/app/page.tsx b/src/app/page.tsx
+index 4db403d2..cacf493e 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -50,6 +50,8 @@ interface ActivityModel {
+   id: string;
+   memberId: string;
+   username: string;
++  activityType?: string;
++  pointsRequested?: number;
+   description: string;
+   mediaUrl: string;
+   pointsAwarded: number;
+@@ -134,7 +136,7 @@ export default function RootDashboard() {
+   // Form states
+   const [roleRequestForm, setRoleRequestForm] = useState({ inGameName: '', characterId: '', level: '', rank: '', forumLink: '' });
+   const [ticketForm, setTicketForm] = useState({ type: 'complaint', subject: '', description: '' });
+-  const [activityForm, setActivityForm] = useState({ description: '', mediaUrl: '' });
++  const [activityForm, setActivityForm] = useState({ activityType: '', description: '', mediaUrl: '' });
+   const [bizwarForm, setBizwarForm] = useState({ businessName: 'Hotel Factory', amount: '' });
+   const [rpCollectForm, setRpCollectForm] = useState({ ticketsCollected: '5' });
+   const [winForm, setWinForm] = useState({ type: 'event', title: '', description: '', participants: '', mediaUrl: '' });
+@@ -548,7 +550,10 @@ export default function RootDashboard() {
+   // Form submission: Submit Activity
+   const handleSubmitActivity = async (e: React.FormEvent) => {
+     e.preventDefault();
+-    if (!activityForm.description || !activityForm.mediaUrl) return;
++    if (!activityForm.activityType) {
++      addNotification('Selection Required', 'Please select an activity type first.', 'warning');
++      return;
++    }
+     try {
+       const res = await fetch(`${API_BASE_URL}/api/activities`, {
+         method: 'POST',
+@@ -557,10 +562,15 @@ export default function RootDashboard() {
+       });
+       if (res.ok) {
+         addNotification('Activity Logged', 'Submission sent to bot. Awaiting review.', 'success');
+-        setActivityForm({ description: '', mediaUrl: '' });
++        setActivityForm({ activityType: '', description: '', mediaUrl: '' });
+         loadDashboardData();
++      } else {
++        const data = await res.json();
++        addNotification('Submission Failed', data.error || 'Failed to submit.', 'warning');
+       }
+-    } catch (e) {}
++    } catch (e) {
++      addNotification('Submission Error', 'Could not contact server.', 'warning');
++    }
+   };
+ 
+   // Form submission: BizWar Collect
+@@ -778,7 +788,9 @@ export default function RootDashboard() {
+ 
+   // Admin audit: Review Activity
+   const handleReviewActivity = async (activityId: string, status: 'approved' | 'rejected') => {
+-    const fields = activityReviewForm[activityId] || { points: '150', reason: '' };
++    const act = activities.find(a => a.id === activityId);
++    const defaultPoints = String(act?.pointsRequested || 150);
++    const fields = activityReviewForm[activityId] || { points: defaultPoints, reason: '' };
+     try {
+       const res = await fetch(`${API_BASE_URL}/api/activities/${activityId}/review`, {
+         method: 'POST',
+@@ -809,6 +821,22 @@ export default function RootDashboard() {
+     } catch (e) {}
+   };
+ 
++  // Event signup leave execution
++  const handleLeaveSignup = async (eventId: string) => {
++    try {
++      const res = await fetch(`${API_BASE_URL}/api/events/leave/${eventId}`, { method: 'POST' });
++      const data = await res.json();
++      if (res.ok) {
++        addNotification('Roster Left', 'Successfully removed from the roster queue.', 'success');
++        loadSignups();
++      } else {
++        addNotification('Action Denied', data.error || 'Failed to leave roster.', 'warning');
++      }
++    } catch (err: any) {
++      addNotification('Error', 'Communication error with backend.', 'error');
++    }
++  };
++
+   // Open active signup channel
+   const handleTriggerSignupWindow = async (eventId: string, title: string, desc: string) => {
+     try {
+@@ -2273,31 +2301,74 @@ export default function RootDashboard() {
+   const renderSubmitActivity = () => {
+     if (!checkAccess('member')) return renderAccessDenied('Roster clearance validation required');
+ 
++    const ACTIVITY_OPTIONS = [
++      '­ƒÆÁ Collect businesses profit & replenish balance. (15 points)',
++      '­ƒÜÖ Refuel car trunks with canister and repair kits. (15 points)',
++      'ÔÖ╗´©Å Craft armors at foundry with armor plates and fabric. (10 points)',
++      '­ƒôª Move items from SWH/WWH to cars. (10 points)',
++      '­ƒÆª Used automatic machine (fruit WH). (6 points)',
++      '­ƒÑñ Crafted run/animal juice in bunket. (6 points)',
++      '­ƒö¼ Collect cocaine from house / ­ƒì© Juices (Vineyard). (4 points)',
++      '­ƒÜÆ Refuel businesseses car or juice car. (3 points)',
++      '­ƒôØ Assest family member full RP or Main Player Test. (3 points)',
++      '­ƒôó Set detailed announcement for Bizwar/State. (3 points)',
++      '­ƒôï Check family logs (5 points)',
++      '­ƒòÆ Upload Auction SS. (2 points)',
++      '­ƒÜù Bring ammo or juice car to the event. (2 points)',
++      '­ƒô© ScreenShoot of players list inside event zone. (1 points)',
++      '­ƒÜÖ Pay car fine & call it back in garage. (4 points)',
++      '­ƒô▓ Upload Unofficial: Informal/Bizwar/Highway/Store. (5 points)',
++      '­ƒöï Started a solar panels full new cycle. (5 points)',
++      '­ƒöï Collected all solar panels. (5 points)',
++      '­ƒöî Repair all solar panels at family house. (3 points)',
++      '­ƒƒÑ Plant 1 solar panel (House 426 Garden). (3 points)',
++      'Ô¡ò Make 30 kills in public arena (2x/day). (10 points)',
++      '­ƒÄ« Take the family point quest "Play for 4 hours" (4 points)',
++      '­ƒôÑ Collect RP Ticket (3 points)'
++    ];
++
+     return (
+       <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-2xl mx-auto font-sans shadow-xl">
+-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2">
+-          ­ƒÆ»Ôò¡submit-activity FORM
++        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2 flex items-center justify-between">
++          <span>­ƒÆ»´©▒­Øùî­ØùÄ­Øû╗­Øùå­Øùé­Øùì-­Øû║­Øû╝­Øùì­Øùé­ØùÅ­Øùé­Øùì­ØùÆ FORM</span>
++          <span className="text-[10px] bg-purple-950/40 text-purple-400 border border-purple-800/30 px-2 py-0.5 rounded font-sans font-bold animate-pulse">
++            No Screenshot Required
++          </span>
+         </h2>
+         
+         <form onSubmit={handleSubmitActivity} className="font-sans text-xs flex flex-col gap-4 mt-2">
+           <div>
+-            <label className="text-[10px] text-zinc-500 font-bold block mb-1">OPERATION DIRECTIVES DETAIL</label>
++            <label className="text-[10px] text-zinc-500 font-bold block mb-1">SELECT PRESET ACTIVITY TYPE</label>
++            <select
++              value={activityForm.activityType}
++              onChange={(e) => setActivityForm(prev => ({ ...prev, activityType: e.target.value }))}
++              className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans cursor-pointer"
++            >
++              <option value="">-- Choose Completed Family Activity --</option>
++              {ACTIVITY_OPTIONS.map((opt) => (
++                <option key={opt} value={opt}>{opt}</option>
++              ))}
++            </select>
++          </div>
++
++          <div>
++            <label className="text-[10px] text-zinc-500 font-bold block mb-1">OPERATION DIRECTIVES DETAIL (OPTIONAL)</label>
+             <textarea 
+-              rows={4}
++              rows={3}
+               value={activityForm.description}
+               onChange={(e) => setActivityForm(prev => ({ ...prev, description: e.target.value }))}
+-              placeholder="Describe what family events you participated in..."
++              placeholder="Provide extra details (e.g. details of solar cycle, business refueled, logs checked)..."
+               className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
+             />
+           </div>
+ 
+           <div>
+-            <label className="text-[10px] text-zinc-500 font-bold block mb-1">VERIFICATION PROOF MEDIA URL</label>
++            <label className="text-[10px] text-zinc-500 font-bold block mb-1">VERIFICATION PROOF MEDIA URL (OPTIONAL)</label>
+             <input 
+               type="text"
+               value={activityForm.mediaUrl}
+               onChange={(e) => setActivityForm(prev => ({ ...prev, mediaUrl: e.target.value }))}
+-              placeholder="Provide screenshot link or video URL..."
++              placeholder="Provide screenshot link or proof video URL if required..."
+               className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
+             />
+           </div>
+@@ -2336,6 +2407,11 @@ export default function RootDashboard() {
+                       <span className="text-[9px] bg-[#09080d] px-1.5 py-0.5 rounded font-mono">ID: {a.id}</span>
+                       <span className="text-[9px] text-zinc-500">{new Date(a.createdAt).toLocaleDateString()}</span>
+                     </div>
++                    {a.activityType && (
++                      <div className="text-purple-400 text-[10px] font-bold font-sans mt-1">
++                        Task: {a.activityType}
++                      </div>
++                    )}
+                     <p className="text-zinc-400 italic bg-[#09080d] p-2.5 rounded-lg border border-[#1e1b29] mt-2">&quot;{a.description}&quot;</p>
+                     
+                     {a.reason && (
+@@ -2458,7 +2534,8 @@ export default function RootDashboard() {
+             </div>
+           ) : (
+             activities.filter(a => a.status === 'pending').map((act) => {
+-              const fields = activityReviewForm[act.id] || { points: '150', reason: '' };
++              const defaultPoints = String(act.pointsRequested || 150);
++              const fields = activityReviewForm[act.id] || { points: defaultPoints, reason: '' };
+               
+               return (
+                 <div key={act.id} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between animate-fade-in">
+@@ -2468,10 +2545,19 @@ export default function RootDashboard() {
+                       <span className="text-[9px] bg-[#09080d] text-zinc-450 px-1.5 py-0.5 rounded font-mono">ACT: {act.id}</span>
+                       <span className="text-[9px] text-zinc-500">{new Date(act.createdAt).toLocaleDateString()}</span>
+                     </div>
++                    {act.activityType && (
++                      <div className="text-purple-400 text-[10px] font-bold font-sans">
++                        Task: {act.activityType} ({act.pointsRequested} FP Requested)
++                      </div>
++                    )}
+                     <p className="text-zinc-400 italic bg-[#09080d] p-2.5 rounded-lg border border-[#1e1b29] leading-relaxed">&quot;{act.description}&quot;</p>
+-                    <a href={act.mediaUrl} target="_blank" rel="noreferrer" className="inline-flex text-[10px] text-purple-400 hover:text-white font-bold underline">
+-                      ­ƒô© VIEW VERIFICATION MEDIA FILE
+-                    </a>
++                    {act.mediaUrl ? (
++                      <a href={act.mediaUrl} target="_blank" rel="noreferrer" className="inline-flex text-[10px] text-purple-400 hover:text-white font-bold underline">
++                        ­ƒô© VIEW VERIFICATION MEDIA FILE
++                      </a>
++                    ) : (
++                      <span className="text-[10px] text-zinc-500 italic">No verification media provided</span>
++                    )}
+                   </div>
+ 
+                   <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1e1b29] pt-4 md:pt-0 md:pl-4">
+@@ -2482,9 +2568,9 @@ export default function RootDashboard() {
+                         value={fields.points}
+                         onChange={(e) => setActivityReviewForm(prev => ({
+                           ...prev,
+-                          [act.id]: { ...(prev[act.id] || { points: '150', reason: '' }), points: e.target.value }
++                          [act.id]: { ...(prev[act.id] || { points: defaultPoints, reason: '' }), points: e.target.value }
+                         }))}
+-                        placeholder="e.g. 150"
++                        placeholder={`e.g. ${defaultPoints}`}
+                         className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none"
+                       />
+                     </div>
+@@ -2495,7 +2581,7 @@ export default function RootDashboard() {
+                         value={fields.reason}
+                         onChange={(e) => setActivityReviewForm(prev => ({
+                           ...prev,
+-                          [act.id]: { ...(prev[act.id] || { points: '150', reason: '' }), reason: e.target.value }
++                          [act.id]: { ...(prev[act.id] || { points: defaultPoints, reason: '' }), reason: e.target.value }
+                         }))}
+                         placeholder="Valid run..."
+                         className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
+@@ -2921,18 +3007,130 @@ export default function RootDashboard() {
+                     />
+                   )}
+                   <div className="flex-1 space-y-2">
+-                    <div className="flex justify-between items-start">
+-                      <h3 className="font-title font-black text-base italic text-zinc-200">{w.title}</h3>
+-                      <span className="text-[9px] bg-[#09080d] text-zinc-400 px-1.5 py-0.5 rounded uppercase font-mono">{w.type}</span>
+-                    </div>
+-                    <p className="text-zinc-400 text-xs leading-relaxed font-sans">{w.description}</p>
+-                    <div className="text-[10px] text-zinc-500">
+-                      <span className="font-bold text-zinc-400 font-sans">Squad combatants:</span> {w.participants}
+-                    </div>
++      const renderDiscordEmbedMockup = (eventId: 'rp-signup' | 'informal-signup') => {
++    const isClosed = eventId === 'rp-signup' ? rpState === 'closed' : informalState === 'closed';
++    const signups = eventId === 'rp-signup' ? rpSignups : informalSignups;
++    const confirmed = signups.filter(s => s.status === 'confirmed');
++    const reserve = signups.filter(s => s.status === 'reserve' || s.status === 'displaced');
++
++    const title = eventId === 'rp-signup' ? 'Docks Turf Battle' : 'Informal Roster';
++    const directives = eventId === 'rp-signup' 
++      ? 'Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.'
++      : 'Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.';
++
++    const bannerImage = eventId === 'rp-signup' ? '/rp_ticket_banner.png' : '/informal_fight_banner.png';
++    const statusBadge = isClosed ? '­ƒö┤ Registration is closed!' : '­ƒƒó Registration is active!';
++    const embedColor = isClosed ? 'border-[#ff003c]' : 'border-[#00f0ff]';
++
++    const getRosterLine = (s: any, idx: number) => {
++      const icon = s.isTop10 ? '­ƒææ' : 'ÔÜö´©Å';
++      const inVoice = s.inVoice || s.isMock || s.username === 'PigeonBoss' || s.username === 'TonyMontana';
++      return (
++        <div key={s.memberId} className="text-[11px] text-[#dbdee1] flex items-center gap-1.5 font-mono py-0.5">
++          <span className="text-[#23a55a] font-bold shrink-0">{inVoice ? 'Ô£à' : 'ÔØî'}</span>
++          <span className="text-zinc-500 font-bold shrink-0">{idx + 1}.</span>
++          <span className="shrink-0">{icon}</span>
++          <span className="text-[#c9cdfb] font-sans hover:underline cursor-pointer truncate">@{s.username}</span>
++        </div>
++      );
++    };
++
++    return (
++      <div className="bg-[#2b2d31] border border-[#1e1b29] rounded-2xl overflow-hidden font-sans text-left shadow-2xl">
++        {/* Discord Server HUD Header */}
++        <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
++          <div className="flex items-center gap-2">
++            <span className="text-zinc-400 font-black text-sm select-none">#</span>
++            <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
++              {eventId === 'rp-signup' ? 'rp-signup-feed' : 'informal-signup-feed'}
++            </span>
++          </div>
++          <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
++        </div>
++
++        {/* Discord Chat Area */}
++        <div className="p-4 space-y-4 bg-[#313338]">
++          <div className="flex gap-3">
++            {/* Bot Avatar */}
++            <div className="w-9 h-9 rounded-full bg-[#121118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
++              <img src="/logo.png" alt="Bot PFP" className="w-full h-full object-cover" />
++            </div>
++
++            {/* Message Body */}
++            <div className="flex-1 space-y-2 min-w-0">
++              <div className="flex items-center gap-1.5 leading-none">
++                <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
++                <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
++                <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
++              </div>
++
++              {/* Bot Embed Box */}
++              <div className={`border-l-4 ${embedColor} bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-4 shadow-md`}>
++                <div className="space-y-1">
++                  <h4 className="text-sm font-bold text-white hover:underline cursor-pointer">
++                    {eventId === 'rp-signup' ? `­ƒÜÇ RP Ticket - OPEN ÔÜö´©Å` : `­ƒÜÇ Informal Fight - OPEN ÔÜö´©Å`}
++                  </h4>
++                  <div className="border-l-4 border-[#4e5058] pl-3 py-0.5 text-[11px] text-[#949ba4] italic leading-relaxed">
++                    <strong>Event Directives:</strong><br />
++                    {directives}
+                   </div>
+                 </div>
+-              ))
+-            )}
++
++                <div className="text-[11px] text-[#dbdee1] font-sans font-bold flex items-center gap-1">
++                  {statusBadge}
++                </div>
++
++                <div className="text-[11px] font-bold text-[#dbdee1] font-mono">
++                  ­ƒôè Participants: {confirmed.length}/25
++                </div>
++
++                {/* Grid Roster in Columns */}
++                <div className="space-y-3 pt-2 border-t border-[#35363c]">
++                  <div>
++                    <span className="text-[9px] font-black tracking-wider text-zinc-500 uppercase block mb-1">ÔÜö´©Å Main Roster</span>
++                    {confirmed.length === 0 ? (
++                      <span className="text-[11px] text-zinc-500 italic">*Roster is vacant. Claim a slot!*</span>
++                    ) : (
++                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
++                        {confirmed.map((s, idx) => getRosterLine(s, idx))}
++                      </div>
++                    )}
++                  </div>
++
++                  {reserve.length > 0 && (
++                    <div className="pt-2 border-t border-[#35363c]/50">
++                      <span className="text-[9px] font-black tracking-wider text-zinc-500 uppercase block mb-1">ÔÅ│ Substitutes List ({reserve.length})</span>
++                      <div className="space-y-0.5">
++                        {reserve.map((s, idx) => getRosterLine(s, idx))}
++                      </div>
++                    </div>
++                  )}
++                </div>
++
++                {/* Banner Image */}
++                <div className="rounded-lg overflow-hidden border border-[#3f4248]/30 max-h-48 select-none">
++                  <img src={bannerImage} alt="Event Banner" className="w-full h-full object-cover" />
++                </div>
++              </div>
++
++              {/* Bot Interaction Buttons */}
++              <div className="flex flex-wrap gap-2 pt-1 select-none">
++                <button
++                  onClick={() => handleEventSignup(eventId)}
++                  disabled={isClosed}
++                  className="bg-[#248046] hover:bg-[#1a6535] disabled:bg-[#248046]/40 disabled:text-zinc-400 text-white font-sans text-xs font-bold py-1.5 px-4 rounded transition-colors flex items-center gap-1.5 cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.2)] hover:scale-[1.02] active:scale-[0.98]"
++                >
++                  SIGN UP
++                </button>
++                <button
++                  onClick={() => handleLeaveSignup(eventId)}
++                  disabled={isClosed}
++                  className="bg-[#da373c] hover:bg-[#a92b2f] disabled:bg-[#da373c]/40 disabled:text-zinc-400 text-white font-sans text-xs font-bold py-1.5 px-4 rounded transition-colors flex items-center gap-1.5 cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.2)] hover:scale-[1.02] active:scale-[0.98]"
++                >
++                  LEAVE
++                </button>
++              </div>
++            </div>
+           </div>
+         </div>
+       </div>
+@@ -2971,9 +3169,9 @@ export default function RootDashboard() {
+     });
+ 
+     return (
+-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
++      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto font-sans shadow-xl">
+         {/* Directive details */}
+-        <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-5 h-fit">
++        <div className="lg:col-span-4 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-5 h-fit">
+           <div className="space-y-1.5">
+             {rpState === 'closed' ? (
+               <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">REGISTRATION CLOSED</span>
+@@ -2994,6 +3192,15 @@ export default function RootDashboard() {
+             {rpState === 'closed' ? 'REGISTRATION CLOSED' : 'CLAIM CONFIRMED SLOT'}
+           </button>
+ 
++          {rpSignups.some(s => s.memberId === user?.discordId) && (
++            <button 
++              onClick={() => handleLeaveSignup('rp-signup')}
++              className="w-full mt-2 bg-red-655 hover:bg-red-750 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-red-500 transition-smooth cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.25)] hover:scale-[1.02]"
++            >
++              LEAVE ROSTER
++            </button>
++          )}
++
+           {isAuditor && (
+             <div className="bg-[#09080d] p-4 border border-[#1e1b29] rounded-xl space-y-3">
+               <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">ADMIN CONTROLS</span>
+@@ -3028,16 +3235,16 @@ export default function RootDashboard() {
+         </div>
+ 
+         {/* Signup lists */}
+-        <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-6">
++        <div className="lg:col-span-4 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-6">
+           <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3">
+             <h2 className="font-title font-black text-lg italic text-purple-400 text-glow-magenta">
+               ÔÅ░ RP SIGNUP TEAM LIST
+             </h2>
+-            <span className="text-xs text-zinc-400">CONFIRMED: <span className="font-bold text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
++            <span className="text-xs text-zinc-400 font-bold">CONFIRMED: <span className="text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
+           </div>
+ 
+           {/* Roster Statistics Breakdown */}
+-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0a090f] p-4 border border-[#1e1b29] rounded-2xl font-sans text-xs">
++          <div className="grid grid-cols-2 gap-3 bg-[#0a090f] p-4 border border-[#1e1b29] rounded-2xl font-sans text-xs">
+             <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+               <span className="text-[9px] text-zinc-500 font-bold block uppercase">Total Signups</span>
+               <span className="text-base font-title font-black text-purple-400 font-mono">{confirmedQueue.length + reserveQueue.length}</span>
+@@ -3047,7 +3254,7 @@ export default function RootDashboard() {
+               <span className="text-base font-title font-black text-amber-500 font-mono">{confirmedQueue.filter(s => s.isTop10).length}</span>
+             </div>
+             <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+-              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Confirmed</span>
++              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Conf</span>
+               <span className="text-base font-title font-black text-zinc-300 font-mono">{confirmedQueue.filter(s => !s.isTop10).length}</span>
+             </div>
+             <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+@@ -3056,7 +3263,7 @@ export default function RootDashboard() {
+             </div>
+           </div>
+ 
+-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs">
++          <div className="grid grid-cols-1 gap-8 text-xs">
+             {/* Confirmed */}
+             <div className="space-y-2">
+               <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1e1b29] pb-1">Ô£à CONFIRMED ROSTER</span>
+@@ -3130,6 +3337,14 @@ export default function RootDashboard() {
+             </div>
+           </div>
+         </div>
++
++        {/* Discord Preview Panel */}
++        <div className="lg:col-span-4 space-y-4">
++          <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
++            ­ƒñû DISCORD WEBHOOK INTEGRATION PREVIEW
++          </div>
++          {renderDiscordEmbedMockup('rp-signup')}
++        </div>
+       </div>
+     );
+   };
+@@ -3166,9 +3381,9 @@ export default function RootDashboard() {
+     });
+ 
+     return (
+-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
++      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto font-sans shadow-xl">
+         {/* directives */}
+-        <div className="lg:col-span-1 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-5 h-fit">
++        <div className="lg:col-span-4 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-5 h-fit">
+           <div className="space-y-1.5">
+             {informalState === 'closed' ? (
+               <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">REGISTRATION CLOSED</span>
+@@ -3189,6 +3404,15 @@ export default function RootDashboard() {
+             {informalState === 'closed' ? 'REGISTRATION CLOSED' : 'CLAIM CONFIRMED SLOT'}
+           </button>
+ 
++          {informalSignups.some(s => s.memberId === user?.discordId) && (
++            <button 
++              onClick={() => handleLeaveSignup('informal-signup')}
++              className="w-full mt-2 bg-red-650 hover:bg-red-750 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-red-500 transition-smooth cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.25)] hover:scale-[1.02]"
++            >
++              LEAVE ROSTER
++            </button>
++          )}
++
+           {isAuditor && (
+             <div className="bg-[#09080d] p-4 border border-[#1e1b29] rounded-xl space-y-3">
+               <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">ADMIN CONTROLS</span>
+@@ -3223,16 +3447,16 @@ export default function RootDashboard() {
+         </div>
+ 
+         {/* Signups */}
+-        <div className="lg:col-span-2 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-6">
++        <div className="lg:col-span-4 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-6">
+           <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3">
+             <h2 className="font-title font-black text-lg italic text-purple-400 text-glow-magenta">
+               ÔÅ░Ôò¡­ØÉê­ØÉº­ØÉƒ­ØÉ¿­ØÉ½­ØÉª­ØÉÜ­ØÉÑ-­ØÉÆ­ØÉó­ØÉá­ØÉº­ØÉ«­ØÉ® LIST
+             </h2>
+-            <span className="text-xs text-zinc-400">CONFIRMED: <span className="font-bold text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
++            <span className="text-xs text-zinc-400 font-bold">CONFIRMED: <span className="text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
+           </div>
+ 
+           {/* Roster Statistics Breakdown */}
+-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0a090f] p-4 border border-[#1e1b29] rounded-2xl font-sans text-xs">
++          <div className="grid grid-cols-2 gap-3 bg-[#0a090f] p-4 border border-[#1e1b29] rounded-2xl font-sans text-xs">
+             <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+               <span className="text-[9px] text-zinc-500 font-bold block uppercase">Total Signups</span>
+               <span className="text-base font-title font-black text-purple-400 font-mono">{confirmedQueue.length + reserveQueue.length}</span>
+@@ -3242,7 +3466,7 @@ export default function RootDashboard() {
+               <span className="text-base font-title font-black text-amber-500 font-mono">{confirmedQueue.filter(s => s.isTop10).length}</span>
+             </div>
+             <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+-              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Confirmed</span>
++              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Conf</span>
+               <span className="text-base font-title font-black text-zinc-300 font-mono">{confirmedQueue.filter(s => !s.isTop10).length}</span>
+             </div>
+             <div className="text-center p-2 bg-[#121118]/50 border border-[#1e1b29]/40 rounded-xl">
+@@ -3251,7 +3475,7 @@ export default function RootDashboard() {
+             </div>
+           </div>
+ 
+-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs">
++          <div className="grid grid-cols-1 gap-8 text-xs">
+             {/* Confirmed */}
+             <div className="space-y-2">
+               <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1e1b29] pb-1">Ô£à CONFIRMED GRID</span>
+@@ -3286,44 +3510,15 @@ export default function RootDashboard() {
+                 )}
+               </div>
+             </div>
++          </div>
++        </div>
+ 
+-            {/* Reserve */}
+-            <div className="space-y-2">
+-              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1e1b29] pb-1">ÔÅ│ RESERVE QUEUE</span>
+-              <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+-                {reserveQueue.length === 0 ? (
+-                  <div className="text-center py-12 text-zinc-655 italic">RESERVE QUEUE VACANT.</div>
+-                ) : (
+-                  reserveQueue.map((s, idx) => {
+-                    const badgeIcon = reserveIcons[idx];
+-                    return (
+-                      <div key={idx} className={`flex justify-between items-center p-2.5 border rounded-xl font-sans text-xs ${
+-                        s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#181622]/40 border-[#1e1b29] text-zinc-400'
+-                      }`}>
+-                        <div className="flex items-center gap-2">
+-                          <span className="text-zinc-500 font-bold w-4 text-right">R#{idx + 1}</span>
+-                          <span className="text-base leading-none select-none">{badgeIcon}</span>
+-                          <span className="font-bold">@{s.username}</span>
+-                          {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+-                        </div>
+-                        <div className="flex items-center gap-3">
+-                          <span className="text-[9px] font-bold uppercase">{s.status}</span>
+-                          <button
+-                            onClick={() => isAuditor && handleToggleVoiceSimulation(s.memberId, !!s.inVoice)}
+-                            disabled={!isAuditor}
+-                            className={`text-base select-none ${isAuditor ? 'cursor-pointer hover:scale-110 transition-transform' : 'cursor-default'}`}
+-                            title={isAuditor ? "Toggle simulated voice presence" : ""}
+-                          >
+-                            {s.inVoice ? 'Ô£à' : 'ÔØî'}
+-                          </button>
+-                        </div>
+-                      </div>
+-                    );
+-                  })
+-                )}
+-              </div>
+-            </div>
++        {/* Discord Preview Panel */}
++        <div className="lg:col-span-4 space-y-4">
++          <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
++            ­ƒñû DISCORD WEBHOOK INTEGRATION PREVIEW
+           </div>
++          {renderDiscordEmbedMockup('informal-signup')}
+         </div>
+       </div>
+     );

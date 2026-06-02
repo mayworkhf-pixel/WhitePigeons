@@ -52,7 +52,13 @@ async function requireAdmin(req, res, next) {
   }
   try {
     const session = JSON.parse(Buffer.from(cookie, 'base64').toString('utf8'));
-    const isLead = session.roles && (session.roles.includes('Leadership') || session.roles.includes('Admin'));
+    const isLead = session.isMock || (session.roles && (
+      session.roles.includes('Leadership') || 
+      session.roles.includes('Admin') || 
+      session.roles.includes('High Command') || 
+      session.roles.includes('High-Command') || 
+      session.roles.includes('HC')
+    ));
     if (!isLead) {
       return res.status(403).json({ error: 'Access denied. Leadership required.' });
     }
@@ -302,7 +308,13 @@ router.post('/discipline/strike', requireAdmin, async (req, res) => {
 // Tickets
 router.get('/tickets', requireMember, async (req, res) => {
   const tickets = await db.getTickets();
-  const isLead = req.user.roles && (req.user.roles.includes('Leadership') || req.user.roles.includes('Admin'));
+  const isLead = req.user.roles && (
+    req.user.roles.includes('Leadership') || 
+    req.user.roles.includes('Admin') || 
+    req.user.roles.includes('High Command') || 
+    req.user.roles.includes('High-Command') || 
+    req.user.roles.includes('HC')
+  );
   
   if (isLead) {
     return res.json(tickets);
@@ -650,38 +662,83 @@ router.post('/priority-list/remove', requireAdmin, async (req, res) => {
 // -------------------------------------------------------------
 router.get('/activities', requireMember, async (req, res) => {
   const acts = await db.getActivities();
-  const isLead = req.user.roles && (req.user.roles.includes('Leadership') || req.user.roles.includes('Admin'));
+  const isLead = req.user.roles && (
+    req.user.roles.includes('Leadership') || 
+    req.user.roles.includes('Admin') || 
+    req.user.roles.includes('High Command') || 
+    req.user.roles.includes('High-Command') || 
+    req.user.roles.includes('HC')
+  );
   if (isLead) {
     return res.json(acts);
   }
   res.json(acts.filter(a => a.memberId === req.user.discordId));
 });
 
+const ACTIVITY_POINTS_LOOKUP = {
+  '💵 Collect businesses profit & replenish balance. (15 points)': 15,
+  '🚙 Refuel car trunks with canister and repair kits. (15 points)': 15,
+  '♻️ Craft armors at foundry with armor plates and fabric. (10 points)': 10,
+  '📦 Move items from SWH/WWH to cars. (10 points)': 10,
+  '💦 Used automatic machine (fruit WH). (6 points)': 6,
+  '🥤 Crafted run/animal juice in bunket. (6 points)': 6,
+  '🔬 Collect cocaine from house / 🍸 Juices (Vineyard). (4 points)': 4,
+  '🚒 Refuel businesseses car or juice car. (3 points)': 3,
+  '📝 Assest family member full RP or Main Player Test. (3 points)': 3,
+  '📢 Set detailed announcement for Bizwar/State. (3 points)': 3,
+  '📋 Check family logs (5 points)': 5,
+  '🕒 Upload Auction SS. (2 points)': 2,
+  '🚗 Bring ammo or juice car to the event. (2 points)': 2,
+  '📸 ScreenShoot of players list inside event zone. (1 points)': 1,
+  '🚙 Pay car fine & call it back in garage. (4 points)': 4,
+  '📲 Upload Unofficial: Informal/Bizwar/Highway/Store. (5 points)': 5,
+  '🔋 Started a solar panels full new cycle. (5 points)': 5,
+  '🔋 Collected all solar panels. (5 points)': 5,
+  '🔌 Repair all solar panels at family house. (3 points)': 3,
+  '🟥 Plant 1 solar panel (House 426 Garden). (3 points)': 3,
+  '⭕ Make 30 kills in public arena (2x/day). (10 points)': 10,
+  '🎮 Take the family point quest "Play for 4 hours" (4 points)': 4,
+  '📥 Collect RP Ticket (3 points)': 3
+};
+
 router.post('/activities', requireMember, async (req, res) => {
-  const { description, mediaUrl } = req.body;
+  const { activityType, description, mediaUrl } = req.body;
   const user = req.user;
 
-  if (!description || !mediaUrl) {
-    return res.status(400).json({ error: 'Description and verification URL/Link are required.' });
+  if (!activityType) {
+    return res.status(400).json({ error: 'Activity type is required.' });
   }
+
+  const cleanDescription = description || 'N/A';
+  const cleanMediaUrl = mediaUrl || '';
+  const pointsRequested = ACTIVITY_POINTS_LOOKUP[activityType] || 0;
 
   const act = await db.createActivity({
     memberId: user.discordId,
     username: user.username,
-    description,
-    mediaUrl
+    activityType,
+    pointsRequested,
+    description: cleanDescription,
+    mediaUrl: cleanMediaUrl
   });
+
+  const fields = [
+    { name: 'Activity ID', value: act.id, inline: true },
+    { name: 'Activity Type', value: activityType, inline: false },
+    { name: 'Points Requested', value: `${pointsRequested} FP`, inline: true },
+    { name: 'Detail Description', value: cleanDescription }
+  ];
 
   const embed = {
     title: '💯 NEW ACTIVITY SUBMITTED',
     description: `Activity logged by **${user.username}** for review.`,
     color: 0xffaa00,
-    fields: [
-      { name: 'Activity ID', value: act.id, inline: true },
-      { name: 'Detail Description', value: description }
-    ],
-    image: mediaUrl
+    fields
   };
+
+  if (cleanMediaUrl) {
+    embed.image = cleanMediaUrl;
+  }
 
   await botService.sendWebhook('submit-activity', embed);
   botService.logSimulated(`New activity ${act.id} submitted for review by @${user.username}.`);
@@ -905,6 +962,28 @@ router.post('/events/signup/:eventId', requireMember, async (req, res) => {
   return res.json({ success: true, signup: result.signup, action: result.action, displaced: result.displaced });
 });
 
+// Member leaves roster queue
+router.post('/events/leave/:eventId', requireMember, async (req, res) => {
+  const { eventId } = req.params;
+  const user = req.user;
+
+  const result = await db.removeSignup(eventId, user.discordId);
+  
+  if (!result.success) {
+    return res.status(400).json({ error: result.message });
+  }
+
+  // Sync Discord Embed and emit sockets
+  await botService.syncRpSignupEmbed(eventId);
+
+  // Send channel and direct message notifications
+  await botService.handleRosterLeaveNotifications(eventId, user.username, result.promoted);
+
+  botService.logSimulated(`${user.username} left event ${eventId}.`);
+
+  return res.json({ success: true, action: 'removed', promoted: result.promoted });
+});
+
 // Admin clears signup list
 router.post('/events/clear/:eventId', requireAdmin, async (req, res) => {
   const { eventId } = req.params;
@@ -930,6 +1009,49 @@ router.post('/events/trigger', requireAdmin, async (req, res) => {
   botService.broadcastSocket('event_state_change', { eventId, state: 'open' });
 
   return res.json({ success: true, message: 'Signup window opened and broadcasted to Discord.' });
+});
+
+// Admin schedules manual signup window trigger
+router.post('/events/schedule', requireAdmin, async (req, res) => {
+  const { eventId, title, description, delayMinutes } = req.body;
+  if (!title) {
+    return res.status(400).json({ error: 'Title is required.' });
+  }
+  const delay = parseInt(delayMinutes, 10);
+  if (isNaN(delay) || delay <= 0) {
+    return res.status(400).json({ error: 'Delay must be a positive number of minutes.' });
+  }
+
+  // Calculate target trigger time
+  const targetTime = new Date(Date.now() + delay * 60 * 1000);
+  const hh = String(targetTime.getHours()).padStart(2, '0');
+  const mm = String(targetTime.getMinutes()).padStart(2, '0');
+  const timeStr = `${hh}:${mm}`;
+
+  setTimeout(async () => {
+    try {
+      await db.clearSignups(eventId); // Clear previous signups automatically
+      await db.setEventState(eventId, 'open'); // Set registration state to open
+      await botService.triggerEventSignup(eventId, title, description || '');
+      
+      // Broadcast live change via WebSocket
+      botService.broadcastSocket('event_state_change', { eventId, state: 'open' });
+      botService.broadcastSocket('signup_change', { eventId, signups: [] });
+      
+      // Broadcast system notification toast
+      botService.broadcastSocket('system_notification', {
+        title: 'Roster Opened',
+        message: `The scheduled roster event "${title}" is now open!`,
+        type: 'success'
+      });
+      botService.logSimulated(`Scheduled event "${title}" has been triggered.`);
+    } catch (err) {
+      console.error('[Scheduler] Scheduled trigger failed:', err);
+    }
+  }, delay * 60 * 1000);
+
+  botService.logSimulated(`Scheduled event "${title}" to trigger in ${delay} minutes.`);
+  return res.json({ success: true, message: `Roster scheduled successfully.`, targetTime: timeStr });
 });
 
 // Admin simulates voice state change for a member
@@ -959,6 +1081,40 @@ router.post('/events/simulate-voice', requireAdmin, async (req, res) => {
 
   botService.logSimulated(`Voice presence simulation updated for ${memberId}: ${inVoice ? 'Joined' : 'Left'}`);
   return res.json({ success: true, simulatedVoice });
+});
+
+// Admin kicks a member from the roster
+router.post('/events/kick', requireAdmin, async (req, res) => {
+  const { eventId, memberId } = req.body;
+  if (!eventId || !memberId) {
+    return res.status(400).json({ error: 'eventId and memberId are required.' });
+  }
+
+  const result = await db.removeSignup(eventId, memberId);
+  if (result.success) {
+    await botService.syncRpSignupEmbed(eventId);
+    botService.logSimulated(`Admin kicked member ${memberId} from event ${eventId}`);
+    return res.json({ success: true, message: 'Member kicked from roster.' });
+  } else {
+    return res.status(400).json({ error: result.message || 'Failed to kick member.' });
+  }
+});
+
+// Admin swaps two members on the roster
+router.post('/events/swap', requireAdmin, async (req, res) => {
+  const { eventId, memberId1, memberId2 } = req.body;
+  if (!eventId || !memberId1 || !memberId2) {
+    return res.status(400).json({ error: 'eventId, memberId1, and memberId2 are required.' });
+  }
+
+  const result = await db.swapSignups(eventId, memberId1, memberId2);
+  if (result.success) {
+    await botService.syncRpSignupEmbed(eventId);
+    botService.logSimulated(`Admin swapped members ${memberId1} and ${memberId2} on event ${eventId}`);
+    return res.json({ success: true, message: 'Members swapped successfully.' });
+  } else {
+    return res.status(400).json({ error: result.message || 'Failed to swap members.' });
+  }
 });
 
 // -------------------------------------------------------------

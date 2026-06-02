@@ -22,8 +22,50 @@ const botService = {
     return false;
   },
 
+  handleRosterLeaveNotifications: async (eventId, leavingUsername, promotedMember) => {
+    botService.logSimulated(`Notification triggered: ${leavingUsername} left queue ${eventId}. Promoted: ${promotedMember ? promotedMember.username : 'None'}`);
+
+    if (client) {
+      try {
+        const config = await db.getConfig();
+        const guild = await client.guilds.fetch(config.guildId).catch(() => null);
+        if (guild) {
+          const channel = guild.channels.cache.find(c => c.name.includes('signup'));
+          if (channel) {
+            if (promotedMember) {
+              await channel.send(`👋 **[Roster Update]** @${leavingUsername} has left the queue. Reserve player <@${promotedMember.memberId}> has been promoted to the Main Roster!`);
+            } else {
+              await channel.send(`👋 **[Roster Update]** @${leavingUsername} has left the queue.`);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to send leave channel log:', err.message);
+      }
+    }
+
+    if (promotedMember) {
+      try {
+        await botService.sendDirectMessage(
+          promotedMember.memberId,
+          `🎉 Good news! You have been promoted to the **confirmed** roster for the **${eventId === 'rp-signup' ? 'RP' : 'Informal'} Signup**!`
+        );
+      } catch (err) {
+        console.error('[Bot] Failed to send promotion DM:', err.message);
+      }
+    }
+  },
+
   // Initialize the Discord Bot Client
   init: async () => {
+    if (client) {
+      try {
+        client.destroy();
+      } catch (err) {
+        console.error('[Bot] Error destroying old client:', err.message);
+      }
+      client = null;
+    }
     const config = await db.getConfig();
     if (!config.botToken || !config.guildId) {
       botService.logSimulated('Bot credentials missing. Running in Mock/Simulated Mode.');
@@ -284,7 +326,7 @@ const botService = {
             if (result.success) {
               try {
                 const originalEmbed = interaction.message.embeds[0];
-                const descriptionMatch = originalEmbed.description.match(/\*\*Event Directives:\*\*\n([\s\S]+?)\n\n\*\*Status:\*\*/);
+                const descriptionMatch = originalEmbed.description.match(/\*\*Event Directives:\*\*\n([\s\S]+?)\n\n/);
                 const directives = descriptionMatch ? descriptionMatch[1] : '';
                 
                 const updatedEmbed = await botService.buildSignupEmbed(eventId, originalEmbed.title, directives, false);
@@ -318,6 +360,81 @@ const botService = {
             } else {
               await interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
             }
+          }
+          else if (customId.startsWith('leave:')) {
+            const eventId = customId.split(':')[1];
+            const discordId = interaction.user.id;
+            const username = interaction.user.username;
+
+            const result = await db.removeSignup(eventId, discordId);
+            
+            if (result.success) {
+              try {
+                const originalEmbed = interaction.message.embeds[0];
+                const descriptionMatch = originalEmbed.description.match(/\*\*Event Directives:\*\*\n([\s\S]+?)\n\n/);
+                const directives = descriptionMatch ? descriptionMatch[1] : '';
+                
+                const updatedEmbed = await botService.buildSignupEmbed(eventId, originalEmbed.title, directives, false);
+                await interaction.message.edit({ embeds: [updatedEmbed] });
+              } catch (err) {
+                console.error('[Bot] Failed to edit live roster message on leave:', err.message);
+              }
+
+              if (ioInstance) {
+                ioInstance.emit('signup_change', { eventId, signups: await db.getSignups(eventId) });
+                ioInstance.emit('system_notification', {
+                  title: 'Discord Leave Queue',
+                  message: `${username} left the queue.`,
+                  type: 'info'
+                });
+              }
+
+              // Send channel notifications and direct messages
+              await botService.handleRosterLeaveNotifications(eventId, username, result.promoted);
+
+              await interaction.reply({ content: `👋 You have successfully left the signup queue.`, ephemeral: true });
+            } else {
+              await interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+            }
+          }
+          else if (customId.startsWith('admin_actions:')) {
+            const eventId = customId.split(':')[1];
+            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+            const isLead = member ? member.roles.cache.some(r => r.name.toLowerCase().includes('leadership') || r.name.toLowerCase().includes('admin')) : false;
+
+            if (!isLead) {
+              return interaction.reply({ content: '❌ You do not have permission to use admin actions.', ephemeral: true });
+            }
+
+            const signups = await db.getSignups(eventId);
+            if (signups.length === 0) {
+              return interaction.reply({ content: '⚠️ The roster is currently empty.', ephemeral: true });
+            }
+
+            const kickSelect = new StringSelectMenuBuilder()
+              .setCustomId(`admin_kick_select:${eventId}`)
+              .setPlaceholder('Select a member to KICK...')
+              .addOptions(signups.map(s => ({
+                label: `@${s.username} (${s.status.toUpperCase()})`,
+                value: s.memberId
+              })));
+
+            const swapSelect = new StringSelectMenuBuilder()
+              .setCustomId(`admin_swap_first_select:${eventId}`)
+              .setPlaceholder('Select first member to SWAP...')
+              .addOptions(signups.map(s => ({
+                label: `@${s.username} (${s.status.toUpperCase()})`,
+                value: s.memberId
+              })));
+
+            const row1 = new ActionRowBuilder().addComponents(kickSelect);
+            const row2 = new ActionRowBuilder().addComponents(swapSelect);
+
+            await interaction.reply({
+              content: '🛠️ **Roster Administrative Actions**\nSelect an action below:',
+              components: [row1, row2],
+              ephemeral: true
+            });
           }
           else if (customId === 'trigger_bonus_ticket') {
             const modal = new ModalBuilder()
@@ -522,6 +639,73 @@ const botService = {
 
             const updatedEmbed = await botService.buildRoleReviewEmbed(requestId);
             await interaction.update({ embeds: [updatedEmbed] });
+          }
+          else if (interaction.customId.startsWith('admin_kick_select:')) {
+            const eventId = interaction.customId.split(':')[1];
+            const memberId = interaction.values[0];
+
+            const signups = await db.getSignups(eventId);
+            const target = signups.find(s => s.memberId === memberId);
+            const targetName = target ? target.username : memberId;
+
+            const result = await db.removeSignup(eventId, memberId);
+            if (result.success) {
+              await botService.syncRpSignupEmbed(eventId);
+              await interaction.update({ content: `✅ Successfully **KICKED** @${targetName} from the roster.`, components: [] });
+            } else {
+              await interaction.update({ content: `❌ Failed to kick: ${result.message}`, components: [] });
+            }
+          }
+          else if (interaction.customId.startsWith('admin_swap_first_select:')) {
+            const eventId = interaction.customId.split(':')[1];
+            const memberId1 = interaction.values[0];
+
+            const signups = await db.getSignups(eventId);
+            const member1 = signups.find(s => s.memberId === memberId1);
+            const m1Name = member1 ? member1.username : memberId1;
+            const otherSignups = signups.filter(s => s.memberId !== memberId1);
+
+            if (otherSignups.length === 0) {
+              return interaction.update({ content: `⚠️ No other members in the roster to swap with.`, components: [] });
+            }
+
+            const swap2Select = new StringSelectMenuBuilder()
+              .setCustomId(`admin_swap_second_select:${eventId}:${memberId1}`)
+              .setPlaceholder(`Select who to swap @${m1Name} with...`)
+              .addOptions(otherSignups.map(s => ({
+                label: `@${s.username} (${s.status.toUpperCase()})`,
+                value: s.memberId
+              })));
+
+            const row = new ActionRowBuilder().addComponents(swap2Select);
+            await interaction.update({
+              content: `🔄 Swapping @${m1Name}.\nChoose the second player to swap places with:`,
+              components: [row]
+            });
+          }
+          else if (interaction.customId.startsWith('admin_swap_second_select:')) {
+            const parts = interaction.customId.split(':');
+            const eventId = parts[1];
+            const memberId1 = parts[2];
+            const memberId2 = interaction.values[0];
+
+            const result = await db.swapSignups(eventId, memberId1, memberId2);
+            if (result.success) {
+              await botService.syncRpSignupEmbed(eventId);
+              
+              const signups = await db.getSignups(eventId);
+              const m1 = signups.find(s => s.memberId === memberId1);
+              const m2 = signups.find(s => s.memberId === memberId2);
+              const m1Name = m1 ? m1.username : memberId1;
+              const m2Name = m2 ? m2.username : memberId2;
+              
+              await interaction.update({
+                content: `✅ Successfully swapped roster positions of @${m1Name} and @${m2Name}.`,
+                components: []
+              });
+            } else {
+              await interaction.update({ content: `❌ Failed to swap: ${result.message}`, components: [] });
+            }
           }
         }
       });
@@ -761,6 +945,12 @@ const botService = {
     const confirmed = signups.filter(s => s.status === 'confirmed');
     const reserve = signups.filter(s => s.status === 'reserve' || s.status === 'displaced');
 
+    // Strip blockquote markers if already present to avoid duplication during sync edits
+    let cleanDescription = description || '';
+    if (cleanDescription.startsWith('>>> ')) {
+      cleanDescription = cleanDescription.slice(4);
+    }
+
     // Get voice members
     let voiceMemberIds = new Set();
     const config = await db.getConfig();
@@ -800,7 +990,7 @@ const botService = {
       }
       const inVoice = voiceMemberIds.has(s.memberId);
       const voiceIcon = inVoice ? '✅' : '❌';
-      return `**${idx + 1}.** ${icon} <@${s.memberId}> ${voiceIcon}`;
+      return `${voiceIcon} **${idx + 1}.** ${icon} <@${s.memberId}>`;
     });
 
     let normalSubCount = 0;
@@ -818,21 +1008,17 @@ const botService = {
       }
       const inVoice = voiceMemberIds.has(s.memberId);
       const voiceIcon = inVoice ? '✅' : '❌';
-      return `**${idx + 1}.** ${icon} <@${s.memberId}> ${voiceIcon}`;
+      return `${voiceIcon} **${idx + 1}.** ${icon} <@${s.memberId}>`;
     });
 
     const statusBadge = isClosed ? '🔴 **Registration is closed!**' : '🟢 **Registration is active!**';
     const embedColor = isClosed ? 0xff003c : 0x00f0ff;
 
     const embedDescription = [
-      `**Event Directives:**\n${description}\n`,
+      `**Event Directives:**`,
+      `>>> ${cleanDescription}\n`,
       statusBadge,
-      `**Participants:** ${confirmed.length}/25\n`,
-      `**Main Roster:**`,
-      mainRosterLines.length > 0 ? mainRosterLines.join('\n') : '*Roster is vacant. Claim a slot!*',
-      `\n**Subs List:**`,
-      reserveLines.length > 0 ? reserveLines.join('\n') : '*No substitutes yet.*',
-      `\nHave fun! 🎉`
+      `📊 **Participants:** ${confirmed.length}/25\n`
     ].join('\n');
 
     const bannerImage = eventId === 'rp-signup'
@@ -845,6 +1031,37 @@ const botService = {
       .setColor(embedColor)
       .setImage(bannerImage)
       .setTimestamp();
+
+    // Roster Fields for two columns
+    if (mainRosterLines.length > 0) {
+      const midPoint = Math.ceil(mainRosterLines.length / 2);
+      const leftColumn = mainRosterLines.slice(0, midPoint);
+      const rightColumn = mainRosterLines.slice(midPoint);
+      
+      embed.addFields(
+        { name: `⚔️ Main Roster (1-${midPoint})`, value: leftColumn.join('\n'), inline: true }
+      );
+      if (rightColumn.length > 0) {
+        embed.addFields(
+          { name: `⚔️ Main Roster (${midPoint + 1}-${mainRosterLines.length})`, value: rightColumn.join('\n'), inline: true }
+        );
+      }
+    } else {
+      embed.addFields(
+        { name: '⚔️ Main Roster', value: '*Roster is vacant. Claim a slot!*', inline: false }
+      );
+    }
+
+    // Substitutes Field
+    if (reserveLines.length > 0) {
+      embed.addFields(
+        { name: `⏳ Substitutes List (${reserveLines.length})`, value: reserveLines.join('\n'), inline: false }
+      );
+    } else {
+      embed.addFields(
+        { name: '⏳ Substitutes List', value: '*No substitutes yet.*', inline: false }
+      );
+    }
 
     return embed;
   },
@@ -891,6 +1108,13 @@ const botService = {
     const channelKey = eventId === 'rp-signup' ? 'rp-signup' : 'informal-signup';
     const webhookUrl = config.webhooks ? config.webhooks[channelKey] : null;
 
+    const fallbackEmbed = {
+      title: `🚀 ${eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight'} - OPEN ⚔️`,
+      description: `**Event Directives:**\n${description}\n\n🟢 **Registration is active!**\n\nHave fun! 🎉`,
+      color: 0x00f0ff,
+      timestamp: new Date().toISOString()
+    };
+
     if (client && webhookUrl) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
@@ -902,7 +1126,15 @@ const botService = {
             new ButtonBuilder()
               .setCustomId(`signup:${eventId}`)
               .setLabel('⚔️ SIGN UP')
-              .setStyle(ButtonStyle.Success)
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(`leave:${eventId}`)
+              .setLabel('👋 LEAVE')
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId(`admin_actions:${eventId}`)
+              .setLabel('🛠️ ADMIN ACTIONS')
+              .setStyle(ButtonStyle.Secondary)
           );
 
           await channel.send({ embeds: [embedBuilder], components: [row] });
@@ -1516,6 +1748,7 @@ const botService = {
         if (channel) {
           const members = await db.getMembers();
           const sorted = [...members]
+            .filter(m => !['PigeonBoss', 'VitoScaletta', 'TonyMontana'].includes(m.username))
             .sort((a, b) => b.kills - a.kills)
             .slice(0, 30);
 
@@ -1568,6 +1801,7 @@ const botService = {
         if (message) {
           const members = await db.getMembers();
           const sorted = [...members]
+            .filter(m => !['PigeonBoss', 'VitoScaletta', 'TonyMontana'].includes(m.username))
             .sort((a, b) => b.kills - a.kills)
             .slice(0, 30);
 
@@ -1610,6 +1844,7 @@ const botService = {
         if (channel) {
           const members = await db.getMembers();
           const sorted = [...members]
+            .filter(m => !['PigeonBoss', 'VitoScaletta', 'TonyMontana'].includes(m.username))
             .sort((a, b) => b.weeklyKills - a.weeklyKills)
             .slice(0, 25);
 
@@ -1662,6 +1897,7 @@ const botService = {
         if (message) {
           const members = await db.getMembers();
           const sorted = [...members]
+            .filter(m => !['PigeonBoss', 'VitoScaletta', 'TonyMontana'].includes(m.username))
             .sort((a, b) => b.weeklyKills - a.weeklyKills)
             .slice(0, 25);
 
