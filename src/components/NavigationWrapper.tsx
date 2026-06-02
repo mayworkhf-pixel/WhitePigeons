@@ -6,17 +6,13 @@ import PasscodeModal from './PasscodeModal';
 import { 
   Bell, 
   Terminal, 
-  User as UserIcon, 
-  LogOut, 
   Settings, 
   Flame, 
   Users, 
   ShieldAlert, 
-  DollarSign, 
   Trophy, 
   FileCheck, 
   ShoppingBag, 
-  CalendarDays,
   ChevronDown,
   X,
   Radio,
@@ -34,7 +30,9 @@ import {
   CheckSquare,
   Factory,
   Shield,
-  Menu
+  Menu,
+  Lock,
+  Unlock
 } from 'lucide-react';
 
 interface NavigationWrapperProps {
@@ -45,11 +43,8 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   const { 
     user, 
     loading, 
-    botReady, 
-    logs, 
     notifications, 
-    timers, 
-    loginMock, 
+    logs,
     logout,
     activeTab,
     setActiveTab
@@ -59,44 +54,17 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   const [showConsole, setShowConsole] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isPasscodeModalOpen, setIsPasscodeModalOpen] = useState(false);
-  const [pendingAuthCallback, setPendingAuthCallback] = useState<(() => void) | null>(null);
 
-  const handleModeSwitch = (role: string, username: string) => {
-    if (role === 'Member' || role === 'Public') {
-      loginMock(role, username);
-      return;
-    }
-    if (user?.admin_authenticated) {
-      loginMock(role, username);
-      return;
-    }
-    setPendingAuthCallback(() => () => {
-      loginMock(role, username);
-    });
-    setIsPasscodeModalOpen(true);
-  };
+  // Dynamic admin panel tabs added to the top if authenticated
+  const adminPanelTabs = user?.admin_authenticated ? [
+    { category: 'ADMIN CONSOLE', items: [
+      { id: 'admin-dashboard', label: 'Admin Dashboard', icon: Shield, href: '/admin' },
+      { id: 'admin-settings', label: 'Discord Settings', icon: Settings, href: '/admin/discord-config' }
+    ]}
+  ] : [];
 
-  // Convert timer to mm:ss format
-  const formatCountdown = (ms: number) => {
-    const totalSecs = Math.floor(ms / 1000);
-    const m = Math.floor(totalSecs / 60);
-    const s = totalSecs % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const hasRole = (role: string) => {
-    return user?.roles && user.roles.includes(role);
-  };
-
-  const currentMode = () => {
-    if (!user) return 'Public';
-    if (hasRole('Leadership')) return 'Higher Authority';
-    if (hasRole('Admin')) return 'Admin';
-    return 'Member';
-  };
-
-  // Define categories and items exactly as in the user's checklist
-  const sidebarTabs = [
+  // Main sidebar tabs definitions
+  const mainSidebarTabs = [
     { category: 'MAIN', items: [
       { id: 'home', label: 'Home', icon: Flame, text: 'Home' }
     ]},
@@ -135,10 +103,14 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
     ]}
   ];
 
+  const sidebarTabs = [...adminPanelTabs, ...mainSidebarTabs];
+
   // Specific visual coloring for icons in sidebar to match style
   const getIconColor = (tabId: string, isActive: boolean) => {
     if (isActive) return 'text-purple-400';
     if (tabId === 'home') return 'text-purple-400/80';
+    if (tabId === 'admin-dashboard') return 'text-purple-400';
+    if (tabId === 'admin-settings') return 'text-purple-400';
     if (['role-request', 'rolereq-review', 'strikes', 'tickets', 'check-balance'].includes(tabId)) return 'text-zinc-500';
     if (['leaderboard', 'long-time-kill-list', 'weekly-kill-list', 'submit-activity', 'activity-results', 'activity-points-leaderboard'].includes(tabId)) return 'text-red-500/70';
     if (['point-shop', 'activity-review', 'order-details'].includes(tabId)) return 'text-amber-500/70';
@@ -175,21 +147,29 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
             
             <div className="space-y-0.5">
               {cat.items.map((item) => {
-                const isActive = activeTab === item.id;
+                // If it is an admin-only tab and user is not admin authenticated, hide it completely
+                if ('adminOnly' in item && item.adminOnly && !user?.admin_authenticated) {
+                  return null;
+                }
+
+                const isHref = 'href' in item && !!item.href;
+                const isActive = isHref
+                  ? (typeof window !== 'undefined' && window.location.pathname === (item as any).href)
+                  : (activeTab === item.id && typeof window !== 'undefined' && window.location.pathname === '/');
                 
                 return (
                   <button
                     key={item.id}
                     onClick={() => {
-                      const isTabAdminOnly = item.adminOnly;
-                      const hasAdminRole = user?.roles && (user.roles.includes('Leadership') || user.roles.includes('Admin'));
-                      if (isTabAdminOnly && hasAdminRole && !user?.admin_authenticated) {
-                        setPendingAuthCallback(() => () => {
-                          setActiveTab(item.id);
-                        });
-                        setIsPasscodeModalOpen(true);
+                      if (isHref) {
+                        window.location.href = (item as any).href;
                       } else {
-                        setActiveTab(item.id);
+                        // Standard tab change. If not currently on home/portal page, redirect to root tab
+                        if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+                          window.location.href = `/?tab=${item.id}`;
+                        } else {
+                          setActiveTab(item.id);
+                        }
                       }
                       setMobileSidebarOpen(false);
                     }}
@@ -209,61 +189,25 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
         ))}
       </div>
 
-      {/* Mode selectors capsule */}
+      {/* Admin Panel Gateway */}
       <div className="p-4 border-t border-[#131218]/80 bg-[#070709]">
-        <div className="text-[9px] font-sans font-black tracking-widest text-zinc-500 uppercase mb-2 text-center">
-          MODE
-        </div>
-        
-        <div className="flex flex-col gap-1 border border-[#16151a] p-1 rounded-xl bg-[#09080d]">
+        {user?.admin_authenticated ? (
           <button 
-            onClick={() => handleModeSwitch('Member', 'VitoScaletta')}
-            className={`w-full py-1.5 px-3 rounded-lg text-left text-xs font-sans font-bold transition-smooth flex items-center gap-2 cursor-pointer ${
-              currentMode() === 'Member' 
-                ? 'bg-purple-950/30 text-white border border-purple-800/20' 
-                : 'bg-transparent text-zinc-500 border border-transparent hover:text-zinc-300'
-            }`}
+            onClick={logout}
+            className="w-full py-2.5 px-4 bg-red-950/15 hover:bg-red-950/30 border border-red-900/30 hover:border-red-800/50 text-red-400 hover:text-red-300 rounded-xl text-xs font-sans font-bold transition-smooth flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_10px_rgba(239,68,68,0.03)]"
           >
-            <div className={`w-1.5 h-1.5 rounded-full ${currentMode() === 'Member' ? 'bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.8)]' : 'bg-zinc-700'}`} />
-            Member
+            <Lock className="w-3.5 h-3.5" />
+            Lock Admin Console
           </button>
-          
+        ) : (
           <button 
-            onClick={() => handleModeSwitch('Admin', 'PigeonAdmin')}
-            className={`w-full py-1.5 px-3 rounded-lg text-left text-xs font-sans font-bold transition-smooth flex items-center gap-2 cursor-pointer ${
-              currentMode() === 'Admin' 
-                ? 'bg-purple-950/30 text-white border border-purple-800/20' 
-                : 'bg-transparent text-zinc-500 border border-transparent hover:text-zinc-300'
-            }`}
+            onClick={() => setIsPasscodeModalOpen(true)}
+            className="w-full py-2.5 px-4 bg-purple-950/15 hover:bg-purple-950/30 border border-purple-800/30 hover:border-purple-700/50 text-purple-400 hover:text-purple-300 rounded-xl text-xs font-sans font-bold transition-smooth flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_10px_rgba(168,85,247,0.03)]"
           >
-            <div className={`w-1.5 h-1.5 rounded-full ${currentMode() === 'Admin' ? 'bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.8)]' : 'bg-zinc-700'}`} />
-            Admin
+            <Unlock className="w-3.5 h-3.5" />
+            Access Admin Console
           </button>
-          
-          <button 
-            onClick={() => handleModeSwitch('Leadership', 'PigeonBoss')}
-            className={`w-full py-1.5 px-3 rounded-lg text-left text-xs font-sans font-bold transition-smooth flex items-center gap-2 cursor-pointer ${
-              currentMode() === 'Higher Authority' 
-                ? 'bg-purple-950/30 text-white border border-purple-800/20' 
-                : 'bg-transparent text-zinc-500 border border-transparent hover:text-zinc-300'
-            }`}
-          >
-            <div className={`w-1.5 h-1.5 rounded-full ${currentMode() === 'Higher Authority' ? 'bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.8)]' : 'bg-zinc-700'}`} />
-            Higher Authority
-          </button>
-          
-          <button 
-            onClick={() => handleModeSwitch('Public', 'GuestPigeon')}
-            className={`w-full py-1.5 px-3 rounded-lg text-left text-xs font-sans font-bold transition-smooth flex items-center gap-2 cursor-pointer ${
-              currentMode() === 'Public' 
-                ? 'bg-purple-950/30 text-white border border-purple-800/20' 
-                : 'bg-transparent text-zinc-500 border border-transparent hover:text-zinc-300'
-            }`}
-          >
-            <div className={`w-1.5 h-1.5 rounded-full ${currentMode() === 'Public' ? 'bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.8)]' : 'bg-zinc-700'}`} />
-            Public
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -332,14 +276,14 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
                       {user.isTop10 && <span className="text-[7px] bg-accent/20 text-accent font-black px-1.5 py-0.5 rounded-full">TOP 10</span>}
                     </div>
                     <div className="text-[9px] text-zinc-500 font-sans mt-1">
-                      {currentMode()}
+                      {user.admin_authenticated ? 'Admin' : 'Member'}
                     </div>
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
                 </div>
               ) : (
                 <button 
-                  onClick={() => loginMock('Member', 'VitoScaletta')}
+                  onClick={() => setIsPasscodeModalOpen(true)}
                   className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-2 px-5 rounded-lg border border-purple-500 glow-magenta cursor-pointer transition-smooth"
                 >
                   ENTER HUB
@@ -465,16 +409,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
 
       <PasscodeModal 
         isOpen={isPasscodeModalOpen} 
-        onClose={() => {
-          setIsPasscodeModalOpen(false);
-          setPendingAuthCallback(null);
-        }} 
-        onSuccess={() => {
-          if (pendingAuthCallback) {
-            pendingAuthCallback();
-            setPendingAuthCallback(null);
-          }
-        }} 
+        onClose={() => setIsPasscodeModalOpen(false)} 
       />
     </div>
   );
