@@ -288,7 +288,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
               <img 
                 src="/logo.png" 
                 alt="White Pigeons Logo" 
-                className="w-28 h-28 object-contain mb-3 drop-shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:scale-105 transition-smooth"
+                className="w-56 h-56 object-contain mb-4 drop-shadow-[0_0_35px_rgba(168,85,247,0.4)] hover:scale-105 transition-smooth"
               />
               <h1 className="font-title font-black text-3xl italic tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-200 to-purple-400 uppercase drop-shadow-[0_0_15px_rgba(168,85,247,0.15)] leading-none">
                 WHITE PIGEONS
