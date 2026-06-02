@@ -1160,11 +1160,7 @@ const botService = {
             new ButtonBuilder()
               .setCustomId(`leave:${eventId}`)
               .setLabel('👋 LEAVE')
-              .setStyle(ButtonStyle.Danger),
-            new ButtonBuilder()
-              .setCustomId(`admin_actions:${eventId}`)
-              .setLabel('🛠️ ADMIN ACTIONS')
-              .setStyle(ButtonStyle.Secondary)
+              .setStyle(ButtonStyle.Danger)
           );
 
           await channel.send({ embeds: [embedBuilder], components: [row] });
