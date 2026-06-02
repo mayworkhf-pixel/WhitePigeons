@@ -1013,20 +1013,36 @@ router.post('/events/trigger', requireAdmin, async (req, res) => {
 
 // Admin schedules manual signup window trigger
 router.post('/events/schedule', requireAdmin, async (req, res) => {
-  const { eventId, title, description, delayMinutes } = req.body;
+  const { eventId, title, description, delayMinutes, delaySeconds } = req.body;
   if (!title) {
     return res.status(400).json({ error: 'Title is required.' });
   }
-  const delay = parseInt(delayMinutes, 10);
-  if (isNaN(delay) || delay <= 0) {
-    return res.status(400).json({ error: 'Delay must be a positive number of minutes.' });
+
+  let delayMs = 0;
+  let delayText = '';
+  
+  if (delaySeconds !== undefined) {
+    const sec = parseInt(delaySeconds, 10);
+    if (isNaN(sec) || sec <= 0) {
+      return res.status(400).json({ error: 'Delay must be a positive number of seconds.' });
+    }
+    delayMs = sec * 1000;
+    delayText = `${sec} seconds`;
+  } else {
+    const delay = parseInt(delayMinutes, 10);
+    if (isNaN(delay) || delay <= 0) {
+      return res.status(400).json({ error: 'Delay must be a positive number of minutes.' });
+    }
+    delayMs = delay * 60 * 1000;
+    delayText = `${delay} minutes`;
   }
 
   // Calculate target trigger time
-  const targetTime = new Date(Date.now() + delay * 60 * 1000);
+  const targetTime = new Date(Date.now() + delayMs);
   const hh = String(targetTime.getHours()).padStart(2, '0');
   const mm = String(targetTime.getMinutes()).padStart(2, '0');
-  const timeStr = `${hh}:${mm}`;
+  const ss = String(targetTime.getSeconds()).padStart(2, '0');
+  const timeStr = `${hh}:${mm}:${ss}`;
 
   setTimeout(async () => {
     try {
@@ -1048,9 +1064,9 @@ router.post('/events/schedule', requireAdmin, async (req, res) => {
     } catch (err) {
       console.error('[Scheduler] Scheduled trigger failed:', err);
     }
-  }, delay * 60 * 1000);
+  }, delayMs);
 
-  botService.logSimulated(`Scheduled event "${title}" to trigger in ${delay} minutes.`);
+  botService.logSimulated(`Scheduled event "${title}" to trigger in ${delayText}.`);
   return res.json({ success: true, message: `Roster scheduled successfully.`, targetTime: timeStr });
 });
 

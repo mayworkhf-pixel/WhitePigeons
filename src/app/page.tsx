@@ -842,30 +842,37 @@ export default function RootDashboard() {
     } catch (e) {}
   };
 
-  const handleScheduleTrigger = async (eventId: string, title: string, description: string, delayMinutes: string) => {
+  const handleScheduleTrigger = async (eventId: string, title: string, description: string, delay: string, unit: 'seconds' | 'minutes' = 'minutes') => {
     if (!title) {
       addNotification('Title Required', 'Please set an event title first.', 'warning');
       return;
     }
-    const mins = parseInt(delayMinutes, 10);
-    if (isNaN(mins) || mins <= 0) {
-      addNotification('Invalid Delay', 'Please set a valid positive delay in minutes.', 'warning');
+    const val = parseInt(delay, 10);
+    if (isNaN(val) || val <= 0) {
+      addNotification('Invalid Delay', `Please set a valid positive delay in ${unit}.`, 'warning');
       return;
     }
 
     try {
       const passcode = localStorage.getItem('wp_admin_passcode') || '';
+      const payload: any = { eventId, title, description };
+      if (unit === 'seconds') {
+        payload.delaySeconds = val;
+      } else {
+        payload.delayMinutes = val;
+      }
+
       const res = await fetch(`${API_BASE_URL}/api/events/schedule`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-admin-passcode': passcode
         },
-        body: JSON.stringify({ eventId, title, description, delayMinutes: mins })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok) {
-        addNotification('Trigger Scheduled', `Bot will trigger in ${mins} minutes at ${data.targetTime}.`, 'success');
+        addNotification('Trigger Scheduled', `Bot will trigger in ${val} ${unit} at ${data.targetTime}.`, 'success');
         if (eventId === 'rp-signup') {
           setRpScheduledTime(data.targetTime);
         } else {
@@ -3496,6 +3503,27 @@ export default function RootDashboard() {
                     SET TIMER
                   </button>
                 </div>
+                <div className="flex gap-1.5 pt-1 items-center">
+                  <span className="text-[9px] text-zinc-500 font-semibold">Test (seconds):</span>
+                  <button 
+                    onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, '10', 'seconds')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                  >
+                    10s
+                  </button>
+                  <button 
+                    onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, '20', 'seconds')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                  >
+                    20s
+                  </button>
+                  <button 
+                    onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title, eventTriggerForm.description, '30', 'seconds')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                  >
+                    30s
+                  </button>
+                </div>
                 {rpScheduledTime && (
                   <span className="text-[9px] text-green-400 font-bold block animate-pulse">
                     ⏱️ Next trigger scheduled at {rpScheduledTime}
@@ -3809,6 +3837,27 @@ export default function RootDashboard() {
                     className="bg-blue-600 hover:bg-blue-700 text-white font-title text-[9px] font-black italic px-3 rounded-lg cursor-pointer transition-smooth"
                   >
                     SET TIMER
+                  </button>
+                </div>
+                <div className="flex gap-1.5 pt-1 items-center">
+                  <span className="text-[9px] text-zinc-500 font-semibold">Test (seconds):</span>
+                  <button 
+                    onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, '10', 'seconds')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                  >
+                    10s
+                  </button>
+                  <button 
+                    onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, '20', 'seconds')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                  >
+                    20s
+                  </button>
+                  <button 
+                    onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title, eventTriggerForm.description, '30', 'seconds')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] px-2 py-0.5 rounded cursor-pointer font-semibold transition-smooth"
+                  >
+                    30s
                   </button>
                 </div>
                 {infScheduledTime && (
