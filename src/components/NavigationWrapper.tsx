@@ -117,28 +117,28 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
 
 
   const renderSidebarContent = () => (
-    <div className="flex flex-col h-full bg-[#09090f] border-r border-[#141320] font-sans text-[13px] select-none">
+    <div className="flex flex-col h-full bg-[#09090f] border-r border-[#141320] font-sans text-[12px] select-none">
       
       {/* Branded Header */}
-      <div className="px-4 py-5 border-b border-[#141320] shrink-0">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="White Pigeons Logo" className="w-8 h-8 object-contain" />
+      <div className="px-4 py-3 border-b border-[#141320] shrink-0">
+        <div className="flex items-center gap-2.5">
+          <img src="/logo.png" alt="White Pigeons Logo" className="w-7 h-7 object-contain" />
           <div className="flex flex-col">
-            <span className="font-title font-bold text-sm text-white leading-none">WHITE PIGEONS</span>
-            <span className="text-[9px] text-purple-400 uppercase tracking-widest mt-1">GTA VI ROLEPLAY</span>
+            <span className="font-title font-bold text-[13px] text-white leading-none">WHITE PIGEONS</span>
+            <span className="text-[8px] text-purple-400 uppercase tracking-widest mt-0.5">GTA VI ROLEPLAY</span>
           </div>
         </div>
       </div>
 
       {/* Tabs list navigation */}
-      <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
+      <div className="flex-1 py-2 px-2.5">
         {sidebarTabs.map((cat, idx) => (
           <div key={idx}>
-            <div className={`text-[10px] font-semibold tracking-[0.15em] text-zinc-600 uppercase mb-2 px-3 ${idx === 0 ? 'mt-2' : 'mt-6'}`}>
+            <div className={`text-[9px] font-semibold tracking-[0.15em] text-zinc-600 uppercase mb-1 px-2.5 ${idx === 0 ? 'mt-1' : 'mt-3'}`}>
               {cat.category}
             </div>
             
-            <div className="space-y-0.5">
+            <div>
               {cat.items.map((item) => {
                 // If it is an admin-only tab and user is not admin authenticated, hide it completely
                 if ('adminOnly' in item && item.adminOnly && !user?.admin_authenticated) {
@@ -166,15 +166,15 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
                       }
                       setMobileSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2.5 text-[13px] font-sans transition-smooth cursor-pointer ${
+                    className={`w-full flex items-center gap-2 text-[12px] font-sans transition-smooth cursor-pointer ${
                       isActive 
-                        ? 'bg-purple-500/10 border-l-[3px] border-l-purple-500 text-white font-semibold pl-3 pr-3 py-2 rounded-r-lg rounded-l-none'
-                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#13121d] pl-4 pr-3 py-2 rounded-lg border-l-[3px] border-l-transparent'
+                        ? 'bg-purple-500/10 border-l-[3px] border-l-purple-500 text-white font-semibold pl-2.5 pr-2.5 py-[5px] rounded-r-lg rounded-l-none'
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#13121d] pl-3 pr-2.5 py-[5px] rounded-lg border-l-[3px] border-l-transparent'
                     }`}
                   >
-                    <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-purple-400' : 'text-zinc-500'}`} />
+                    <item.icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-purple-400' : 'text-zinc-500'}`} />
                     <span className="truncate flex-1 text-left">{item.label}</span>
-                    {isActive && <ChevronRight className="w-4 h-4 text-purple-400 shrink-0" />}
+                    {isActive && <ChevronRight className="w-3.5 h-3.5 text-purple-400 shrink-0" />}
                   </button>
                 );
               })}
@@ -184,28 +184,28 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
       </div>
 
       {/* Admin Panel Gateway */}
-      <div className="p-3 border-t border-[#141320] bg-[#09090f] shrink-0">
+      <div className="p-2.5 border-t border-[#141320] bg-[#09090f] shrink-0">
         {user?.admin_authenticated ? (
           <button 
             onClick={logout}
-            className="w-full flex items-center gap-3 bg-[#0e0e16] border border-[#1c1a2a] rounded-lg p-3 text-red-400 hover:text-red-300 hover:border-red-900/40 transition-smooth cursor-pointer"
+            className="w-full flex items-center gap-2.5 bg-[#0e0e16] border border-[#1c1a2a] rounded-lg p-2.5 text-red-400 hover:text-red-300 hover:border-red-900/40 transition-smooth cursor-pointer"
           >
             <Lock className="w-4 h-4 shrink-0" />
             <div className="flex-1 text-left">
-              <div className="text-[13px] font-semibold">Lock Admin Console</div>
-              <div className="text-[9px] text-zinc-500 mt-0.5">Administrator Access</div>
+              <div className="text-[12px] font-semibold">Lock Admin Console</div>
+              <div className="text-[8px] text-zinc-500 mt-0.5">Administrator Access</div>
             </div>
             <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
           </button>
         ) : (
           <button 
             onClick={() => setIsPasscodeModalOpen(true)}
-            className="w-full flex items-center gap-3 bg-[#0e0e16] border border-[#1c1a2a] rounded-lg p-3 text-purple-400 hover:text-purple-300 hover:border-purple-800/40 transition-smooth cursor-pointer"
+            className="w-full flex items-center gap-2.5 bg-[#0e0e16] border border-[#1c1a2a] rounded-lg p-2.5 text-purple-400 hover:text-purple-300 hover:border-purple-800/40 transition-smooth cursor-pointer"
           >
             <Shield className="w-4 h-4 shrink-0" />
             <div className="flex-1 text-left">
-              <div className="text-[13px] font-semibold">Access Admin Console</div>
-              <div className="text-[9px] text-zinc-500 mt-0.5">Administrator Access</div>
+              <div className="text-[12px] font-semibold">Access Admin Console</div>
+              <div className="text-[8px] text-zinc-500 mt-0.5">Administrator Access</div>
             </div>
             <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
           </button>
@@ -217,7 +217,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   return (
     <div className="min-h-screen flex relative z-20 bg-background text-foreground">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-60 bg-[#09090f] border-r border-[#141320] shrink-0 h-screen sticky top-0 overflow-y-auto">
+      <aside className="hidden lg:flex w-60 bg-[#09090f] border-r border-[#141320] shrink-0 h-screen sticky top-0">
         <div className="w-full h-full">
           {renderSidebarContent()}
         </div>
