@@ -1006,11 +1006,15 @@ const botService = {
       ? `📡 **Voice Channel:** <#${config.factoryVoiceChannelId}>`
       : '📡 **Voice Channel:** 🔊 ⚔️ | Event VC';
 
+    const directivesText = description ? description : 'No directives set.';
+
     const embedDescription = [
       statusText,
       '',
-      pointsText,
+      '**Event Directives:**',
+      directivesText,
       '',
+      pointsText,
       '',
       voiceChannelText
     ].join('\n');
