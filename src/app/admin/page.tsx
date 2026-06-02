@@ -19,7 +19,9 @@ import {
   CheckCircle2,
   XCircle,
   Activity,
-  Server
+  Server,
+  Users,
+  Search
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -41,12 +43,17 @@ const channelsList: WebhookChannel[] = [
   { key: 'point-shop', name: '💰┃𝐏𝐨𝐢𝐧𝐭-𝐒𝐡𝐨𝐩', description: 'Point shop order details' }
 ];
 
+const DEFAULT_ROLES = ['Leader', 'Co-Leader', 'Underboss', 'Soldier', 'Associate', 'Recruit'];
+
 export default function AdminDashboard() {
   const { user, loading: userLoading, addNotification, API_BASE_URL } = useApp();
   
-  const [activeSubTab, setActiveSubTab] = useState<'dispatch' | 'bot-config' | 'member-requests'>('dispatch');
+  const [activeSubTab, setActiveSubTab] = useState<'dispatch' | 'bot-config' | 'member-requests' | 'members'>('dispatch');
   const [members, setMembers] = useState<any[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [customRoleInput, setCustomRoleInput] = useState<Record<string, string>>({}); // memberId -> role text
+  const [savingMembers, setSavingMembers] = useState<Record<string, boolean>>({}); // memberId -> isSaving boolean
   const [webhooks, setWebhooks] = useState<Record<string, string>>({});
   const [showWebhooks, setShowWebhooks] = useState<Record<string, boolean>>({});
   const [broadcastForm, setBroadcastForm] = useState({
@@ -486,6 +493,16 @@ export default function AdminDashboard() {
               {members.filter(m => m.status === 'pending').length}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setActiveSubTab('members')}
+          className={`py-2 px-5 rounded-lg font-title font-black text-xs italic tracking-wider transition-smooth cursor-pointer flex items-center gap-2 ${
+            activeSubTab === 'members'
+              ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-[0_0_15px_rgba(168,85,247,0.2)] border border-purple-500/50'
+              : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5 text-purple-400" /> MEMBERS LIST
         </button>
       </div>
 
@@ -1108,6 +1125,255 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Members Management Content */}
+      {activeSubTab === 'members' && (
+        <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl flex flex-col gap-6 shadow-xl relative overflow-hidden font-sans">
+          {/* Header */}
+          <div className="border-b border-[#201d2d]/60 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-purple-950/20 border border-purple-800/35 text-purple-400">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-title font-black text-lg italic text-zinc-100 uppercase leading-none">
+                  MEMBERS DIRECTORY & ACCESS
+                </h2>
+                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider mt-1 block">
+                  Assign dynamic roles, manage administrative credentials, and search approved players.
+                </span>
+              </div>
+            </div>
+            
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500">
+                <Search className="w-4 h-4" />
+              </span>
+              <input 
+                type="text"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Search by ID, Name or Role..."
+                className="w-full bg-[#09080d]/60 border border-[#201d2d]/60 rounded-xl py-2 pl-10 pr-4 text-xs text-zinc-355 focus:text-zinc-100 focus:border-purple-650 outline-none transition-smooth"
+              />
+            </div>
+          </div>
+
+          {/* Members Table */}
+          {loadingRequests ? (
+            <div className="text-center py-12 text-zinc-500 font-tech text-xs tracking-wider animate-pulse">
+              LOADING MEMBER DIRECTORY...
+            </div>
+          ) : members.filter(m => m.status !== 'pending').length === 0 ? (
+            <div className="text-center py-16 bg-[#09080d]/40 rounded-xl border border-[#1c1a2a]/30">
+              <Users className="w-10 h-10 text-purple-500/40 mx-auto mb-2" />
+              <h3 className="font-title font-bold text-zinc-300 text-sm">NO APPROVED MEMBERS FOUND</h3>
+              <p className="text-[10px] text-zinc-500 mt-1 uppercase tracking-wide">
+                There are no approved family members in the database.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs font-sans">
+                <thead>
+                  <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px] font-black">
+                    <th className="py-3 px-4">Player</th>
+                    <th className="py-3 px-4">In-Game ID</th>
+                    <th className="py-3 px-4">Discord Account</th>
+                    <th className="py-3 px-4">Admin Access</th>
+                    <th className="py-3 px-4">Family Roles</th>
+                    <th className="py-3 px-4 text-right">Assign Roles</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members
+                    .filter(m => m.status !== 'pending')
+                    .filter(m => {
+                      const search = searchTerm.toLowerCase();
+                      return (
+                        (m.nickname || '').toLowerCase().includes(search) ||
+                        (m.username || '').toLowerCase().includes(search) ||
+                        (m.discordId || '').toLowerCase().includes(search) ||
+                        (m.inGameId || '').toLowerCase().includes(search) ||
+                        (m.firstName || '').toLowerCase().includes(search) ||
+                        (m.lastName || '').toLowerCase().includes(search) ||
+                        (m.roles || []).some((r: string) => r.toLowerCase().includes(search))
+                      );
+                    })
+                    .map((m) => {
+                      const isSaving = !!savingMembers[m.discordId];
+                      const currentRoles = m.roles || [];
+                      
+                      const handleRoleUpdate = async (newRolesList: string[], isNewAdmin?: boolean) => {
+                        setSavingMembers(prev => ({ ...prev, [m.discordId]: true }));
+                        try {
+                          const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+                          const res = await fetch(`${API_BASE_URL}/api/admin/update-member-roles`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'x-admin-passcode': passcode
+                            },
+                            body: JSON.stringify({
+                              discordId: m.discordId,
+                              roles: newRolesList,
+                              admin_authenticated: isNewAdmin !== undefined ? isNewAdmin : !!m.admin_authenticated
+                            })
+                          });
+                          const data = await res.json();
+                          if (res.ok && data.success) {
+                            addNotification('Member Updated', `Access parameters for ${m.nickname || m.username} saved.`, 'success');
+                            fetchMembers();
+                          } else {
+                            throw new Error(data.message || 'Update failed.');
+                          }
+                        } catch (err: any) {
+                          addNotification('Update Failed', err.message || 'Error updating member parameters.', 'error');
+                        } finally {
+                          setSavingMembers(prev => ({ ...prev, [m.discordId]: false }));
+                        }
+                      };
+
+                      const addRole = (roleName: string) => {
+                        if (!roleName) return;
+                        const trimmed = roleName.trim();
+                        if (!trimmed || currentRoles.includes(trimmed)) return;
+                        const updated = [...currentRoles, trimmed];
+                        handleRoleUpdate(updated);
+                      };
+
+                      const removeRole = (roleName: string) => {
+                        const updated = currentRoles.filter((r: string) => r !== roleName);
+                        handleRoleUpdate(updated);
+                      };
+
+                      return (
+                        <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20 transition-smooth">
+                          {/* Player Identity */}
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              <img 
+                                src={m.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=50"} 
+                                alt="" 
+                                className="w-8 h-8 rounded-lg border border-purple-500/20 animate-fade-in"
+                              />
+                              <div>
+                                <div className="font-bold text-zinc-200">{m.nickname || m.username || 'Unknown'}</div>
+                                <div className="text-[10px] text-zinc-500 mt-0.5">{m.firstName || ''} {m.lastName || ''}</div>
+                              </div>
+                            </div>
+                          </td>
+                          
+                          {/* In Game ID */}
+                          <td className="py-4 px-4 text-purple-400 font-mono font-bold">{m.inGameId || 'N/A'}</td>
+                          
+                          {/* Discord Username */}
+                          <td className="py-4 px-4 text-zinc-400 font-mono">@{m.discordId}</td>
+                          
+                          {/* Admin Access Toggle */}
+                          <td className="py-4 px-4">
+                            <label className="relative inline-flex items-center cursor-pointer select-none">
+                              <input 
+                                type="checkbox"
+                                checked={!!m.admin_authenticated}
+                                disabled={isSaving}
+                                onChange={(e) => handleRoleUpdate(currentRoles, e.target.checked)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-9 h-5 bg-[#09080d] border border-[#201d2d] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-500 after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600 peer-checked:after:bg-white peer-checked:after:border-purple-300"></div>
+                              <span className="ml-2 text-[10px] font-bold text-zinc-400 peer-checked:text-purple-400 uppercase">
+                                {m.admin_authenticated ? 'Admin' : 'Member'}
+                              </span>
+                            </label>
+                          </td>
+                          
+                          {/* Current Roles List */}
+                          <td className="py-4 px-4">
+                            <div className="flex flex-wrap gap-1.5 max-w-xs">
+                              {currentRoles.length === 0 ? (
+                                <span className="text-[10px] text-zinc-500 italic">No roles assigned</span>
+                              ) : (
+                                currentRoles.map((role: string) => (
+                                  <span 
+                                    key={role} 
+                                    className="inline-flex items-center gap-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-semibold px-2 py-0.5 rounded-lg"
+                                  >
+                                    {role}
+                                    <button 
+                                      onClick={() => removeRole(role)}
+                                      disabled={isSaving}
+                                      className="text-purple-500 hover:text-purple-300 transition-colors ml-0.5 cursor-pointer disabled:cursor-not-allowed"
+                                    >
+                                      &times;
+                                    </button>
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </td>
+                          
+                          {/* Role Assignment Actions */}
+                          <td className="py-4 px-4 text-right">
+                            {isSaving ? (
+                              <div className="text-[10px] font-mono text-purple-400 animate-pulse uppercase pr-4">
+                                Updating...
+                              </div>
+                            ) : (
+                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 text-xs">
+                                {/* Preset Roles Dropdown */}
+                                <select
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      addRole(e.target.value);
+                                      e.target.value = '';
+                                    }
+                                  }}
+                                  className="bg-[#09080d] border border-[#201d2d] rounded-lg py-1 px-2 text-[11px] text-zinc-350 focus:border-purple-650 outline-none transition-smooth max-w-[120px]"
+                                >
+                                  <option value="">+ Preset Role</option>
+                                  {DEFAULT_ROLES.filter(r => !currentRoles.includes(r)).map(r => (
+                                    <option key={r} value={r}>{r}</option>
+                                  ))}
+                                </select>
+
+                                {/* Custom Role Add */}
+                                <div className="flex items-center border border-[#201d2d] bg-[#09080d] rounded-lg overflow-hidden max-w-[150px]">
+                                  <input 
+                                    type="text"
+                                    placeholder="Custom role..."
+                                    value={customRoleInput[m.discordId] || ''}
+                                    onChange={(e) => setCustomRoleInput(prev => ({ ...prev, [m.discordId]: e.target.value }))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        addRole(customRoleInput[m.discordId]);
+                                        setCustomRoleInput(prev => ({ ...prev, [m.discordId]: '' }));
+                                      }
+                                    }}
+                                    className="w-full bg-transparent px-2 py-1 text-[11px] text-zinc-350 outline-none placeholder-zinc-600"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      addRole(customRoleInput[m.discordId]);
+                                      setCustomRoleInput(prev => ({ ...prev, [m.discordId]: '' }));
+                                    }}
+                                    className="bg-purple-600 text-white hover:bg-purple-700 px-2 py-1 cursor-pointer transition-colors text-[11px] font-bold"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

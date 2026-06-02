@@ -461,4 +461,38 @@ router.post('/approve-member', requireAdmin, async (req, res) => {
   }
 });
 
+// POST update roles and admin access for an approved member
+router.post('/update-member-roles', requireAdmin, async (req, res) => {
+  const { discordId, roles, admin_authenticated } = req.body;
+  if (!discordId) {
+    return res.status(400).json({ success: false, message: 'discordId is required.' });
+  }
+
+  try {
+    const member = await db.getMember(discordId);
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Member not found.' });
+    }
+
+    const updateData = {};
+    if (Array.isArray(roles)) {
+      updateData.roles = roles;
+    }
+    if (typeof admin_authenticated === 'boolean') {
+      updateData.admin_authenticated = admin_authenticated;
+    }
+
+    await db.updateMember(discordId, updateData);
+    
+    // Log the change
+    botService.logSimulated(`Admin updated access/roles for: ${member.nickname}`);
+    
+    // Sync client dashboards via WebSocket
+    botService.broadcastSocket('leaderboard_update', await db.getMembers());
+    return res.json({ success: true, message: 'Member access and roles updated successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

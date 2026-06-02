@@ -161,9 +161,9 @@ router.get('/callback', async (req, res) => {
 
 // POST register member request
 router.post('/register', async (req, res) => {
-  const { inGameId, firstName, lastName, discordId } = req.body;
-  if (!inGameId || !firstName || !lastName || !discordId) {
-    return res.status(400).json({ success: false, error: 'All fields are required.' });
+  const { inGameId, firstName, lastName, discordId, password } = req.body;
+  if (!inGameId || !firstName || !lastName || !discordId || !password) {
+    return res.status(400).json({ success: false, error: 'All fields, including password, are required.' });
   }
 
   const normalizedId = discordId.trim().toLowerCase();
@@ -188,6 +188,7 @@ router.post('/register', async (req, res) => {
     inGameId,
     firstName,
     lastName,
+    password: password.trim(),
     status: 'pending',
     roles: ['Member'],
     kills: 0,
@@ -205,13 +206,13 @@ router.post('/register', async (req, res) => {
 
 // POST login as a registered member
 router.post('/member-login', async (req, res) => {
-  const { discordId } = req.body;
-  if (!discordId) {
-    return res.status(400).json({ success: false, error: 'Discord ID or Username is required.' });
+  const { discordId, password } = req.body;
+  if (!discordId || !password) {
+    return res.status(400).json({ success: false, error: 'Discord Username/ID and password are required.' });
   }
 
   const normalizedId = discordId.trim().toLowerCase();
-  const member = await db.getMember(normalizedId);
+  let member = await db.getMember(normalizedId);
 
   if (!member) {
     return res.status(400).json({ success: false, error: 'No registration request found. Please register first.' });
@@ -219,6 +220,15 @@ router.post('/member-login', async (req, res) => {
 
   if (member.status === 'pending') {
     return res.status(400).json({ success: false, error: 'Your registration request is still pending admin approval.' });
+  }
+
+  // If existing member doesn't have a password set yet, set it on their first login
+  if (!member.password) {
+    await db.updateMember(normalizedId, { password: password.trim() });
+    member = await db.getMember(normalizedId);
+    botService.logSimulated(`Set password for existing approved member ${member.nickname}`);
+  } else if (member.password !== password.trim()) {
+    return res.status(400).json({ success: false, error: 'Invalid password. Please try again.' });
   }
 
   // Approved or pre-existing member
