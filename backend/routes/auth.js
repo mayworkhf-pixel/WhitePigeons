@@ -260,13 +260,14 @@ router.post('/member-login', async (req, res) => {
     isMock: true
   };
 
-  res.cookie('wp_session', Buffer.from(JSON.stringify(session)).toString('base64'), {
+  const sessionToken = Buffer.from(JSON.stringify(session)).toString('base64');
+  res.cookie('wp_session', sessionToken, {
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000 // 1 day
   });
 
   botService.logSimulated(`Logged in as approved member ${member.nickname}`);
-  return res.json({ success: true, user: member });
+  return res.json({ success: true, user: member, token: sessionToken });
 });
 
 // POST verify admin passcode
@@ -280,7 +281,11 @@ router.post('/verify-admin', async (req, res) => {
   const correctPassword = config.adminPassword || 'anvy2026';
 
   if (password === correctPassword || password === 'anvy2026') {
-    const cookie = req.cookies ? req.cookies['wp_session'] : null;
+    const authHeader = req.headers['authorization'];
+    let cookie = req.cookies ? req.cookies['wp_session'] : null;
+    if (!cookie && authHeader && authHeader.startsWith('Bearer ')) {
+      cookie = authHeader.substring(7);
+    }
     let session = {};
     if (cookie) {
       try {
@@ -290,13 +295,14 @@ router.post('/verify-admin', async (req, res) => {
     
     session.admin_authenticated = true;
 
-    res.cookie('wp_session', Buffer.from(JSON.stringify(session)).toString('base64'), {
+    const sessionToken = Buffer.from(JSON.stringify(session)).toString('base64');
+    res.cookie('wp_session', sessionToken, {
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000 // 1 day
     });
 
     botService.logSimulated('Master Admin passcode verification successful.');
-    return res.json({ success: true });
+    return res.json({ success: true, token: sessionToken });
   } else {
     botService.logSimulated('Master Admin passcode verification failed.');
     return res.status(401).json({ success: false, error: 'Invalid passcode.' });
@@ -305,7 +311,11 @@ router.post('/verify-admin', async (req, res) => {
 
 // Fetch current session details
 router.get('/me', async (req, res) => {
-  const cookie = req.cookies ? req.cookies['wp_session'] : null;
+  const authHeader = req.headers['authorization'];
+  let cookie = req.cookies ? req.cookies['wp_session'] : null;
+  if (!cookie && authHeader && authHeader.startsWith('Bearer ')) {
+    cookie = authHeader.substring(7);
+  }
   if (!cookie) {
     return res.json({ loggedIn: false, user: null });
   }

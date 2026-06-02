@@ -17,7 +17,11 @@ async function requireMember(req, res, next) {
     }
   }
 
-  const cookie = req.cookies ? req.cookies['wp_session'] : null;
+  const authHeader = req.headers['authorization'];
+  let cookie = req.cookies ? req.cookies['wp_session'] : null;
+  if (!cookie && authHeader && authHeader.startsWith('Bearer ')) {
+    cookie = authHeader.substring(7);
+  }
   if (!cookie) {
     if (req.method === 'GET') {
       req.user = { discordId: 'public-guest', username: 'Guest', roles: ['Member'] };
@@ -46,7 +50,11 @@ async function requireAdmin(req, res, next) {
     }
   }
 
-  const cookie = req.cookies ? req.cookies['wp_session'] : null;
+  const authHeader = req.headers['authorization'];
+  let cookie = req.cookies ? req.cookies['wp_session'] : null;
+  if (!cookie && authHeader && authHeader.startsWith('Bearer ')) {
+    cookie = authHeader.substring(7);
+  }
   if (!cookie) {
     return res.status(401).json({ error: 'Please login.' });
   }

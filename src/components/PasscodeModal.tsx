@@ -52,6 +52,9 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
         if (typeof window !== 'undefined') {
           localStorage.removeItem('wp_admin_auth');
           localStorage.setItem('wp_admin_passcode', passcode);
+          if (data.token) {
+            localStorage.setItem('wp_session_token', data.token);
+          }
         }
         addNotification('Authentication Granted', 'Security clearance authorized.', 'success');
         await refreshUser();

@@ -144,6 +144,10 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
         setRegisteredInGameId(null);
         setRegistrationStatus('none');
 
+        if (data.token) {
+          localStorage.setItem('wp_session_token', data.token);
+        }
+
         await refreshUser();
       } else {
         throw new Error(data.error || 'Login failed.');

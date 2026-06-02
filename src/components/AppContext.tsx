@@ -62,7 +62,7 @@ interface AppContextType {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-// Global fetch patch to automatically include credentials (cookies) for cross-origin API calls
+// Global fetch patch to automatically include credentials (cookies) and Bearer tokens for cross-origin API calls
 if (typeof window !== 'undefined') {
   const originalFetch = window.fetch;
   window.fetch = function (input, init) {
@@ -70,6 +70,21 @@ if (typeof window !== 'undefined') {
     if (url.startsWith(API_BASE_URL) || url.startsWith('http://localhost:5000') || url.startsWith('/api')) {
       init = init || {};
       init.credentials = 'include';
+      const token = localStorage.getItem('wp_session_token');
+      if (token) {
+        const headers = init.headers || {};
+        if (headers instanceof Headers) {
+          headers.set('Authorization', `Bearer ${token}`);
+        } else if (Array.isArray(headers)) {
+          const exists = headers.some(([key]) => key.toLowerCase() === 'authorization');
+          if (!exists) {
+            headers.push(['Authorization', `Bearer ${token}`]);
+          }
+        } else {
+          (headers as any)['Authorization'] = `Bearer ${token}`;
+        }
+        init.headers = headers;
+      }
     }
     return originalFetch(input, init);
   };
@@ -282,6 +297,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('wp_admin_auth');
+        localStorage.removeItem('wp_session_token');
       }
       await fetch(`${API_BASE_URL}/api/auth/logout`);
       setUser(null);

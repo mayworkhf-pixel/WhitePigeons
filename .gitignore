@@ -45,3 +45,6 @@ backend/data/db.json
 
 # Firebase temporary build folders
 .firebase/
+
+# Scratch/local scripts
+/scratch/
