@@ -1036,7 +1036,14 @@ let firebaseDb = null;
 if (process.env.NODE_ENV === 'production' || process.env.USE_FIRESTORE === 'true') {
   try {
     if (!admin.apps.length) {
-      admin.initializeApp();
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
+        });
+      } else {
+        admin.initializeApp();
+      }
     }
     firebaseDb = admin.firestore();
     console.log('[Database] Firestore initialized successfully.');
