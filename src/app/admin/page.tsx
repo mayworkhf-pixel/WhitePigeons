@@ -1190,6 +1190,7 @@ export default function AdminDashboard() {
                     <th className="py-3 px-4">Admin Access</th>
                     <th className="py-3 px-4">Family Roles</th>
                     <th className="py-3 px-4 text-right">Assign Roles</th>
+                    <th className="py-3 px-4 text-right">Revoke Access</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1370,6 +1371,21 @@ export default function AdminDashboard() {
                                 </div>
                               </div>
                             )}
+                          </td>
+                          
+                          {/* Revoke Access Action */}
+                          <td className="py-4 px-4 text-right">
+                            <button
+                              disabled={isSaving}
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to revoke website access for ${m.nickname || m.username}? This will remove their registration and password.`)) {
+                                  handleApproveReject(m.discordId, 'reject');
+                                }
+                              }}
+                              className="bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 hover:border-red-700/50 text-red-400 hover:text-white font-title text-[9px] font-black italic tracking-wider py-1.5 px-3 rounded-lg hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer flex items-center justify-center gap-1 ml-auto"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> REVOKE
+                            </button>
                           </td>
                         </tr>
                       );
