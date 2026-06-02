@@ -1117,7 +1117,7 @@ const botService = {
       timestamp: new Date().toISOString()
     };
 
-    if (client && webhookUrl) {
+    if (client && config.guildId) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
         const channel = guild.channels.cache.find(c => cleanName(c.name).includes('signup'));
