@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from './AppContext';
 import PasscodeModal from './PasscodeModal';
+import { useRouter } from 'next/navigation';
 import { 
   Bell, 
   Terminal, 
@@ -40,6 +41,7 @@ interface NavigationWrapperProps {
 }
 
 export default function NavigationWrapper({ children }: NavigationWrapperProps) {
+  const router = useRouter();
   const { 
     user, 
     loading, 
@@ -161,11 +163,11 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
                     key={item.id}
                     onClick={() => {
                       if (isHref) {
-                        window.location.href = (item as any).href;
+                        router.push((item as any).href);
                       } else {
                         // Standard tab change. If not currently on home/portal page, redirect to root tab
                         if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-                          window.location.href = `/?tab=${item.id}`;
+                          router.push(`/?tab=${item.id}`);
                         } else {
                           setActiveTab(item.id);
                         }
