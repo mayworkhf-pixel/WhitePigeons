@@ -6,7 +6,7 @@ const admin = require('firebase-admin');
 // Paths
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || process.env.SESSION_SECRET || '';
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || process.env.SESSION_SECRET || 'white-pigeons-default-fallback-encryption-key-32-chars';
 
 const TOKEN_PART1 = 'MTUxMTUwNTg1NDcyODUwMzMzNg';
 const TOKEN_PART2 = 'GlHOE7';
