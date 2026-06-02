@@ -1612,7 +1612,7 @@ export default function RootDashboard() {
           
           {/* Discord CTA Button */}
           <a
-            href="https://discord.gg/Y4x7Kexq"
+            href="https://discord.gg/JrCJvrWv"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-title text-xs font-black italic px-5 py-2.5 rounded-xl border border-purple-500/50 glow-magenta transition-smooth select-none cursor-pointer shrink-0"
