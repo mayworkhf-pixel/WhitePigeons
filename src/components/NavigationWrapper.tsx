@@ -65,12 +65,8 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
     setMounted(true);
   }, []);
 
-  // Dynamic admin panel tabs added to the top if authenticated
-  const adminPanelTabs = user?.admin_authenticated ? [
-    { category: 'ADMIN CONSOLE', items: [
-      { id: 'admin-dashboard', label: 'Admin Dashboard', icon: Shield, href: '/admin' }
-    ]}
-  ] : [];
+  // Admin panel tabs removed — bottom button is the sole admin entry point
+  const adminPanelTabs: { category: string; items: any[] }[] = [];
 
   // Main sidebar tabs definitions
   const mainSidebarTabs = [
@@ -118,20 +114,9 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
 
   const renderSidebarContent = () => (
     <div className="flex flex-col h-full bg-[#09090f] border-r border-[#141320] font-sans text-[12px] select-none">
-      
-      {/* Branded Header */}
-      <div className="px-4 py-3 border-b border-[#141320] shrink-0">
-        <div className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="White Pigeons Logo" className="w-7 h-7 object-contain" />
-          <div className="flex flex-col">
-            <span className="font-title font-bold text-[13px] text-white leading-none">WHITE PIGEONS</span>
-            <span className="text-[8px] text-purple-400 uppercase tracking-widest mt-0.5">GTA VI ROLEPLAY</span>
-          </div>
-        </div>
-      </div>
 
       {/* Tabs list navigation */}
-      <div className="flex-1 py-2 px-2.5">
+      <div className="flex-1 py-3 px-2.5">
         {sidebarTabs.map((cat, idx) => (
           <div key={idx}>
             <div className={`text-[9px] font-semibold tracking-[0.15em] text-zinc-600 uppercase mb-1 px-2.5 ${idx === 0 ? 'mt-1' : 'mt-3'}`}>

@@ -1364,34 +1364,38 @@ export default function RootDashboard() {
         {/* Story Intro Card */}
         <div className="bg-[#111118] border border-[#1c1a2a] p-8 rounded-2xl relative overflow-hidden shadow-xl flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/5 rounded-full filter blur-3xl pointer-events-none" />
-          <div className="flex-1 space-y-4 relative z-10 text-left">
+          <div className="flex-1 space-y-5 relative z-10 text-left">
             <div className="flex items-center gap-2">
               <span className="bg-purple-600/10 border border-purple-500/20 text-purple-400 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">WHO WE ARE</span>
             </div>
-            <h1 className="font-title font-black text-2xl md:text-3xl italic text-white text-glow-magenta leading-none uppercase">
-              🕊️┃WHITE PIGEONS FAMILY
+            <h1 className="font-title font-black text-3xl md:text-4xl uppercase leading-tight">
+              <span className="flex items-center gap-3">
+                <img src="/logo.png" alt="" className="w-10 h-10 object-contain inline-block" />
+                <span className="text-white">WHITE PIGEONS</span>
+              </span>
+              <span className="bg-gradient-to-r from-purple-400 via-purple-500 to-violet-500 bg-clip-text text-transparent">FAMILY</span>
             </h1>
-            <p className="text-zinc-300 text-xs leading-relaxed max-w-2xl">
+            <p className="text-zinc-300 text-sm leading-relaxed max-w-2xl">
               Forged in city conflicts, the **White Pigeons** family rises as the supreme power on the streets. 
               We operate with loyalty, respect, and clinical efficiency. Through turf dominance, strategic commerce collections, 
               and synchronized operations, we remain #TOP1. We stand undivided—a true brotherhood on top.
             </p>
-            <div className="flex items-center gap-4 text-zinc-500 text-[10px] font-bold uppercase tracking-wider font-mono">
-              <span>LOYALTY</span>
-              <span>•</span>
-              <span>RESPECT</span>
-              <span>•</span>
-              <span>POWER</span>
+            <div className="flex items-center gap-5 text-zinc-400 text-[11px] font-bold uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">🛡️ LOYALTY</span>
+              <span className="text-purple-500">•</span>
+              <span className="flex items-center gap-1.5">⚔️ RESPECT</span>
+              <span className="text-purple-500">•</span>
+              <span className="flex items-center gap-1.5">⚡ POWER</span>
             </div>
           </div>
           
           {/* Logo Illustration */}
           <div className="relative shrink-0 select-none">
-            <div className="absolute inset-0 bg-purple-600/15 rounded-full filter blur-xl animate-pulse" />
+            <div className="absolute inset-0 bg-purple-600/10 rounded-full filter blur-2xl animate-pulse" />
             <img 
               src="/logo.png" 
               alt="White Pigeons Original Logo" 
-              className="w-32 h-32 object-contain relative z-10 hover:scale-105 transition-smooth drop-shadow-[0_0_20px_rgba(168,85,247,0.3)]"
+              className="w-44 h-44 object-contain relative z-10 hover:scale-105 transition-smooth drop-shadow-[0_0_25px_rgba(168,85,247,0.35)]"
             />
           </div>
         </div>
