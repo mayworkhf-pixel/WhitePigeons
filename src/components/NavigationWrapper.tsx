@@ -344,7 +344,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
             </div>
 
             {/* Form Tabs */}
-            {(!user || user.status !== 'pending') && !registeredInGameId && (
+            {(!user || user.status !== 'pending') && (registrationStatus === 'none' || !registeredInGameId) && (
               <div className="flex bg-[#09090f] border border-[#1c1a2a] p-1 rounded-xl mb-6">
                 <button
                   onClick={() => { setGatewayTab('register'); setGatewayError(null); setGatewaySuccess(null); }}
