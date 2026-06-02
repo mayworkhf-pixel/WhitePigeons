@@ -2,49 +2,38 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 const botService = require('../bot');
+const {
+  getConfiguredAdminPassword,
+  getSessionFromRequest,
+  isDiscordWebhookUrl,
+  isHttpUrl,
+  isLeadershipSession,
+  safeEqual,
+  sanitizeMembers,
+  sanitizeString
+} = require('../security');
 
-// Session-based authentication middleware for Leadership/Admin
 // Session-based authentication middleware for Leadership/Admin
 async function requireAdmin(req, res, next) {
   const config = await db.getConfig();
-  const correctPassword = config.adminPassword || 'anvy2026';
+  const correctPassword = getConfiguredAdminPassword(config);
 
-  // Check passcode header first (supports client-side local verification bypass)
+  // Optional passcode header supports older clients, but only with the configured server-side passcode.
   const adminPasscodeHeader = req.headers['x-admin-passcode'];
-  if (adminPasscodeHeader) {
-    if (adminPasscodeHeader === correctPassword || adminPasscodeHeader === 'anvy2026') {
+  if (adminPasscodeHeader && correctPassword) {
+    if (safeEqual(String(adminPasscodeHeader), correctPassword)) {
       req.user = { roles: ['Admin'], admin_authenticated: true, username: 'WP_Admin' };
       return next();
     }
   }
 
-  const authHeader = req.headers['authorization'];
-  let cookie = req.cookies ? req.cookies['wp_session'] : null;
-  if (!cookie && authHeader && authHeader.startsWith('Bearer ')) {
-    cookie = authHeader.substring(7);
-  }
-  if (!cookie) {
+  const session = getSessionFromRequest(req);
+  if (!session) {
     return res.status(401).json({ error: 'Unauthorized. Please log in.' });
   }
 
-  // Fallback check if Authorization Bearer token is the passcode itself
-  if (cookie === correctPassword || cookie === 'anvy2026') {
-    req.user = { roles: ['Admin'], admin_authenticated: true, username: 'WP_Admin' };
-    return next();
-  }
   try {
-    const session = JSON.parse(Buffer.from(cookie, 'base64').toString('utf8'));
-    const isLead = session.roles && (
-      session.roles.includes('Leadership') || 
-      session.roles.includes('Admin') || 
-      session.roles.includes('High Command') || 
-      session.roles.includes('HIGH COMMAND') || 
-      session.roles.includes('👑 | Leader') || 
-      session.roles.includes('🥇 | UnderBoss') || 
-      session.roles.includes('High-Command') || 
-      session.roles.includes('HC')
-    );
-    if (!isLead) {
+    if (!isLeadershipSession(session)) {
       return res.status(403).json({ error: 'Access denied. Leadership role required.' });
     }
     if (!session.admin_authenticated) {
@@ -52,7 +41,7 @@ async function requireAdmin(req, res, next) {
     }
     req.user = session;
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: 'Invalid session.' });
   }
 }
@@ -103,11 +92,15 @@ router.post('/discord-config', requireAdmin, async (req, res) => {
   const finalWebhooks = { ...(currentConfig.webhooks || {}) };
   if (webhooks) {
     for (const [key, value] of Object.entries(webhooks)) {
-      if (value.startsWith('••••••••••••••••')) {
+      if (typeof value === 'string' && value.startsWith('••••••••••••••••')) {
         // Keep existing
         continue;
       }
-      finalWebhooks[key] = value || '';
+      const cleanValue = sanitizeString(value, 250);
+      if (cleanValue && !isDiscordWebhookUrl(cleanValue)) {
+        return res.status(400).json({ success: false, message: `Invalid webhook URL for ${key}.` });
+      }
+      finalWebhooks[key] = cleanValue;
     }
   }
 
@@ -149,14 +142,18 @@ router.post('/discord-config', requireAdmin, async (req, res) => {
     simulatedVoice: finalSimulatedVoice
   };
 
-  await db.saveConfig(newConfig);
+  try {
+    await db.saveConfig(newConfig);
 
-  // Re-initialize bot client in the background
-  botService.init();
+    // Re-initialize bot client in the background
+    botService.init();
 
-  botService.logSimulated('Saved updated Discord server configuration and webhook mapping.');
+    botService.logSimulated('Saved updated Discord server configuration and webhook mapping.');
 
-  return res.json({ success: true, message: 'Configuration saved and bot reloading.' });
+    return res.json({ success: true, message: 'Configuration saved and bot reloading.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // POST reset credentials
@@ -182,7 +179,7 @@ router.post('/test-webhook', requireAdmin, async (req, res) => {
 
   // Handle mask test (if the user tries to test an already saved masked webhook)
   let urlToTest = webhookUrl;
-  if (webhookUrl.startsWith('••••••••••••••••')) {
+  if (typeof webhookUrl === 'string' && webhookUrl.startsWith('••••••••••••••••')) {
     // Find matching saved URL
     const config = await db.getConfig();
     // Look up webhook URL in database
@@ -197,7 +194,11 @@ router.post('/test-webhook', requireAdmin, async (req, res) => {
     }
   }
 
-  const result = await botService.testWebhook(urlToTest, channelName);
+  if (!isDiscordWebhookUrl(urlToTest)) {
+    return res.status(400).json({ success: false, message: 'Invalid Discord webhook URL.' });
+  }
+
+  const result = await botService.testWebhook(urlToTest, sanitizeString(channelName, 80));
   return res.json(result);
 });
 
@@ -223,7 +224,7 @@ router.post('/send-webhook', requireAdmin, async (req, res) => {
   }
 
   // Handle mask resolution
-  if (urlToUse.startsWith('••••••••••••••••')) {
+  if (typeof urlToUse === 'string' && urlToUse.startsWith('••••••••••••••••')) {
     const config = await db.getConfig();
     const matchingKey = Object.keys(config.webhooks).find(key => {
       const dbUrl = config.webhooks[key];
@@ -236,17 +237,21 @@ router.post('/send-webhook', requireAdmin, async (req, res) => {
     }
   }
 
-  if (!urlToUse.startsWith('https://discord.com/api/webhooks/')) {
+  if (!isDiscordWebhookUrl(urlToUse)) {
     return res.status(400).json({ success: false, message: 'Invalid Webhook URL format.' });
+  }
+  const cleanMediaUrl = sanitizeString(mediaUrl || '', 500);
+  if (cleanMediaUrl && !isHttpUrl(cleanMediaUrl)) {
+    return res.status(400).json({ success: false, message: 'Media URL must be a valid HTTPS URL.' });
   }
 
   try {
     const embedPayload = {
       embeds: [{
-        title: title,
-        description: message,
+        title: sanitizeString(title, 256),
+        description: sanitizeString(message, 4000),
         color: 10497791, // Purple #9A33EF
-        image: mediaUrl ? { url: mediaUrl } : undefined,
+        image: cleanMediaUrl ? { url: cleanMediaUrl } : undefined,
         timestamp: new Date().toISOString(),
         footer: {
           text: 'White Pigeon Hub Dispatch'
@@ -271,11 +276,13 @@ router.post('/broadcast', requireAdmin, async (req, res) => {
   if (!title || !message) {
     return res.status(400).json({ error: 'Title and message are required.' });
   }
+  const cleanTitle = sanitizeString(title, 120);
+  const cleanMessage = sanitizeString(message, 4000);
 
   // Send to public news logs / notifications
   const embed = {
-    title: `📢 WHITE PIGEON BROADCAST: ${title.toUpperCase()}`,
-    description: message,
+    title: `📢 WHITE PIGEON BROADCAST: ${cleanTitle.toUpperCase()}`,
+    description: cleanMessage,
     color: 0xffaa00 // Orange Gold
   };
 
@@ -283,7 +290,7 @@ router.post('/broadcast', requireAdmin, async (req, res) => {
   await botService.sendWebhook('public-winlog', embed);
 
   // Log in discord logs
-  botService.logSimulated(`Broadcasted family announcement: "${title}: ${message}"`);
+  botService.logSimulated(`Broadcasted family announcement: "${cleanTitle}: ${cleanMessage}"`);
 
   return res.json({ success: true, message: 'Announcement broadcasted.' });
 });
@@ -367,7 +374,7 @@ router.post('/reset-weekly-leaderboard', requireAdmin, async (req, res) => {
     await botService.syncWeeklyLeaderboardMessage();
     
     // Trigger live UI reload via socket
-    botService.broadcastSocket('role_requests_update', await db.getRoleRequests());
+    botService.broadcastSocket('leaderboard_update', sanitizeMembers(await db.getMembers()));
     
     botService.logSimulated('Reset all members\' weekly event points to 0.');
     return res.json({ success: true, message: 'Weekly Event Leaderboard reset successfully.' });
@@ -417,7 +424,7 @@ router.post('/reset-weekly-kills', requireAdmin, async (req, res) => {
     await botService.syncWeeklyKillsMessage();
     
     // Trigger live UI reload via socket
-    botService.broadcastSocket('weekly_kills_update', await db.getMembers());
+    botService.broadcastSocket('weekly_kills_update', sanitizeMembers(await db.getMembers()));
     
     botService.logSimulated('Reset all members\' weekly kills to 0.');
     return res.json({ success: true, message: 'Weekly kills reset successfully.' });
@@ -458,14 +465,14 @@ router.post('/approve-member', requireAdmin, async (req, res) => {
       botService.logSimulated(`Admin approved member registration: ${member.nickname}`);
       
       // Sync client dashboards via WebSocket
-      botService.broadcastSocket('leaderboard_update', await db.getMembers());
+      botService.broadcastSocket('leaderboard_update', sanitizeMembers(await db.getMembers()));
       return res.json({ success: true, message: 'Member registration approved.' });
     } else if (action === 'reject') {
       await db.deleteMember(discordId);
       botService.logSimulated(`Admin rejected/deleted member registration: ${member.nickname}`);
       
       // Sync client dashboards via WebSocket
-      botService.broadcastSocket('leaderboard_update', await db.getMembers());
+      botService.broadcastSocket('leaderboard_update', sanitizeMembers(await db.getMembers()));
       return res.json({ success: true, message: 'Member registration request rejected and deleted.' });
     } else {
       return res.status(400).json({ success: false, message: 'Invalid action. Must be approve or reject.' });
@@ -502,7 +509,7 @@ router.post('/update-member-roles', requireAdmin, async (req, res) => {
     botService.logSimulated(`Admin updated access/roles for: ${member.nickname}`);
     
     // Sync client dashboards via WebSocket
-    botService.broadcastSocket('leaderboard_update', await db.getMembers());
+    botService.broadcastSocket('leaderboard_update', sanitizeMembers(await db.getMembers()));
     return res.json({ success: true, message: 'Member access and roles updated successfully.' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

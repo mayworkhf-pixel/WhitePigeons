@@ -6,7 +6,7 @@ const admin = require('firebase-admin');
 // Paths
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'white-pigeon-command-hub-secret-key-32chars!'; // Must be 32 bytes
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || process.env.SESSION_SECRET || '';
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -974,6 +974,9 @@ const initialDb = {
 function encrypt(text) {
   if (!text) return '';
   try {
+    if (!ENCRYPTION_KEY) {
+      throw new Error('ENCRYPTION_KEY must be set before storing encrypted credentials.');
+    }
     const iv = crypto.randomBytes(16);
     // Ensure key is exactly 32 bytes
     const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
@@ -990,6 +993,9 @@ function encrypt(text) {
 function decrypt(text) {
   if (!text) return '';
   try {
+    if (!ENCRYPTION_KEY) {
+      throw new Error('ENCRYPTION_KEY must be set before decrypting credentials.');
+    }
     const textParts = text.split(':');
     const iv = Buffer.from(textParts.shift(), 'hex');
     const encryptedText = Buffer.from(textParts.join(':'), 'hex');
@@ -1063,11 +1069,7 @@ const db = {
           const config = doc.data();
           if (config.botToken) config.botToken = decrypt(config.botToken);
           if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
-          if (config.adminPassword) {
-            config.adminPassword = decrypt(config.adminPassword);
-          } else {
-            config.adminPassword = 'anvy2026';
-          }
+          config.adminPassword = config.adminPassword ? decrypt(config.adminPassword) : (process.env.ADMIN_PASSCODE || '');
           if (!config.rpTicketTimes) {
             config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
           }
@@ -1079,11 +1081,7 @@ const db = {
           await firebaseDb.collection('settings').doc('discord').set(localConfig);
           if (localConfig.botToken) localConfig.botToken = decrypt(localConfig.botToken);
           if (localConfig.clientSecret) localConfig.clientSecret = decrypt(localConfig.clientSecret);
-          if (localConfig.adminPassword) {
-            localConfig.adminPassword = decrypt(localConfig.adminPassword);
-          } else {
-            localConfig.adminPassword = 'anvy2026';
-          }
+          localConfig.adminPassword = localConfig.adminPassword ? decrypt(localConfig.adminPassword) : (process.env.ADMIN_PASSCODE || '');
           if (!localConfig.rpTicketTimes) {
             localConfig.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
           }
@@ -1091,7 +1089,7 @@ const db = {
         }
       } catch (err) {
         console.error('Firestore getConfig failed, fallback to initial:', err.message);
-        return { ...initialDb.config, adminPassword: 'anvy2026' };
+        return { ...initialDb.config, adminPassword: process.env.ADMIN_PASSCODE || '' };
       }
     }
     const data = readDb();
@@ -1099,11 +1097,7 @@ const db = {
     // Decrypt credentials before returning
     if (config.botToken) config.botToken = decrypt(config.botToken);
     if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
-    if (config.adminPassword) {
-      config.adminPassword = decrypt(config.adminPassword);
-    } else {
-      config.adminPassword = 'anvy2026';
-    }
+    config.adminPassword = config.adminPassword ? decrypt(config.adminPassword) : (process.env.ADMIN_PASSCODE || '');
     if (!config.rpTicketTimes) {
       config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
     }
@@ -1117,7 +1111,7 @@ const db = {
       guildId: newConfig.guildId || '',
       clientId: newConfig.clientId || '',
       clientSecret: newConfig.clientSecret ? encrypt(newConfig.clientSecret) : '',
-      adminPassword: newConfig.adminPassword ? encrypt(newConfig.adminPassword) : encrypt('anvy2026'),
+      adminPassword: newConfig.adminPassword ? encrypt(newConfig.adminPassword) : '',
       webhooks: newConfig.webhooks || {},
       factoryVoiceChannelId: newConfig.factoryVoiceChannelId || '',
       simulatedVoice: newConfig.simulatedVoice || [],

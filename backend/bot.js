@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder } = require('discord.js');
 const db = require('./database');
 const axios = require('axios');
+const { isDiscordWebhookUrl, sanitizeString } = require('./security');
 
 const cleanName = (name) => (name || '').normalize('NFKD').toLowerCase();
 
@@ -764,14 +765,14 @@ const botService = {
 
   // Test webhook endpoint URL
   testWebhook: async (webhookUrl, channelName) => {
-    if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+    if (!isDiscordWebhookUrl(webhookUrl)) {
       return { success: false, message: 'Invalid Webhook format.' };
     }
     try {
       await axios.post(webhookUrl, {
         embeds: [{
           title: 'White Pigeon Command Hub - Connection Test',
-          description: `Successfully linked web tab with the **#${channelName}** Discord channel!`,
+          description: `Successfully linked web tab with the **#${sanitizeString(channelName, 80)}** Discord channel!`,
           color: 0xff007f, // Neon Magenta
           footer: { text: 'White Pigeon Integration Engine' },
           timestamp: new Date().toISOString()
@@ -792,15 +793,19 @@ const botService = {
       botService.logSimulated(`[Webhook MOCK] Channel #${channelKey} (Webhook URL empty). Embed: "${embedData.title || ''} - ${embedData.description || ''}"`);
       return false;
     }
+    if (!isDiscordWebhookUrl(webhookUrl)) {
+      botService.logSimulated(`[Webhook Error] Channel #${channelKey}: invalid Discord webhook URL.`);
+      return false;
+    }
 
     try {
       await axios.post(webhookUrl, {
         embeds: [{
-          title: embedData.title,
-          description: embedData.description,
+          title: sanitizeString(embedData.title, 256),
+          description: sanitizeString(embedData.description, 4000),
           color: embedData.color || 0xff007f,
           fields: embedData.fields || [],
-          image: embedData.image ? { url: embedData.image } : null,
+          image: embedData.image ? { url: sanitizeString(embedData.image, 500) } : null,
           footer: { text: 'White Pigeon Command Hub' },
           timestamp: new Date().toISOString()
         }]
@@ -1020,14 +1025,14 @@ const botService = {
     ].join('\n');
 
     const bannerImage = eventId === 'rp-signup'
-      ? 'https://whitepigeons-35431.web.app/rp_ticket_banner_v2.png'
-      : 'https://whitepigeons-35431.web.app/informal_fight_banner_v2.png';
+      ? 'https://whitepigeons-35431.web.app/rp_ticket_banner.webp'
+      : 'https://whitepigeons-35431.web.app/informal_fight_banner.webp';
 
     const embed = new EmbedBuilder()
       .setTitle(`${eventId === 'rp-signup' ? '🚀 RP Ticket' : '⚔️ Informal Fight'}`)
       .setDescription(embedDescription)
       .setColor(isClosed ? 0xff003c : 0x00f0ff)
-      .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+      .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
       .setImage(bannerImage)
       .setTimestamp();
 
@@ -1093,13 +1098,12 @@ const botService = {
     botService.logSimulated(`Fired Event Signup: "${title}" for event ID "${eventId}"`);
 
     // If bot client is connected, we can send a rich button message
-    const config = await db.getConfig();
     const channelKey = eventId === 'rp-signup' ? 'rp-signup' : 'informal-signup';
-    const webhookUrl = config.webhooks ? config.webhooks[channelKey] : null;
+    const config = await db.getConfig();
 
     const fallbackEmbed = {
       title: `🚀 ${eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight'} - OPEN ⚔️`,
-      description: `**Event Directives:**\n${description}\n\n🟢 **Registration is active!**\n\nHave fun! 🎉`,
+      description: `**Event Directives:**\n${description}\n\n🟢 **Registration is active for ${durationMinutes} minutes!**\n\nHave fun! 🎉`,
       color: 0x00f0ff,
       timestamp: new Date().toISOString()
     };
@@ -1240,7 +1244,7 @@ const botService = {
   },
 
   // Close active role review embed in Discord by removing components
-  closeRoleReviewMessage: async (requestId, status, approvedRole) => {
+  closeRoleReviewMessage: async (requestId) => {
     if (!client) return;
     try {
       const config = await db.getConfig();
@@ -1327,7 +1331,7 @@ const botService = {
         { name: '📊 Family Rank', value: `${stats.familyRank || '#1'}`, inline: true }
       )
       .setColor(0x8f00ff)
-      .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+      .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
       .setFooter({ text: `White Pigeons #TOP1 • Updated • Today at ${updatedTime}` });
   },
 
@@ -1543,7 +1547,7 @@ const botService = {
             .setTitle('💰 BONUS SYSTEM White Pigeons 💰')
             .setDescription('🎯 Bonus Rewards System\n\n🟫 Informal: 70k\n💥 Biz War: 200k\n🎟️ RP Ticket: 1 RP per ticket\n\nClick below to check your balance!')
             .setColor(0x00ff00)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
             .setTimestamp();
 
           const row = new ActionRowBuilder().addComponents(
@@ -1626,7 +1630,7 @@ const botService = {
               `• Foundry: 3 points`
             )
             .setColor(0xff003c) // Vibrant red-pink or matching screenshot
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
             .setTimestamp();
 
           const message = await channel.send({ embeds: [embed] });
@@ -1706,7 +1710,7 @@ const botService = {
               `• Foundry: 3 points`
             )
             .setColor(0xff003c)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
             .setTimestamp();
 
           await message.edit({ embeds: [embed] });
@@ -1749,7 +1753,7 @@ const botService = {
             .setTitle('💀 ALL TIME KILLS LEADERBOARD 💀')
             .setDescription(`🔥 Elite Marksmen of White Pigeons 🔥\n\n${entries}`)
             .setColor(0xff0000)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
             .setTimestamp();
 
           const message = await channel.send({ embeds: [embed] });
@@ -1802,7 +1806,7 @@ const botService = {
             .setTitle('💀 ALL TIME KILLS LEADERBOARD 💀')
             .setDescription(`🔥 Elite Marksmen of White Pigeons 🔥\n\n${entries}`)
             .setColor(0xff0000)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
             .setTimestamp();
 
           await message.edit({ embeds: [embed] });
@@ -1845,7 +1849,7 @@ const botService = {
             .setTitle('📊 WEEKLY KILLS LEADERBOARD 📊')
             .setDescription(`🔥 Top Marksmen This Week 🔥\n\n${entries}`)
             .setColor(0xff003c)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
             .setTimestamp();
 
           const message = await channel.send({ embeds: [embed] });
@@ -1898,7 +1902,7 @@ const botService = {
             .setTitle('📊 WEEKLY KILLS LEADERBOARD 📊')
             .setDescription(`🔥 Top Marksmen This Week 🔥\n\n${entries}`)
             .setColor(0xff003c)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
             .setTimestamp();
 
           await message.edit({ embeds: [embed] });
@@ -1963,7 +1967,7 @@ const botService = {
               { name: 'TOP 5 Members', value: top5Entries, inline: true },
               { name: 'TOP 10 Members', value: top10Entries, inline: true }
             )
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
             .setFooter({ text: 'White Pigeons #TOP1 • Priority List' });
 
           const row = new ActionRowBuilder().addComponents(
@@ -2028,7 +2032,7 @@ const botService = {
               { name: 'TOP 5 Members', value: top5Entries, inline: true },
               { name: 'TOP 10 Members', value: top10Entries, inline: true }
             )
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
             .setFooter({ text: 'White Pigeons #TOP1 • Priority List' });
 
           const row = new ActionRowBuilder().addComponents(

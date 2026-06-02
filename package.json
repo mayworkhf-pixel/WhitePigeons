@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "concurrently \"next start\" \"node backend/server.js\"",
     "backend": "node backend/server.js",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "axios": "^1.16.1",

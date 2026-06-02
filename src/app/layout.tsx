@@ -1,24 +1,25 @@
 import type { Metadata } from "next";
-import { Montserrat, Space_Grotesk, Inter } from "next/font/google";
+import { IBM_Plex_Mono, Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "@/components/AppContext";
 import NavigationWrapper from "@/components/NavigationWrapper";
 
-const montserrat = Montserrat({
-  variable: "--font-montserrat",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta-sans",
   subsets: ["latin"],
-  weight: ["400", "700", "900"],
-});
-
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -35,46 +36,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${montserrat.variable} ${spaceGrotesk.variable} ${inter.className} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${inter.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                var apiBaseUrl = "${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}";
-                var originalFetch = window.fetch;
-                window.fetch = function(input, init) {
-                  var url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
-                  if (url.startsWith(apiBaseUrl) || url.startsWith('http://localhost:5000') || url.startsWith('/api')) {
-                    init = init || {};
-                    init.credentials = 'include';
-                    var token = localStorage.getItem('wp_session_token');
-                    if (token) {
-                      var headers = init.headers || {};
-                      if (headers instanceof Headers) {
-                        headers.set('Authorization', 'Bearer ' + token);
-                      } else if (Array.isArray(headers)) {
-                        var exists = headers.some(function(pair) { return pair[0].toLowerCase() === 'authorization'; });
-                        if (!exists) {
-                          headers.push(['Authorization', 'Bearer ' + token]);
-                        }
-                      } else {
-                        headers['Authorization'] = 'Bearer ' + token;
-                      }
-                      init.headers = headers;
-                    }
-                  }
-                  return originalFetch(input, init);
-                };
-              })();
-            `
-          }}
-        />
-      </head>
-      <body className="min-h-full bg-background text-foreground flex flex-col relative select-none">
+      <body className="command-hub min-h-full bg-[#050816] text-foreground flex flex-col relative select-none">
         <AppProvider>
-          {/* Navigation and layout wrapper */}
           <NavigationWrapper>
             {children}
           </NavigationWrapper>
@@ -83,3 +48,4 @@ export default function RootLayout({
     </html>
   );
 }
+

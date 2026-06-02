@@ -3,13 +3,19 @@ const socketIo = require('socket.io');
 const app = require('./app');
 const botService = require('./bot');
 const database = require('./database');
+const { isAllowedOrigin } = require('./security');
 
 const server = http.createServer(app);
 
 // Socket.io integration (allow Next.js frontend port 3000)
 const io = socketIo(server, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: (origin, callback) => {
+      if (!isAllowedOrigin(origin)) {
+        return callback(new Error('Socket origin not allowed'), false);
+      }
+      return callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST']
   }
@@ -25,7 +31,18 @@ io.on('connection', (socket) => {
   // Send initial data to client on connect
   socket.emit('status_update', {
     nextInformalCountdown: getNextInformalCountdown(),
-    botReady: botService.isReady ? botService.isReady() : false
+    botReady: botService.isReady ? botService.isReady() : false,
+    activeUsers: io.engine.clientsCount
+  });
+
+  socket.on('client_ping', (_payload, ack) => {
+    if (typeof ack === 'function') {
+      ack({
+        serverTime: Date.now(),
+        activeUsers: io.engine.clientsCount,
+        botReady: botService.isReady ? botService.isReady() : false
+      });
+    }
   });
 
   socket.on('disconnect', () => {
@@ -67,7 +84,9 @@ setInterval(async () => {
   });
 
   io.emit('status_update', {
-    nextInformalCountdown: INFORMAL_INTERVAL_MS
+    nextInformalCountdown: INFORMAL_INTERVAL_MS,
+    activeUsers: io.engine.clientsCount,
+    botReady: botService.isReady ? botService.isReady() : false
   });
   
   botService.logSimulated('Automated reminder fired for hourly Informal Gunfight.');
@@ -76,7 +95,9 @@ setInterval(async () => {
 // Helper socket sync broadcast (runs every 10 seconds to sync timers)
 setInterval(() => {
   io.emit('timer_sync', {
-    nextInformalCountdown: getNextInformalCountdown()
+    nextInformalCountdown: getNextInformalCountdown(),
+    activeUsers: io.engine.clientsCount,
+    botReady: botService.isReady ? botService.isReady() : false
   });
 }, 10000);
 

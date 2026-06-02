@@ -1,24 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0b12;
-  --foreground: #f4f4f5;
-  --primary: #7c3aed;
-  --primary-light: #a78bfa;
-  --primary-glow: rgba(124, 58, 237, 0.25);
-  --secondary: #9333ea;
-  --secondary-glow: rgba(147, 51, 234, 0.2);
-  --accent: #eab308;
-  --cyan: #06b6d4;
-  --card: #111118;
-  --card-hover: #15141e;
-  --card-border: #1c1a2a;
-  --card-border-hover: rgba(124, 58, 237, 0.3);
-  --sidebar-bg: #09090f;
-  --sidebar-border: #141320;
-  --header-bg: rgba(11, 11, 18, 0.85);
-  --input-bg: #0a0a14;
-  --surface: #0e0e16;
+  --background: #050816;
+  --foreground: #f0f6ff;
+  --primary: #a855f7;
+  --primary-light: #c084fc;
+  --primary-glow: rgba(168, 85, 247, 0.2);
+  --secondary: #8b5cf6;
+  --secondary-glow: rgba(139, 92, 246, 0.15);
+  --accent: #ffb84d;
+  --cyan: #00d4ff;
+  --card: #08111f;
+  --card-hover: #0c182b;
+  --card-border: rgba(168, 85, 247, 0.12);
+  --card-border-hover: rgba(168, 85, 247, 0.32);
+  --sidebar-bg: #050816;
+  --sidebar-border: rgba(168, 85, 247, 0.1);
+  --header-bg: rgba(5, 8, 22, 0.85);
+  --input-bg: #08111f;
+  --surface: #0c1427;
 }
 
 @theme inline {
@@ -37,34 +37,125 @@
   --color-input-bg: var(--input-bg);
   --color-surface: var(--surface);
   
-  --font-title: var(--font-montserrat);
-  --font-tech: var(--font-space-grotesk);
+  --font-title: var(--font-plus-jakarta-sans);
+  --font-sans: var(--font-inter);
+  --font-tech: var(--font-ibm-plex-mono);
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
   overflow-x: hidden;
-  font-family: var(--font-inter), 'Inter', system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+body.command-hub {
+  background: 
+    radial-gradient(circle at 12% 18%, rgba(168, 85, 247, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 88% 82%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
+    linear-gradient(to bottom, #050816 0%, #08111f 50%, #0c1427 100%);
+  background-attachment: fixed;
+}
+
+body.command-hub [class*="rounded"]:not(.rounded-full) {
+  border-radius: 8px !important;
+}
+
+body.command-hub .rounded-full {
+  border-radius: 999px !important;
 }
 
 /* ===== Card System ===== */
 .wp-card {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(8, 17, 31, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(168, 85, 247, 0.12);
+  border-radius: 12px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4px 30px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 .wp-card:hover {
-  border-color: var(--card-border-hover);
-  background: var(--card-hover);
+  border-color: rgba(168, 85, 247, 0.32);
+  background: rgba(12, 24, 43, 0.8);
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.55),
+    0 0 20px rgba(168, 85, 247, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Class Overrides for Hardcoded Backgrounds & Borders */
+.bg-\[\#111118\] {
+  background-color: rgba(8, 17, 31, 0.7) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+}
+.border-\[\#1c1a2a\] {
+  border-color: rgba(168, 85, 247, 0.12) !important;
+}
+
+/* ===== Active Tab Styles ===== */
+.wp-active-purple-tab {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.25) 0%, rgba(168, 85, 247, 0.15) 100%) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(168, 85, 247, 0.35) !important;
+  box-shadow: 
+    0 0 18px rgba(168, 85, 247, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Glass Reflection Effect */
+.wp-active-purple-tab::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+  transform: skewX(-25deg);
+  animation: shine 6s infinite;
+}
+
+@keyframes shine {
+  0% { left: -100%; }
+  20% { left: 200%; }
+  100% { left: 200%; }
+}
+
+/* Right Edge Highlight */
+.wp-active-purple-tab::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 3px;
+  background: #a855f7;
+  box-shadow: 0 0 8px #a855f7, 0 0 15px #a855f7;
+  border-radius: 0 4px 4px 0;
 }
 
 /* ===== Stat Card Icon Badges ===== */
-.badge-purple { background: rgba(124, 58, 237, 0.15); color: #a78bfa; }
+.badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
 .badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
 .badge-green { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.badge-amber { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
 .badge-rose { background: rgba(244, 63, 94, 0.15); color: #fb7185; }
 .badge-teal { background: rgba(20, 184, 166, 0.15); color: #2dd4bf; }
 .badge-orange { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
@@ -74,23 +165,22 @@ body {
 
 /* ===== Subtle Glow Effects ===== */
 .glow-purple {
-  box-shadow: 0 0 20px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
 }
 .glow-purple-strong {
-  box-shadow: 0 0 30px rgba(124, 58, 237, 0.25);
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.25);
 }
-
 .text-glow-purple {
-  text-shadow: 0 0 12px rgba(124, 58, 237, 0.4);
+  text-shadow: 0 0 12px rgba(168, 85, 247, 0.42);
 }
 
-/* Legacy aliases for compatibility */
-.glow-magenta { box-shadow: 0 0 15px rgba(124, 58, 237, 0.2); }
-.glow-cyan { box-shadow: 0 0 15px rgba(6, 182, 212, 0.2); }
-.glow-gold { box-shadow: 0 0 15px rgba(234, 179, 8, 0.2); }
-.text-glow-magenta { text-shadow: 0 0 8px rgba(124, 58, 237, 0.4); }
-.text-glow-cyan { text-shadow: 0 0 8px rgba(6, 182, 212, 0.4); }
-.text-glow-gold { text-shadow: 0 0 8px rgba(234, 179, 8, 0.4); }
+/* Legacy aliases mapped to violet/purple theme */
+.glow-magenta { box-shadow: 0 0 15px rgba(139, 92, 246, 0.25); }
+.glow-cyan { box-shadow: 0 0 15px rgba(59, 130, 246, 0.2); }
+.glow-gold { box-shadow: 0 0 15px rgba(251, 191, 36, 0.2); }
+.text-glow-magenta { text-shadow: 0 0 8px rgba(168, 85, 247, 0.4); }
+.text-glow-cyan { text-shadow: 0 0 8px rgba(59, 130, 246, 0.4); }
+.text-glow-gold { text-shadow: 0 0 8px rgba(251, 191, 36, 0.4); }
 
 /* ===== Custom Scrollbars ===== */
 ::-webkit-scrollbar {
@@ -101,7 +191,7 @@ body {
   background: var(--background);
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e1b29;
+  background: rgba(168, 85, 247, 0.25);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -110,47 +200,182 @@ body {
 
 /* ===== Transitions ===== */
 .transition-smooth {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ===== Purple Gradient Button ===== */
 .btn-primary-gradient {
-  background: linear-gradient(135deg, #7c3aed, #9333ea);
-  color: white;
+  background: linear-gradient(135deg, #7c3aed, #a855f7) !important;
+  color: #ffffff !important;
   font-weight: 700;
-  border: 1px solid rgba(124, 58, 237, 0.5);
-  border-radius: 0.5rem;
+  border: 1px solid rgba(168, 85, 247, 0.45) !important;
+  border-radius: 8px !important;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.18);
 }
 .btn-primary-gradient:hover {
-  background: linear-gradient(135deg, #6d28d9, #7c3aed);
-  box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+  background: linear-gradient(135deg, #8b5cf6, #c084fc) !important;
+  box-shadow: 0 0 22px rgba(168, 85, 247, 0.35);
   transform: translateY(-1px);
+}
+.btn-primary-gradient:active {
+  transform: translateY(0) scale(0.98);
+}
+.btn-primary-gradient:disabled {
+  background: #1f2937 !important;
+  border-color: #374151 !important;
+  color: #6b7280 !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 /* ===== Input Fields ===== */
 .wp-input {
   background: var(--input-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
   color: #d4d4d8;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
 }
 .wp-input:focus {
-  border-color: rgba(124, 58, 237, 0.5);
+  border-color: rgba(168, 85, 247, 0.5);
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.2);
 }
 
 /* ===== Sidebar Active Indicator ===== */
 .sidebar-item-active {
-  background: rgba(124, 58, 237, 0.12);
-  border-left: 3px solid #7c3aed;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(168, 85, 247, 0.1) 100%);
+  border-left: 3px solid #a855f7;
   color: white;
 }
 
 /* ===== Subtle line separator ===== */
 .wp-divider {
   border-color: var(--card-border);
-  opacity: 0.5;
+  opacity: 0.35;
+}
+
+/* Redirection mapping for legacy developers cyan hacks */
+.text-purple-300 { color: #d8b4fe !important; }
+.text-purple-400 { color: #c084fc !important; }
+.text-purple-500 { color: #a855f7 !important; }
+
+.bg-purple-500 { background-color: #a855f7 !important; }
+.bg-purple-600 { background-color: #9333ea !important; }
+.bg-indigo-600 { background-color: #4f46e5 !important; }
+
+.bg-purple-500\/10 { background-color: rgba(168, 85, 247, 0.1) !important; }
+.bg-purple-600\/5 { background-color: rgba(168, 85, 247, 0.05) !important; }
+.bg-purple-900\/10 { background-color: rgba(168, 85, 247, 0.1) !important; }
+.bg-purple-950\/20 { background-color: rgba(168, 85, 247, 0.2) !important; }
+.bg-purple-950\/30 { background-color: rgba(168, 85, 247, 0.3) !important; }
+
+.border-purple-500 { border-color: rgba(168, 85, 247, 0.5) !important; }
+.border-purple-800\/35 { border-color: rgba(139, 92, 246, 0.35) !important; }
+.border-purple-800\/40 { border-color: rgba(139, 92, 246, 0.4) !important; }
+.border-purple-900\/30 { border-color: rgba(139, 92, 246, 0.3) !important; }
+
+.from-purple-400 { --tw-gradient-from: #c084fc var(--tw-gradient-from-position) !important; }
+.from-purple-600 { --tw-gradient-from: #9333ea var(--tw-gradient-from-position) !important; }
+.via-indigo-200 { --tw-gradient-via: #c7d2fe var(--tw-gradient-via-position) !important; }
+.to-purple-400 { --tw-gradient-to: #c084fc var(--tw-gradient-to-position) !important; }
+.to-indigo-600 { --tw-gradient-to: #4f46e5 var(--tw-gradient-to-position) !important; }
+
+button,
+a,
+input,
+select,
+textarea {
+  letter-spacing: -0.01em;
+}
+
+button {
+  position: relative;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 1px solid #a855f7;
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+input,
+textarea,
+select {
+  background-color: var(--input-bg);
+}
+
+table {
+  border-collapse: collapse;
+}
+
+tbody tr {
+  transition: background 160ms ease, color 160ms ease;
+}
+
+tbody tr:hover {
+  background: rgba(168, 85, 247, 0.055) !important;
+}
+
+main > * {
+  animation: fade-up 420ms ease both;
+}
+
+main > *:nth-child(2) { animation-delay: 60ms; }
+main > *:nth-child(3) { animation-delay: 120ms; }
+main > *:nth-child(4) { animation-delay: 180ms; }
+main > *:nth-child(5) { animation-delay: 240ms; }
+
+.command-topbar,
+.wp-sidebar-shell {
+  box-shadow: inset 0 -1px rgba(168, 85, 247, 0.08);
+}
+
+.toast-enter {
+  animation: toast-in 220ms ease both;
+}
+
+.pulse-reconnect {
+  animation: reconnect-pulse 1.25s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes reconnect-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 159, 28, 0.32);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(255, 159, 28, 0);
+  }
 }

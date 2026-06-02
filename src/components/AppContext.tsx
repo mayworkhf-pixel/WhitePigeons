@@ -45,6 +45,9 @@ interface AppContextType {
   user: User | null;
   loading: boolean;
   botReady: boolean;
+  connectionState: 'connecting' | 'connected' | 'disconnected';
+  latencyMs: number | null;
+  activeUsers: number;
   socket: Socket | null;
   logs: LogEntry[];
   notifications: WebhookNotification[];
@@ -56,37 +59,67 @@ interface AppContextType {
   loginMock: (role: string, username: string) => void;
   logout: () => Promise<void>;
   addNotification: (title: string, message: string, type: WebhookNotification['type']) => void;
+  dismissNotification: (id: string) => void;
   refreshUser: () => Promise<void>;
   API_BASE_URL: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : '');
+
+function getLocalPreviewUser(): User | null {
+  if (typeof window === 'undefined') return null;
+  const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+  if (!isLocalHost || localStorage.getItem('wp_local_preview') !== 'true') return null;
+
+  return {
+    discordId: 'local-preview',
+    username: 'LocalPreview',
+    nickname: 'Local Preview',
+    roles: ['Admin', 'Leadership', 'Member'],
+    isTop10: true,
+    avatar: '/logo.webp',
+    isMock: true,
+    kills: 0,
+    weeklyKills: 0,
+    balance: 0,
+    strikes: [],
+    points: 0,
+    activityScore: 0,
+    admin_authenticated: true,
+    status: 'approved'
+  };
+}
 
 // Global fetch patch to automatically include credentials (cookies) and Bearer tokens for cross-origin API calls
-if (typeof window !== 'undefined') {
-  const originalFetch = window.fetch;
-  window.fetch = function (input, init) {
-    const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
-    if (url.startsWith(API_BASE_URL) || url.startsWith('http://localhost:5000') || url.startsWith('/api')) {
-      init = init || {};
-      init.credentials = 'include';
-      const token = localStorage.getItem('wp_session_token');
-      if (token) {
-        const headers = init.headers || {};
-        if (headers instanceof Headers) {
-          headers.set('Authorization', `Bearer ${token}`);
-        } else if (Array.isArray(headers)) {
-          const exists = headers.some(([key]) => key.toLowerCase() === 'authorization');
-          if (!exists) {
-            headers.push(['Authorization', `Bearer ${token}`]);
-          }
-        } else {
-          (headers as any)['Authorization'] = `Bearer ${token}`;
-        }
-        init.headers = headers;
-      }
+if (typeof window !== 'undefined' && !(window as any).__wpFetchPatched) {
+  const originalFetch = window.fetch.bind(window);
+  Object.defineProperty(window, '__wpFetchPatched', { value: true });
+
+  window.fetch = function (input, init = {}) {
+    const url = typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+    const shouldAttachSession = url.startsWith('/api')
+      || (!!API_BASE_URL && url.startsWith(API_BASE_URL))
+      || url.startsWith('http://localhost:5000');
+
+    if (!shouldAttachSession) {
+      return originalFetch(input, init);
     }
-    return originalFetch(input, init);
+
+    const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+    const token = localStorage.getItem('wp_session_token');
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    return originalFetch(input, {
+      ...init,
+      credentials: 'include',
+      headers
+    });
   };
 }
 
@@ -96,6 +129,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [botReady, setBotReady] = useState(false);
+  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [activeUsers, setActiveUsers] = useState(0);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [notifications, setNotifications] = useState<WebhookNotification[]>([]);
@@ -123,61 +159,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Refresh current user session
   const refreshUser = async () => {
     try {
+      const localPreviewUser = getLocalPreviewUser();
+      if (localPreviewUser) {
+        setUser(localPreviewUser);
+        setLoading(false);
+        return;
+      }
+
+      if (!API_BASE_URL) {
+        setUser(null);
+        return;
+      }
       const res = await fetch(`${API_BASE_URL}/api/auth/me`, { cache: 'no-store' });
       const data = await res.json();
       if (data.loggedIn) {
         const updatedUser = { ...data.user };
-        if (typeof window !== 'undefined' && localStorage.getItem('wp_admin_auth') === 'true') {
-          updatedUser.admin_authenticated = true;
-          if (!updatedUser.roles.includes('Admin')) {
-            updatedUser.roles.push('Admin');
-          }
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('wp_admin_auth');
         }
         setUser(updatedUser);
       } else {
         if (typeof window !== 'undefined' && localStorage.getItem('wp_admin_auth') === 'true') {
-          setUser({
-            discordId: 'admin-local',
-            username: 'WP_Admin',
-            nickname: 'WP | Admin',
-            roles: ['Admin'],
-            isTop10: false,
-            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-            isMock: true,
-            kills: 0,
-            weeklyKills: 0,
-            balance: 0,
-            strikes: [],
-            points: 0,
-            activityScore: 100,
-            admin_authenticated: true
-          });
-        } else {
-          setUser(null);
+          localStorage.removeItem('wp_admin_auth');
         }
+        setUser(getLocalPreviewUser());
       }
-    } catch (e) {
+    } catch {
       console.warn('Backend not responding to session check.');
-      if (typeof window !== 'undefined' && localStorage.getItem('wp_admin_auth') === 'true') {
-        setUser({
-          discordId: 'admin-local',
-          username: 'WP_Admin',
-          nickname: 'WP | Admin',
-          roles: ['Admin'],
-          isTop10: false,
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-          isMock: true,
-          kills: 0,
-          weeklyKills: 0,
-          balance: 0,
-          strikes: [],
-          points: 0,
-          activityScore: 100,
-          admin_authenticated: true
-        });
-      } else {
-        setUser(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('wp_admin_auth');
       }
+      setUser(getLocalPreviewUser());
     } finally {
       setLoading(false);
     }
@@ -185,26 +197,47 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Run initial session check
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('wp_admin_passcode');
+    }
     refreshUser();
   }, []);
 
   // Initialize Socket.io Connection
   useEffect(() => {
+    if (!API_BASE_URL) {
+      setConnectionState('disconnected');
+      return;
+    }
+
     const socketInstance = io(API_BASE_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling']
     });
 
     socketInstance.on('connect', () => {
-      console.log(`Websocket Connected to ${API_BASE_URL}`);
+      setConnectionState('connected');
     });
 
-    socketInstance.on('status_update', (data: { nextInformalCountdown: number; botReady: boolean }) => {
+    socketInstance.on('disconnect', () => {
+      setConnectionState('disconnected');
+      setLatencyMs(null);
+    });
+
+    socketInstance.on('connect_error', () => {
+      setConnectionState('disconnected');
+      setLatencyMs(null);
+    });
+
+    socketInstance.on('status_update', (data: { nextInformalCountdown: number; botReady: boolean; activeUsers?: number }) => {
       setBotReady(data.botReady);
+      if (typeof data.activeUsers === 'number') setActiveUsers(data.activeUsers);
       setTimers(prev => ({ ...prev, nextInformalCountdown: data.nextInformalCountdown }));
     });
 
-    socketInstance.on('timer_sync', (data: { nextInformalCountdown: number }) => {
+    socketInstance.on('timer_sync', (data: { nextInformalCountdown: number; botReady?: boolean; activeUsers?: number }) => {
+      if (typeof data.botReady === 'boolean') setBotReady(data.botReady);
+      if (typeof data.activeUsers === 'number') setActiveUsers(data.activeUsers);
       setTimers(prev => ({ ...prev, nextInformalCountdown: data.nextInformalCountdown }));
     });
 
@@ -217,13 +250,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
     setSocket(socketInstance);
+    const pingInterval = window.setInterval(() => {
+      const startedAt = performance.now();
+      socketInstance.timeout(3000).emit('client_ping', { clientTime: Date.now() }, (err: Error | null, data?: { activeUsers?: number; botReady?: boolean }) => {
+        if (err) {
+          setLatencyMs(null);
+          return;
+        }
+        setLatencyMs(Math.round(performance.now() - startedAt));
+        if (typeof data?.activeUsers === 'number') setActiveUsers(data.activeUsers);
+        if (typeof data?.botReady === 'boolean') setBotReady(data.botReady);
+      });
+    }, 10000);
 
     return () => {
+      window.clearInterval(pingInterval);
       socketInstance.disconnect();
     };
   }, []);
 
-  // Pull active channel messages from Discord REST API on tab change/periodically
+  // Pull active channel messages from Discord REST API when the active module changes.
   useEffect(() => {
     const validKeys = [
       'role-request', 'rolereq-review', 'strikes', 'tickets', 'check-balance',
@@ -246,20 +292,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             setLogs(channelLogs);
           }
         }
-      } catch (e) {
+      } catch {
         console.warn('Failed to load active Discord channel logs.');
       }
     };
 
     fetchChannelLogs();
 
-    // Poll logs every 15 seconds for live serverless updating
-    const interval = setInterval(fetchChannelLogs, 15000);
-    return () => clearInterval(interval);
   }, [activeTab]);
 
   // Notification Helper
-  const addNotification = (title: string, message: string, type: WebhookNotification['type'] = 'info') => {
+  function addNotification(title: string, message: string, type: WebhookNotification['type'] = 'info') {
     const id = Math.random().toString(36).substring(2, 9);
     const newNotif: WebhookNotification = {
       id,
@@ -270,6 +313,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
 
     setNotifications(prev => [newNotif, ...prev]);
+    window.setTimeout(() => {
+      setNotifications(prev => prev.filter(item => item.id !== id));
+    }, 4000);
 
     // Push standard browser notification if permission granted
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -278,6 +324,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         icon: '/favicon.ico'
       });
     }
+  }
+
+  const dismissNotification = (id: string) => {
+    setNotifications(prev => prev.filter(item => item.id !== id));
   };
 
   // Request browser permission
@@ -298,6 +348,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('wp_admin_auth');
         localStorage.removeItem('wp_session_token');
+        localStorage.removeItem('wp_local_preview');
       }
       await fetch(`${API_BASE_URL}/api/auth/logout`);
       setUser(null);
@@ -314,6 +365,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       user,
       loading,
       botReady,
+      connectionState,
+      latencyMs,
+      activeUsers,
       socket,
       logs,
       notifications,
@@ -323,6 +377,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       loginMock,
       logout,
       addNotification,
+      dismissNotification,
       refreshUser,
       API_BASE_URL
     }}>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from './AppContext';
-import { Lock, Unlock, X, ShieldAlert, Eye, EyeOff } from 'lucide-react';
+import { Lock, Unlock, X, ShieldAlert, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 interface PasscodeModalProps {
   isOpen: boolean;
@@ -17,18 +17,50 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setPasscode('');
       setStatus('idle');
       setShowPassword(false);
-      // Auto focus the input when modal opens
-      setTimeout(() => {
+      const focusTimer = window.setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
+      return () => window.clearTimeout(focusTimer);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>('button, input, [href], [tabindex]:not([tabindex="-1"])')
+      ).filter(element => !element.hasAttribute('disabled'));
+
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -51,7 +83,7 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
         setStatus('success');
         if (typeof window !== 'undefined') {
           localStorage.removeItem('wp_admin_auth');
-          localStorage.setItem('wp_admin_passcode', passcode);
+          localStorage.removeItem('wp_admin_passcode');
           if (data.token) {
             localStorage.setItem('wp_session_token', data.token);
           }
@@ -64,39 +96,24 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
         throw new Error(data.error || 'Access Denied');
       }
     } catch (err: any) {
-      // Local client-side fallback if backend is offline or mixed content blocks the request
-      if (passcode === 'anvy2026') {
-        setStatus('success');
-        addNotification('Authentication Granted', 'Security clearance authorized.', 'success');
-        
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('wp_admin_auth', 'true');
-          localStorage.setItem('wp_admin_passcode', passcode);
-        }
-        
-        await refreshUser();
-        if (onSuccess) onSuccess();
-        onClose();
-      } else {
-        setStatus('error');
-        addNotification('Access Denied', err.message || 'Passcode rejected.', 'error');
-        setPasscode('');
-        setTimeout(() => {
-          setStatus('idle');
-          inputRef.current?.focus();
-        }, 2000);
-      }
+      setStatus('error');
+      addNotification('Access Denied', err.message || 'Passcode rejected.', 'error');
+      setPasscode('');
+      window.setTimeout(() => {
+        setStatus('idle');
+        inputRef.current?.focus();
+      }, 2000);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm font-sans" role="presentation">
       <div className="absolute inset-0 pointer-events-none" />
       
       {/* Outer Glow Container */}
-      <div className={`relative w-full max-w-md mx-4 bg-[#111118] border rounded-xl p-8 shadow-2xl transition-smooth overflow-hidden ${
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="passcode-title" className={`relative w-full max-w-md mx-4 bg-[#111118] border rounded-xl p-8 shadow-2xl transition-smooth overflow-hidden ${
         status === 'success' 
           ? 'border-green-500/50'
           : status === 'error'
@@ -134,7 +151,7 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
               <Lock className="w-6 h-6" />
             )}
           </div>
-          <h3 className="font-title font-bold text-xl text-white">
+          <h3 id="passcode-title" className="font-title font-bold text-xl text-white">
             {status === 'success' ? 'ACCESS CONFIRMED' : status === 'error' ? 'AUTHENTICATION FAILED' : 'ENTER MASTER CRYPTOKEY'}
           </h3>
           <p className="text-[10px] text-zinc-500 font-sans tracking-wide mt-1">
@@ -172,8 +189,9 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
           <button
             type="submit"
             disabled={!passcode || loading || status === 'success'}
-            className="w-full btn-primary-gradient disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm py-2.5 px-6 rounded-lg font-title font-bold transition-smooth cursor-pointer"
+            className="w-full btn-primary-gradient disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm py-2.5 px-6 rounded-lg font-title font-bold transition-smooth cursor-pointer flex items-center justify-center gap-2"
           >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {loading ? 'VALIDATING KEY...' : 'TRANSMIT PASSCODE'}
           </button>
         </form>

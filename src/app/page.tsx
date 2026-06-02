@@ -3,13 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/components/AppContext';
 import { 
-  Flame, Shield, Trophy, Users, Zap, ShieldAlert,
-  Coins, Radio, Bell, Terminal, Clock, Settings,
-  AlertTriangle, Ticket, TrendingUp, Send, CheckCircle,
-  Award, Package, Sliders, CheckSquare, Factory, Play,
-  Plus, CheckCircle2, XCircle, UserCheck, Eye, Trash, Star,
-  Megaphone, ShoppingBag, ArrowRight, ClipboardList,
-  Search, ExternalLink, Gift, RefreshCw, Info
+  Flame, Trophy, Users,
+  Coins,
+  AlertTriangle, TrendingUp,
+  Plus, CheckCircle2, XCircle, Trash, Star,
+  Search, ExternalLink, Gift, RefreshCw, Shield
 } from 'lucide-react';
 
 interface Strike {
@@ -32,6 +30,15 @@ interface Member {
   isTop10: boolean;
   activityScore: number;
   weeklyPoints?: number;
+}
+
+interface WeeklyLeaderboardEntry {
+  discordId: string;
+  username: string;
+  nickname: string;
+  roles: string[];
+  weeklyPoints: number;
+  source: 'live' | 'mock';
 }
 
 interface TicketModel {
@@ -91,25 +98,13 @@ interface SignupModel {
   inVoice?: boolean;
 }
 
-// Helper to format countdown from milliseconds to HH:MM:SS
-const formatCountdownStr = (ms: number) => {
-  if (ms <= 0) return '00:00:00';
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-};
-
 export default function RootDashboard() {
-  const { user, activeTab, setActiveTab, addNotification, timers, refreshUser, API_BASE_URL, socket } = useApp();
+  const { user, activeTab, setActiveTab, addNotification, refreshUser, API_BASE_URL, socket } = useApp();
   
   // Roster registration states
   const [rpState, setRpState] = useState<'open' | 'closed'>('closed');
   const [informalState, setInformalState] = useState<'open' | 'closed'>('closed');
-  const [rpTitle, setRpTitle] = useState<string>('Roster control');
   const [rpDescription, setRpDescription] = useState<string>('Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.');
-  const [informalTitle, setInformalTitle] = useState<string>('Roster control');
   const [informalDescription, setInformalDescription] = useState<string>('Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.');
   
   // Core Data states
@@ -131,11 +126,7 @@ export default function RootDashboard() {
   const [informalSignups, setInformalSignups] = useState<SignupModel[]>([]);
 
   // Custom Timer states
-  const [rpTriggerDelay, setRpTriggerDelay] = useState('5');
-  const [rpScheduledTime, setRpScheduledTime] = useState<string | null>(null);
   const [rpTriggerCountdown, setRpTriggerCountdown] = useState<number | null>(null);
-  const [infTriggerDelay, setInfTriggerDelay] = useState('5');
-  const [infScheduledTime, setInfScheduledTime] = useState<string | null>(null);
   const [infTriggerCountdown, setInfTriggerCountdown] = useState<number | null>(null);
   
   // Schedule states for both events
@@ -168,7 +159,6 @@ export default function RootDashboard() {
   const [rpTotalStock, setRpTotalStock] = useState(1235);
   
   // Form states
-  const [roleRequestForm, setRoleRequestForm] = useState({ inGameName: '', characterId: '', level: '', rank: '', forumLink: '' });
   const [ticketForm, setTicketForm] = useState({ type: 'complaint', subject: '', description: '' });
   const [activityForm, setActivityForm] = useState({ description: '', mediaUrl: '' });
   const [bizwarForm, setBizwarForm] = useState({ businessName: 'Hotel Factory', amount: '' });
@@ -232,9 +222,15 @@ export default function RootDashboard() {
     user.roles.includes('High-Command') || 
     user.roles.includes('HC')
   )));
+  const isLocalPreview = user?.discordId === 'local-preview';
 
   // Load backend data helper
-  const loadDashboardData = async () => {
+  const loadDashboardData = React.useCallback(async () => {
+    if (isLocalPreview) {
+      setLoading(false);
+      return;
+    }
+
     try {
       // Run public fetches in parallel
       const publicFetches = [
@@ -290,21 +286,19 @@ export default function RootDashboard() {
 
         await Promise.all(userFetches);
       }
-    } catch (e) {
+    } catch {
       console.warn('Failed to load full API datasets.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE_URL, isLeaderOrAdmin, isLocalPreview, user]);
 
   const handleAddMember = async (type: 'top5' | 'top10', discordId: string) => {
-    const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
     try {
       const res = await fetch(`${API_BASE_URL}/api/priority-list/add`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ type, discordId })
       });
@@ -324,13 +318,11 @@ export default function RootDashboard() {
   };
 
   const handleRemoveMember = async (type: 'top5' | 'top10', discordId: string) => {
-    const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
     try {
       const res = await fetch(`${API_BASE_URL}/api/priority-list/remove`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ type, discordId })
       });
@@ -348,14 +340,10 @@ export default function RootDashboard() {
   };
 
   const handleDeployPriorityPrompt = async () => {
-    const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
     setIsDeployingPriority(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/deploy-priority-prompt`, {
-        method: 'POST',
-        headers: {
-          'x-admin-passcode': passcode
-        }
+        method: 'POST'
       });
       if (res.ok) {
         addNotification('Deployment Complete', 'Roster list embed was successfully re-deployed to Discord.', 'success');
@@ -371,7 +359,9 @@ export default function RootDashboard() {
   };
 
   // Poll event signups
-  const loadSignups = async () => {
+  const loadSignups = React.useCallback(async () => {
+    if (isLocalPreview) return;
+
     try {
       await Promise.all([
         fetch(`${API_BASE_URL}/api/events/signup/rp-signup`).then(r => r.ok ? r.json() : null).then(data => data && setRpSignups(data)),
@@ -379,7 +369,6 @@ export default function RootDashboard() {
         fetch(`${API_BASE_URL}/api/events/state/rp-signup`).then(r => r.ok ? r.json() : null).then(data => {
           if (data) {
             setRpState(data.state || 'closed');
-            if (data.title) setRpTitle(data.title);
             if (data.description) {
               setRpDescription(data.description);
               setRpTriggerDesc(data.description);
@@ -389,7 +378,6 @@ export default function RootDashboard() {
         fetch(`${API_BASE_URL}/api/events/state/informal-signup`).then(r => r.ok ? r.json() : null).then(data => {
           if (data) {
             setInformalState(data.state || 'closed');
-            if (data.title) setInformalTitle(data.title);
             if (data.description) {
               setInformalDescription(data.description);
               setInfTriggerDesc(data.description);
@@ -397,10 +385,12 @@ export default function RootDashboard() {
           }
         })
       ]);
-    } catch (e) {}
-  };
+    } catch {}
+  }, [API_BASE_URL, isLocalPreview]);
 
-  const loadSchedules = async () => {
+  const loadSchedules = React.useCallback(async () => {
+    if (isLocalPreview) return;
+
     try {
       const rpRes = await fetch(`${API_BASE_URL}/api/events/schedule/rp-signup`);
       if (rpRes.ok) {
@@ -424,17 +414,15 @@ export default function RootDashboard() {
           description: infData.description || ''
         });
       }
-    } catch (err) {}
-  };
+    } catch {}
+  }, [API_BASE_URL, isLocalPreview]);
 
   const handleSaveSchedule = async (eventId: 'rp-signup' | 'informal-signup', scheduleData: any) => {
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/events/schedule-times/${eventId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${passcode}`
         },
         body: JSON.stringify(scheduleData)
       });
@@ -455,7 +443,6 @@ export default function RootDashboard() {
     if (rpTriggerCountdown === null) return;
     if (rpTriggerCountdown < 0) {
       setRpTriggerCountdown(null);
-      setRpScheduledTime(null);
       return;
     }
     const timer = setTimeout(() => {
@@ -468,7 +455,6 @@ export default function RootDashboard() {
     if (infTriggerCountdown === null) return;
     if (infTriggerCountdown < 0) {
       setInfTriggerCountdown(null);
-      setInfScheduledTime(null);
       return;
     }
     const timer = setTimeout(() => {
@@ -482,9 +468,7 @@ export default function RootDashboard() {
     loadDashboardData();
     loadSignups();
     loadSchedules();
-    const interval = setInterval(loadSignups, 5000);
-    return () => clearInterval(interval);
-  }, [user, activeTab]);
+  }, [user, activeTab, loadDashboardData, loadSignups, loadSchedules]);
 
   // Synchronize event states and signups via websocket in real-time
   useEffect(() => {
@@ -493,7 +477,6 @@ export default function RootDashboard() {
     const handleStateChange = (data: { eventId: string; state: 'open' | 'closed'; title?: string; description?: string }) => {
       if (data.eventId === 'rp-signup') {
         setRpState(data.state);
-        if (data.title) setRpTitle(data.title);
         if (data.description) {
           setRpDescription(data.description);
           setRpTriggerDesc(data.description);
@@ -501,7 +484,6 @@ export default function RootDashboard() {
         loadSignups();
       } else if (data.eventId === 'informal-signup') {
         setInformalState(data.state);
-        if (data.title) setInformalTitle(data.title);
         if (data.description) {
           setInformalDescription(data.description);
           setInfTriggerDesc(data.description);
@@ -565,17 +547,15 @@ export default function RootDashboard() {
       socket.off('priority_list_update', handlePriorityListUpdate);
       socket.off('event_schedule_change', handleScheduleChange);
     };
-  }, [socket]);
+  }, [socket, loadDashboardData, loadSignups]);
 
   // Admin closes registration roster
   const handleCloseEventSignup = async (eventId: string) => {
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/events/close/${eventId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({
           title: eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight'
@@ -647,31 +627,6 @@ export default function RootDashboard() {
     }
   };
 
-  // Form submission: Role Request
-  const handleRoleRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!roleRequestForm.inGameName || !roleRequestForm.characterId || !roleRequestForm.level || !roleRequestForm.rank || !roleRequestForm.forumLink) {
-      addNotification('Form Error', 'Please complete all fields.', 'warning');
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/members/role-request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(roleRequestForm)
-      });
-      if (res.ok) {
-        addNotification('Application Sent', 'Role Request submitted and posted to review channel.', 'success');
-        setRoleRequestForm({ inGameName: '', characterId: '', level: '', rank: '', forumLink: '' });
-      } else {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to submit request.');
-      }
-    } catch (err: any) {
-      addNotification('Request Failed', err.message || 'Network failure.', 'error');
-    }
-  };
-
   // Form submission: Support ticket
   const handleRaiseTicket = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -687,7 +642,7 @@ export default function RootDashboard() {
         setTicketForm({ type: 'complaint', subject: '', description: '' });
         loadDashboardData();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Form submission: Submit Activity
@@ -705,7 +660,7 @@ export default function RootDashboard() {
         setActivityForm({ description: '', mediaUrl: '' });
         loadDashboardData();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Form submission: BizWar Collect
@@ -724,7 +679,7 @@ export default function RootDashboard() {
         loadDashboardData();
         refreshUser();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Form submission: RP Collect
@@ -740,7 +695,7 @@ export default function RootDashboard() {
         addNotification('Collection Logged', 'RP Tickets harvested to family ledger.', 'success');
         loadDashboardData();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Purchase item
@@ -759,7 +714,7 @@ export default function RootDashboard() {
         const err = await res.json();
         addNotification('Purchase Denied', err.error || 'Failed to complete order.', 'warning');
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Admin audit: Role requests
@@ -790,12 +745,10 @@ export default function RootDashboard() {
 
   const handleUpdateWeeklyPoints = async (memberId: string, pointsStr: string) => {
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/members/${memberId}/weekly-points`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ weeklyPoints: pointsStr })
       });
@@ -806,19 +759,17 @@ export default function RootDashboard() {
         const errorData = await res.json();
         addNotification('Update Failed', errorData.error || 'Server error', 'warning');
       }
-    } catch (e) {
+    } catch {
       addNotification('Update Failed', 'Network failure.', 'error');
     }
   };
 
   const handleUpdateKills = async (memberId: string, killsStr: string) => {
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/members/${memberId}/kills`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ kills: killsStr })
       });
@@ -829,19 +780,17 @@ export default function RootDashboard() {
         const errorData = await res.json();
         addNotification('Update Failed', errorData.error || 'Server error', 'warning');
       }
-    } catch (e) {
+    } catch {
       addNotification('Update Failed', 'Network failure.', 'error');
     }
   };
 
   const handleUpdateWeeklyKills = async (memberId: string, weeklyKillsStr: string) => {
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/members/${memberId}/weekly-kills`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ weeklyKills: weeklyKillsStr })
       });
@@ -852,7 +801,7 @@ export default function RootDashboard() {
         const errorData = await res.json();
         addNotification('Update Failed', errorData.error || 'Server error', 'warning');
       }
-    } catch (e) {
+    } catch {
       addNotification('Update Failed', 'Network failure.', 'error');
     }
   };
@@ -873,7 +822,7 @@ export default function RootDashboard() {
         setStrikeForm({ memberId: '', reason: '', strikeRole: 'Striked Player' });
         loadDashboardData();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Admin audit: Resolve tickets
@@ -890,7 +839,7 @@ export default function RootDashboard() {
         addNotification('Ticket Resolved', 'Ticket closed. Dispatched response to member.', 'success');
         loadDashboardData();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Admin audit: Bonus Approval
@@ -907,7 +856,7 @@ export default function RootDashboard() {
         loadDashboardData();
         refreshUser();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Admin audit: Complete Order
@@ -918,7 +867,7 @@ export default function RootDashboard() {
         addNotification('Order Completed', 'Inventory items dispatched to client.', 'success');
         loadDashboardData();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Admin audit: Review Activity
@@ -935,7 +884,7 @@ export default function RootDashboard() {
         loadDashboardData();
         refreshUser();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Event signup execution
@@ -951,7 +900,7 @@ export default function RootDashboard() {
       } else {
         addNotification('Signup Denied', data.error || 'Check parameters.', 'warning');
       }
-    } catch (e) {}
+    } catch {}
   };
 
   const handleLeaveSignup = async (eventId: string) => {
@@ -964,7 +913,7 @@ export default function RootDashboard() {
       } else {
         addNotification('Action Denied', data.error || 'Failed to leave roster.', 'warning');
       }
-    } catch (e) {}
+    } catch {}
   };
 
   const handleScheduleTrigger = async (eventId: string, title: string, description: string, delay: string, unit: 'seconds' | 'minutes' = 'minutes') => {
@@ -979,7 +928,6 @@ export default function RootDashboard() {
     }
 
     try {
-      const passcode = localStorage.getItem('wp_admin_passcode') || '';
       const payload: any = { eventId, title, description };
       if (unit === 'seconds') {
         payload.delaySeconds = val;
@@ -991,7 +939,6 @@ export default function RootDashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify(payload)
       });
@@ -1000,16 +947,14 @@ export default function RootDashboard() {
         addNotification('Trigger Scheduled', `Bot will trigger in ${val} ${unit} at ${data.targetTime}.`, 'success');
         const totalSecs = unit === 'seconds' ? val : val * 60;
         if (eventId === 'rp-signup') {
-          setRpScheduledTime(data.targetTime);
           setRpTriggerCountdown(totalSecs);
         } else {
-          setInfScheduledTime(data.targetTime);
           setInfTriggerCountdown(totalSecs);
         }
       } else {
         addNotification('Scheduling Failed', data.error || 'Failed to schedule trigger.', 'warning');
       }
-    } catch (e) {
+    } catch {
       addNotification('Error', 'Failed to connect to scheduling service.', 'warning');
     }
   };
@@ -1017,13 +962,10 @@ export default function RootDashboard() {
   // Open active signup channel
   const handleTriggerSignupWindow = async (eventId: string, title: string, desc: string) => {
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/events/trigger`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${passcode}`,
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ eventId, title, description: desc })
       });
@@ -1031,37 +973,16 @@ export default function RootDashboard() {
         addNotification('Signup Window Triggered', `Roster registration opened for ${title}.`, 'success');
         loadSignups();
       }
-    } catch (e) {}
-  };
-
-  // Wipe rosters
-  const handleClearSignupRoster = async (eventId: string) => {
-    if (!confirm('Are you sure you want to flush the signed up player roster?')) return;
-    try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
-      const res = await fetch(`${API_BASE_URL}/api/events/clear/${eventId}`, { 
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${passcode}`,
-          'x-admin-passcode': passcode
-        }
-      });
-      if (res.ok) {
-        addNotification('Roster Cleared', 'Roster lists reset successfully.', 'info');
-        loadSignups();
-      }
-    } catch (e) {}
+    } catch {}
   };
 
   // Toggle simulated voice presence
   const handleToggleVoiceSimulation = async (memberId: string, currentInVoice: boolean) => {
     try {
-      const passcode = localStorage.getItem('wp_admin_passcode') || '';
       const res = await fetch(`${API_BASE_URL}/api/events/simulate-voice`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ memberId, inVoice: !currentInVoice })
       });
@@ -1080,12 +1001,10 @@ export default function RootDashboard() {
   // Kick a roster member
   const handleKickRosterMember = async (eventId: 'rp-signup' | 'informal-signup', memberId: string) => {
     try {
-      const passcode = localStorage.getItem('wp_admin_passcode') || '';
       const res = await fetch(`${API_BASE_URL}/api/events/kick`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ eventId, memberId })
       });
@@ -1104,12 +1023,10 @@ export default function RootDashboard() {
   // Swap two roster members
   const handleSwapRosterMembers = async (eventId: 'rp-signup' | 'informal-signup', memberId1: string, memberId2: string) => {
     try {
-      const passcode = localStorage.getItem('wp_admin_passcode') || '';
       const res = await fetch(`${API_BASE_URL}/api/events/swap`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ eventId, memberId1, memberId2 })
       });
@@ -1126,21 +1043,22 @@ export default function RootDashboard() {
   };
 
   // Log public win
-  const handleLogWin = async (e: React.FormEvent) => {
+  const handleLogWin = async (e: React.FormEvent, forcedType?: string) => {
     e.preventDefault();
     if (!winForm.title || !winForm.description) return;
+    const payload = { ...winForm, type: forcedType || winForm.type };
     try {
       const res = await fetch(`${API_BASE_URL}/api/wins`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(winForm)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         addNotification('Win Logged', 'Victory report published in public channels.', 'success');
         setWinForm({ type: 'event', title: '', description: '', participants: '', mediaUrl: '' });
         loadDashboardData();
       }
-    } catch (e) {}
+    } catch {}
   };
 
   // Shared Denied handler
@@ -1181,368 +1099,73 @@ export default function RootDashboard() {
   // TABS RENDERING CONTEXTS
   // -----------------------------------------------------------------
 
-  const renderHome = () => {
-    return (
-      <div className="flex flex-col gap-6 font-sans">
-        
-        {/* Top metrics row matching the screenshot */}
-        <section className="grid grid-cols-2 md:grid-cols-5 gap-5">
-          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none">
-            <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[9px] font-sans font-bold text-zinc-500 uppercase tracking-widest block leading-none">MEMBERS</span>
-              <span className="text-2xl font-title font-black italic text-white block mt-1.5 leading-none">128</span>
-              <span className="text-[9px] text-zinc-500 mt-1 block">Active Members</span>
-            </div>
-          </div>
-
-          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none">
-            <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
-              <Trophy className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[9px] font-sans font-bold text-zinc-500 uppercase tracking-widest block leading-none">WINS</span>
-              <span className="text-2xl font-title font-black italic text-white block mt-1.5 leading-none">247</span>
-              <span className="text-[9px] text-zinc-500 mt-1 block">Total Wins</span>
-            </div>
-          </div>
-
-          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none">
-            <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
-              <Ticket className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[9px] font-sans font-bold text-zinc-500 uppercase tracking-widest block leading-none">RP TICKETS</span>
-              <span className="text-2xl font-title font-black italic text-white block mt-1.5 leading-none">1,235</span>
-              <span className="text-[9px] text-zinc-500 mt-1 block">Total Collected</span>
-            </div>
-          </div>
-
-          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none">
-            <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
-              <Package className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[9px] font-sans font-bold text-zinc-500 uppercase tracking-widest block leading-none">BUSINESSES</span>
-              <span className="text-2xl font-title font-black italic text-white block mt-1.5 leading-none">18</span>
-              <span className="text-[9px] text-zinc-500 mt-1 block">Owned</span>
-            </div>
-          </div>
-
-          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center gap-4 hover:border-purple-500/30 transition-smooth relative overflow-hidden shadow-lg select-none col-span-2 md:col-span-1">
-            <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400">
-              <Star className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[9px] font-sans font-bold text-zinc-500 uppercase tracking-widest block leading-none">ACTIVITY POINTS</span>
-              <span className="text-2xl font-title font-black italic text-white block mt-1.5 leading-none">98,760</span>
-              <span className="text-[9px] text-zinc-500 mt-1 block">Total Points</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Announcements section with pigeon artwork on the right */}
-        <section className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 relative overflow-hidden shadow-lg">
-          {/* Subtle graphic background placeholder representation for style alignment */}
-          <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-5 bg-gradient-to-l from-white to-transparent pointer-events-none select-none" />
-
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/25 flex items-center justify-center text-purple-400 shrink-0 mt-1">
-                <Megaphone className="w-5 h-5" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-title font-black text-sm italic tracking-widest text-white uppercase leading-none">ANNOUNCEMENTS</h3>
-                <ul className="space-y-1.5 text-xs text-zinc-300 font-sans mt-2 list-disc list-inside">
-                  <li>
-                    RP SIGNUP starts in <span className="text-purple-400 font-mono font-bold">{timers.nextInformalCountdown ? formatCountdownStr(timers.nextInformalCountdown + 3600000) : '02:15:34'}</span>
-                  </li>
-                  <li>
-                    Informal Fight in <span className="text-purple-400 font-mono font-bold">{formatCountdownStr(timers.nextInformalCountdown)}</span>
-                  </li>
-                  <li>
-                    Weekly Kill List resets in <span className="text-purple-400 font-sans font-bold">4d 12h 32m</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="text-right shrink-0 border-l border-zinc-800/60 pl-6 h-full flex flex-col justify-center">
-              <span className="font-title font-black text-xl italic tracking-tight text-purple-500 leading-none">LOYALTY.</span>
-              <span className="block text-[10px] tracking-widest text-zinc-500 uppercase font-bold mt-1.5 leading-none">RESPECT. POWER.</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Quick actions buttons matching the screenshot */}
-        <section className="space-y-2">
-          <span className="text-[9px] font-sans font-black tracking-widest text-zinc-500 uppercase px-1">QUICK ACTIONS</span>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-            {[
-              { id: 'role-request', label: 'Role Request', icon: ClipboardList },
-              { id: 'submit-activity', label: 'Submit Activity', icon: Send },
-              { id: 'check-balance', label: 'Check Balance', icon: Coins },
-              { id: 'point-shop', label: 'Point Shop', icon: ShoppingBag },
-              { id: 'rp-signup', label: 'RP Signup', icon: Users }
-            ].map((act) => (
-              <button
-                key={act.id}
-                onClick={() => setActiveTab(act.id)}
-                className="bg-[#111118] border border-[#1c1a2a] hover:border-purple-600/35 p-4 rounded-xl flex items-center justify-center gap-3 transition-smooth cursor-pointer text-xs font-sans font-bold text-zinc-300 hover:text-white select-none text-center shadow-md"
-              >
-                <act.icon className="w-4 h-4 text-purple-400" />
-                <span>{act.label}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Recent activity & Top Players side-by-side matching the screenshot */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* RECENT ACTIVITY */}
-          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl space-y-4 shadow-lg">
-            <span className="text-[9px] font-sans font-black tracking-widest text-zinc-500 uppercase border-b border-[#1c1a2a]/50 pb-2 block">
-              RECENT ACTIVITY
-            </span>
-            
-            <div className="space-y-4 font-sans text-xs">
-              {[
-                { text: 'Raven submitted an activity', time: '2 min ago', dot: 'bg-green-500', icon: ClipboardList },
-                { text: 'Phantom collected RP Ticket', time: '12 min ago', dot: 'bg-green-500', icon: Ticket },
-                { text: 'Nova requested a role', time: '18 min ago', dot: 'bg-red-500', icon: UserCheck },
-                { text: 'Strike issued to Joker', time: '25 min ago', dot: 'bg-red-500', icon: AlertTriangle },
-                { text: 'Order #1023 completed', time: '35 min ago', dot: 'bg-green-500', icon: ShoppingBag }
-              ].map((act, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-[#13121d]/20 p-2.5 rounded-xl border border-[#1c1a2a]/60">
-                  <div className="flex items-center gap-3">
-                    <act.icon className="w-4 h-4 text-purple-400/80" />
-                    <span className="text-zinc-200 font-bold">{act.text}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-zinc-500 text-[10px]">
-                    <span>{act.time}</span>
-                    <div className={`w-1.5 h-1.5 rounded-full ${act.dot} animate-pulse`} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* TOP PLAYERS (THIS WEEK) */}
-          <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl space-y-4 shadow-lg">
-            <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-2">
-              <span className="text-[9px] font-sans font-black tracking-widest text-zinc-500 uppercase">
-                TOP PLAYERS (THIS WEEK)
-              </span>
-              <button onClick={() => setActiveTab('leaderboard')} className="text-[10px] text-purple-400 hover:text-white font-bold flex items-center gap-1 cursor-pointer">
-                View Leaderboard <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs font-sans">
-                <thead>
-                  <tr className="text-zinc-500 uppercase text-[9px] tracking-wider border-b border-[#1d1c25] pb-1">
-                    <th className="py-2 px-2">#</th>
-                    <th className="py-2 px-2">Player</th>
-                    <th className="py-2 px-2 text-center">Events</th>
-                    <th className="py-2 px-2 text-center">Wins</th>
-                    <th className="py-2 px-2 text-right">Points</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#181622]/40 font-medium">
-                  {[
-                    { rank: 1, name: 'Phantom', events: 15, wins: 12, points: '5,420', dot: 'bg-yellow-500' },
-                    { rank: 2, name: 'Raven', events: 13, wins: 10, points: '4,890', dot: 'bg-zinc-400' },
-                    { rank: 3, name: 'Nova', events: 11, wins: 8, points: '4,120', dot: 'bg-amber-700' },
-                    { rank: 4, name: 'Shadow', events: 10, wins: 7, points: '3,760' },
-                    { rank: 5, name: 'Blaze', events: 9, wins: 6, points: '3,240' }
-                  ].map((player, idx) => (
-                    <tr key={idx} className="hover:bg-[#1a1924]/20 transition-smooth">
-                      <td className="py-2.5 px-2">
-                        {player.rank <= 3 ? (
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-black ${player.dot}`}>
-                            {player.rank}
-                          </div>
-                        ) : (
-                          <span className="text-zinc-500 pl-1.5">{player.rank}</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-2 font-bold text-zinc-100">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-[#13121d] border border-purple-500/20 flex items-center justify-center text-[9px] text-purple-400">
-                            WP
-                          </div>
-                          {player.name}
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-2 text-center font-mono text-zinc-300">{player.events}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-zinc-300">{player.wins}</td>
-                      <td className="py-2.5 px-2 text-right font-mono font-bold text-purple-400">{player.points}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        {/* RP Ticket Factory & Informal Reminder side-by-side */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* RP Ticket Factory */}
-          <div className="lg:col-span-2 bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl space-y-4 shadow-lg flex flex-col justify-between">
-            <div className="flex items-center gap-2 border-b border-[#1c1a2a]/50 pb-2">
-              <Ticket className="w-5 h-5 text-purple-400" />
-              <span className="text-[10px] font-sans font-black tracking-widest text-zinc-200 uppercase">
-                RP TICKET FACTORY
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-2">
-              <div>
-                <span className="text-[9px] text-zinc-500 font-bold block uppercase leading-none">TODAY COLLECTED</span>
-                <span className="text-2xl font-title font-black text-zinc-200 mt-2 block leading-none">60 / 120</span>
-                <span className="text-[8px] text-zinc-650 mt-1 block">Total Possible (6 Weeks)</span>
-              </div>
-              
-              <div>
-                <span className="text-[9px] text-zinc-500 font-bold block uppercase leading-none">NEXT COLLECTION IN</span>
-                <span className="text-2xl font-title font-black text-purple-400 mt-2 block leading-none font-mono">{rpCountdown}</span>
-              </div>
-
-              <div>
-                <span className="text-[9px] text-zinc-500 font-bold block uppercase leading-none">PROGRESS</span>
-                <div className="w-full bg-[#13121d] h-1.5 rounded-full overflow-hidden mt-2">
-                  <div className="bg-purple-600 h-full" style={{ width: '40%' }} />
-                </div>
-                <div className="flex justify-between text-[8px] text-zinc-500 mt-1.5 leading-none">
-                  <span>Week 2 of 6</span>
-                  <span>Missed: 15</span>
-                </div>
-              </div>
-            </div>
-
-            {user ? (
-              <button 
-                onClick={handleRpCollect}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-2.5 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
-              >
-                Collect Now (5 RP)
-              </button>
-            ) : (
-              <div className="text-[10px] text-center text-zinc-650 italic py-2 bg-zinc-900/40 border border-zinc-900 rounded select-none">
-                Identity authentication required to harvest tickets.
-              </div>
-            )}
-          </div>
-
-          {/* Informal Fight Reminder */}
-          <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl space-y-4 shadow-lg flex flex-col justify-between">
-            <div className="flex items-center gap-2 border-b border-[#1c1a2a]/50 pb-2">
-              <Radio className="w-4 h-4 text-purple-400 animate-pulse" />
-              <span className="text-[10px] font-sans font-black tracking-widest text-zinc-200 uppercase">
-                INFORMAL FIGHT REMINDER
-              </span>
-            </div>
-
-            <div className="py-2">
-              <span className="text-[9px] text-zinc-500 font-bold block uppercase leading-none">NEXT FIGHT IN</span>
-              <span className="text-3xl font-title font-black text-purple-400 mt-2 block leading-none font-mono">
-                {timers.nextInformalCountdown ? formatCountdownStr(timers.nextInformalCountdown) : '00:32:10'}
-              </span>
-              <span className="text-[9px] text-zinc-500 mt-1.5 block">Every 1h 44m battle cycle</span>
-            </div>
-
-            <button 
-              onClick={() => setActiveTab('informal-signup')}
-              className="w-full border border-purple-500/30 hover:border-purple-500/70 hover:bg-purple-950/20 text-purple-400 hover:text-white font-title text-xs font-black italic tracking-wide py-2.5 rounded-lg transition-smooth cursor-pointer"
-            >
-              View Signup
-            </button>
-          </div>
-        </section>
-
-        {/* Details about the family block matching the requested tab: About Us */}
-        <section className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 shadow-md font-sans">
-          <h3 className="font-title font-black text-lg italic text-white flex items-center gap-2 border-b border-[#1c1a2a]/50 pb-2">
-            📖 ABOUT US
-          </h3>
-          <p className="text-zinc-400 text-xs leading-relaxed font-sans">
-            White Pigeon is a military-styled open world family operating under Server 3 rules of Grand RP. Founded as a combat-centric organization, we dominate major turf battlefields and hold multiple illegal income streams including the RP Ticket factories. 
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 font-sans">
-            <div className="bg-[#13121d]/40 p-4 border border-[#1c1a2a] rounded-xl text-xs space-y-1.5">
-              <span className="font-bold text-purple-400 uppercase tracking-wider block text-[10px]">Active Turf Wars</span>
-              <p className="text-zinc-400 text-[11px] leading-relaxed">
-                We organize gunfight runs for hotel factories, Ammunation sites, and oil well turfs hourly. Top marksmen maintain prioritized queue registration.
-              </p>
-            </div>
-            <div className="bg-[#13121d]/40 p-4 border border-[#1c1a2a] rounded-xl text-xs space-y-1.5">
-              <span className="font-bold text-purple-400 uppercase tracking-wider block text-[10px]">Family Points Economy</span>
-              <p className="text-zinc-400 text-[11px] leading-relaxed">
-                Collecting profits is logged. For every delivery, members earn Family Points (FP) that can be traded for weapons, customized VIP license plates, and Tier-3 armor plates in the points store.
-              </p>
-            </div>
-          </div>
-        </section>
-
-      </div>
-    );
-  };
-
   const renderAboutUs = () => {
     const statsGrid = [
-      { label: 'Total Family Members', value: familyStats.totalMembers, icon: Users, color: 'text-blue-400', bg: 'bg-blue-950/20', border: 'border-blue-900/35' },
-      { label: 'Total Giveaways', value: familyStats.totalGiveaways, icon: Gift, color: 'text-red-400', bg: 'bg-red-950/20', border: 'border-red-900/35' },
-      { label: 'Total Bonuses', value: `$${Number(familyStats.totalBonuses || 0).toLocaleString()}`, icon: Coins, color: 'text-emerald-400', bg: 'bg-emerald-950/20', border: 'border-emerald-900/35' },
-      { label: 'HC Work Done', value: familyStats.hcWorkDone, icon: CheckCircle2, color: 'text-teal-400', bg: 'bg-teal-950/20', border: 'border-teal-900/35' },
-      { label: 'Total Strikes', value: familyStats.totalStrikes, icon: AlertTriangle, color: 'text-amber-500', bg: 'bg-amber-950/20', border: 'border-amber-900/35' },
-      { label: 'Total Blacklisted', value: familyStats.totalBlacklisted, icon: XCircle, color: 'text-rose-500', bg: 'bg-rose-950/20', border: 'border-rose-900/35' },
-      { label: 'RP Won', value: familyStats.rpWon, icon: Trophy, color: 'text-yellow-400', bg: 'bg-yellow-950/20', border: 'border-yellow-900/35' },
-      { label: 'Events Won', value: familyStats.eventsWon, icon: Flame, color: 'text-orange-500', bg: 'bg-orange-950/20', border: 'border-orange-900/35' },
-      { label: 'Family Ranking Points', value: familyStats.familyRankingPoints, icon: Star, color: 'text-purple-400', bg: 'bg-purple-950/20', border: 'border-purple-900/35' },
-      { label: 'Family Rank', value: familyStats.familyRank, icon: TrendingUp, color: 'text-cyan-400', bg: 'bg-cyan-950/20', border: 'border-cyan-900/35' }
+      { label: 'Total Family Members', value: familyStats.totalMembers, icon: Users, color: 'text-purple-300', bg: 'badge-purple', desc: 'Active Members' },
+      { label: 'Total Giveaways', value: familyStats.totalGiveaways, icon: Gift, color: 'text-rose-400', bg: 'badge-rose', desc: 'Completed' },
+      { label: 'Total Bonuses', value: `$${Number(familyStats.totalBonuses || 0).toLocaleString()}`, icon: Coins, color: 'text-emerald-400', bg: 'badge-green', desc: 'From Operations' },
+      { label: 'HC Work Done', value: familyStats.hcWorkDone, icon: CheckCircle2, color: 'text-cyan-400', bg: 'badge-cyan', desc: 'Tasks Completed' },
+      { label: 'Total Strikes', value: familyStats.totalStrikes, icon: AlertTriangle, color: 'text-purple-300', bg: 'badge-purple', desc: 'Total Issued' },
+      { label: 'Total Blacklisted', value: familyStats.totalBlacklisted, icon: XCircle, color: 'text-rose-400', bg: 'badge-rose', desc: 'Players' },
+      { label: 'RP Won', value: familyStats.rpWon, icon: Trophy, color: 'text-purple-300', bg: 'badge-purple', desc: 'Roleplay Points' },
+      { label: 'Events Won', value: familyStats.eventsWon, icon: Flame, color: 'text-amber-400', bg: 'badge-amber', desc: 'Total Victories' },
+      { label: 'Family Ranking Points', value: familyStats.familyRankingPoints, icon: Star, color: 'text-purple-300', bg: 'badge-purple', desc: 'Ranking Points' },
+      { label: 'Family Rank', value: familyStats.familyRank, icon: TrendingUp, color: 'text-blue-400', bg: 'badge-blue', desc: 'On The Server' }
     ];
 
     return (
       <div className="space-y-6 max-w-5xl mx-auto font-sans">
         {/* Story Intro Card */}
-        <div className="bg-[#111118] border border-[#1c1a2a] p-8 rounded-2xl relative overflow-hidden shadow-xl flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/5 rounded-full filter blur-3xl pointer-events-none" />
-          <div className="flex-1 space-y-5 relative z-10 text-left">
+        <div className="bg-gradient-to-br from-[#08111f]/90 to-[#0c1427]/90 border border-purple-500/15 p-8 rounded-2xl relative overflow-hidden shadow-2xl flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full filter blur-3xl pointer-events-none" />
+          <div className="flex-1 space-y-6 relative z-10 text-left">
             <div className="flex items-center gap-2">
-              <span className="bg-purple-600/10 border border-purple-500/20 text-purple-400 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">WHO WE ARE</span>
-            </div>
-            <h1 className="font-title font-black text-3xl md:text-4xl uppercase leading-tight">
-              <span className="flex items-center gap-3">
-                <img src="/logo.png" alt="" className="w-16 h-16 object-contain inline-block" />
-                <span className="text-white">WHITE PIGEONS</span>
+              <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider">
+                WHO WE ARE
               </span>
-              <span className="bg-gradient-to-r from-purple-400 via-purple-500 to-violet-500 bg-clip-text text-transparent">FAMILY</span>
-            </h1>
-            <p className="text-zinc-300 text-sm leading-relaxed max-w-2xl">
-              Forged in city conflicts, the **White Pigeons** family rises as the supreme power on the streets. 
+            </div>
+            
+            <div className="flex items-stretch gap-4">
+              <div className="w-1 bg-[#a855f7] rounded-full shadow-[0_0_12px_#a855f7]" />
+              <div className="space-y-1">
+                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-white leading-none italic">
+                  WHITE PIGEONS
+                </h1>
+                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-purple-500 leading-none italic">
+                  FAMILY
+                </h1>
+              </div>
+            </div>
+
+            <p className="text-zinc-400 text-[12px] leading-relaxed max-w-xl font-medium">
+              Forged in city conflicts, the <strong className="text-white font-bold">White Pigeons</strong> family rises as the supreme power on the streets. 
               We operate with loyalty, respect, and clinical efficiency. Through turf dominance, strategic commerce collections, 
               and synchronized operations, we remain #TOP1. We stand undivided—a true brotherhood on top.
             </p>
-            <div className="flex items-center gap-5 text-zinc-400 text-[11px] font-bold uppercase tracking-wider">
-              <span className="flex items-center gap-1.5">🛡️ LOYALTY</span>
-              <span className="text-purple-500">•</span>
-              <span className="flex items-center gap-1.5">⚔️ RESPECT</span>
-              <span className="text-purple-500">•</span>
-              <span className="flex items-center gap-1.5">⚡ POWER</span>
+
+            <div className="flex flex-wrap items-center gap-6 text-zinc-400 text-[10px] font-title font-black uppercase tracking-widest">
+              <span className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-purple-400" />
+                LOYALTY
+              </span>
+              <span className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-purple-400" />
+                RESPECT
+              </span>
+              <span className="flex items-center gap-2">
+                <Flame className="w-4 h-4 text-purple-400" />
+                POWER
+              </span>
             </div>
           </div>
           
           {/* Logo Illustration */}
-          <div className="relative shrink-0 select-none">
-            <div className="absolute inset-0 bg-purple-600/10 rounded-full filter blur-3xl animate-pulse scale-150" />
+          <div className="relative shrink-0 select-none flex items-center justify-center py-6">
+            <div className="absolute w-[280px] h-[4px] bg-gradient-to-r from-transparent via-[#a855f7]/60 to-transparent shadow-[0_0_20px_5px_rgba(168,85,247,0.4)] blur-xs translate-y-16" />
             <img 
-              src="/logo.png" 
+              src="/logo.webp"
               alt="White Pigeons Original Logo" 
-              className="w-72 h-72 object-contain relative z-10 hover:scale-105 transition-smooth drop-shadow-[0_0_40px_rgba(168,85,247,0.4)]"
+              className="w-64 h-64 object-contain relative z-10 hover:scale-[1.03] transition-smooth drop-shadow-[0_0_40px_rgba(168,85,247,0.35)]"
             />
           </div>
         </div>
@@ -1556,8 +1179,9 @@ export default function RootDashboard() {
               </h2>
               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">White Pigeons #TOP1 On Top!</p>
             </div>
-            <div className="text-[9px] text-zinc-500 font-mono">
-              Last Synced: {familyStats.updatedAt ? new Date(familyStats.updatedAt).toLocaleTimeString() : '9:25 PM'}
+            <div className="text-[9px] text-zinc-550 font-mono flex items-center gap-1.5">
+              <span>Last Synced: {familyStats.updatedAt ? new Date(familyStats.updatedAt).toLocaleTimeString() : '9:25 PM'}</span>
+              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
             </div>
           </div>
 
@@ -1567,20 +1191,23 @@ export default function RootDashboard() {
               return (
                 <div 
                   key={idx} 
-                  className="bg-[#0a0a14]/85 border border-[#1c1a2a] hover:border-purple-500/25 p-4 rounded-xl flex flex-col justify-between h-24 hover:-translate-y-0.5 transition-smooth relative group overflow-hidden shadow-inner select-none"
+                  className="bg-[#08111f]/65 border border-purple-500/10 hover:border-purple-500/25 hover:shadow-[0_0_20px_rgba(168,85,247,0.06)] p-4 rounded-xl flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-smooth relative group overflow-hidden shadow-inner select-none"
                 >
                   <div className="flex justify-between items-start">
-                    <span className="text-[8px] font-sans font-black text-zinc-500 uppercase tracking-widest leading-none pr-2">
+                    <span className="text-[7.5px] font-title font-black text-zinc-500 uppercase tracking-widest leading-tight pr-2">
                       {stat.label}
                     </span>
-                    <div className={`p-1.5 rounded-lg ${stat.bg} ${stat.color} border border-transparent group-hover:border-purple-500/10`}>
+                    <div className={`p-1.5 rounded-lg ${stat.bg} ${stat.color} border border-transparent`}>
                       <Icon className="w-3.5 h-3.5" />
                     </div>
                   </div>
-                  <div className="mt-2 text-left">
-                    <span className="text-lg font-title font-black italic text-zinc-100 group-hover:text-purple-400 transition-smooth">
+                  <div className="mt-1 text-left">
+                    <div className="text-xl font-title font-black italic text-zinc-100 group-hover:text-purple-400 transition-smooth leading-none">
                       {stat.value || 0}
-                    </span>
+                    </div>
+                    <div className="text-[8px] font-sans font-medium text-zinc-500 mt-1 uppercase tracking-wide">
+                      {stat.desc}
+                    </div>
                   </div>
                 </div>
               );
@@ -1590,13 +1217,13 @@ export default function RootDashboard() {
           <div className="flex justify-start items-center gap-2 pt-2 border-t border-[#1c1a2a]/30 select-none">
             <button
               onClick={loadDashboardData}
-              className="bg-[#13121d]/40 hover:bg-[#13121d] text-zinc-400 hover:text-white font-sans text-[10px] font-bold py-1.5 px-3 rounded-lg border border-[#1c1a2a] hover:border-purple-600/30 flex items-center gap-1.5 transition-smooth cursor-pointer"
+              className="bg-transparent hover:bg-purple-500/5 text-zinc-400 hover:text-white font-sans text-[9px] font-extrabold uppercase tracking-wider py-2 px-4 rounded-lg border border-purple-500/20 hover:border-purple-500/40 flex items-center gap-2 transition-smooth cursor-pointer"
             >
-              <RefreshCw className="w-3 h-3 animate-spin-slow" />
+              <RefreshCw className="w-3 h-3" />
               <span>Refresh Stats</span>
             </button>
             {isLeaderOrAdmin && (
-              <span className="text-[9px] text-zinc-650 italic">Admin settings enabled below. Edit stats in the panel controller to broadcast values.</span>
+              <span className="text-[9px] text-zinc-600 italic">Admin settings enabled below. Edit stats in the panel controller to broadcast values.</span>
             )}
           </div>
         </div>
@@ -2218,327 +1845,686 @@ export default function RootDashboard() {
   };
 
   const renderLeaderboard = () => {
-    // Sort by weeklyPoints descending, falling back to activityScore
-    const leaderboardMembers = [...members].sort((a, b) => {
-      const aPoints = a.weeklyPoints !== undefined ? a.weeklyPoints : 0;
-      const bPoints = b.weeklyPoints !== undefined ? b.weeklyPoints : 0;
-      if (bPoints !== aPoints) return bPoints - aPoints;
-      return b.activityScore - a.activityScore;
-    });
+    const mockLeaderboardMembers: WeeklyLeaderboardEntry[] = [
+      { discordId: '110116', username: 'Prem Cullen', nickname: 'Prem Cullen | 110116', roles: ['Event Squad'], weeklyPoints: 62.5, source: 'mock' },
+      { discordId: '70941', username: 'Chloe Veneta', nickname: 'Chloe Veneta | 70941', roles: ['Event Squad'], weeklyPoints: 62, source: 'mock' },
+      { discordId: '101254', username: 'Melissa MakarovVicious', nickname: 'Melissa MakarovVicious | 101254', roles: ['Event Squad'], weeklyPoints: 61, source: 'mock' },
+      { discordId: '133338', username: 'Aayush MakarovVicious', nickname: 'Aayush MakarovVicious | 133338', roles: ['Event Squad'], weeklyPoints: 60.5, source: 'mock' },
+      { discordId: '144778', username: 'Evan Verlice', nickname: 'Evan Verlice | 144778', roles: ['Event Squad'], weeklyPoints: 60, source: 'mock' },
+      { discordId: '61783', username: 'Quaresma | Dona --', nickname: 'Quaresma | Dona -- 61783', roles: ['Event Squad'], weeklyPoints: 57, source: 'mock' },
+      { discordId: '151867', username: 'Rex Nocap', nickname: 'Rex Nocap | 151867', roles: ['Event Squad'], weeklyPoints: 55.5, source: 'mock' },
+      { discordId: 'mock-anvy', username: 'Anvy', nickname: 'Anvy', roles: ['Event Squad'], weeklyPoints: 54, source: 'mock' },
+      { discordId: '60696', username: 'Eve Riviera', nickname: 'Eve Riviera | 60696', roles: ['Event Squad'], weeklyPoints: 52.5, source: 'mock' },
+      { discordId: '118681', username: 'tom scofiel', nickname: 'tom scofiel | 118681', roles: ['Event Squad'], weeklyPoints: 52.5, source: 'mock' },
+      { discordId: '82934', username: 'Sukuna MakarovVicious', nickname: 'Sukuna MakarovVicious | 82934', roles: ['Event Squad'], weeklyPoints: 50.5, source: 'mock' },
+      { discordId: '48079', username: 'Yasseen Riviera', nickname: 'Yasseen Riviera | 48079', roles: ['Event Squad'], weeklyPoints: 45.5, source: 'mock' },
+      { discordId: 'mock-alikagan', username: 'Alikagan', nickname: 'Alikagan', roles: ['Event Squad'], weeklyPoints: 45, source: 'mock' },
+      { discordId: '52589', username: 'Fred Riviera', nickname: 'Fred Riviera 52589', roles: ['Event Squad'], weeklyPoints: 44.5, source: 'mock' },
+      { discordId: '24644', username: 'Yash Riviera', nickname: 'Yash Riviera 24644', roles: ['Event Squad'], weeklyPoints: 44, source: 'mock' },
+      { discordId: '68192', username: 'Ace Verlice', nickname: 'Ace Verlice | 68192', roles: ['Event Squad'], weeklyPoints: 40, source: 'mock' },
+      { discordId: '155077', username: 'Akash', nickname: 'Akash | 155077', roles: ['Event Squad'], weeklyPoints: 38.5, source: 'mock' },
+      { discordId: 'mock-cobra', username: 'Cobra Entity', nickname: 'Cobra Entity', roles: ['Event Squad'], weeklyPoints: 38, source: 'mock' },
+      { discordId: '105776', username: 'Rjay Entity', nickname: 'Rjay Entity | 105776', roles: ['Event Squad'], weeklyPoints: 38, source: 'mock' },
+      { discordId: '171896', username: 'Louis Silva', nickname: 'Louis Silva | 171896', roles: ['Event Squad'], weeklyPoints: 38, source: 'mock' }
+    ];
+
+    const liveLeaderboardMembers: WeeklyLeaderboardEntry[] = [...members]
+      .sort((a, b) => {
+        const aPoints = a.weeklyPoints ?? 0;
+        const bPoints = b.weeklyPoints ?? 0;
+        if (bPoints !== aPoints) return bPoints - aPoints;
+        return b.activityScore - a.activityScore;
+      })
+      .slice(0, 20)
+      .map(member => ({
+        discordId: member.discordId,
+        username: member.username,
+        nickname: member.nickname || `${member.username} | ${member.discordId}`,
+        roles: member.roles || [],
+        weeklyPoints: member.weeklyPoints ?? 0,
+        source: 'live'
+      }));
+
+    const hasLiveLeaderboardData = liveLeaderboardMembers.length > 0;
+    const leaderboardMembers = hasLiveLeaderboardData ? liveLeaderboardMembers : mockLeaderboardMembers;
+    const totalPoints = leaderboardMembers.reduce((sum, member) => sum + member.weeklyPoints, 0);
+    const totalPlayers = hasLiveLeaderboardData
+      ? leaderboardMembers.filter(member => member.weeklyPoints > 0).length
+      : 99;
+    const isMock = !hasLiveLeaderboardData;
 
     const isAuditor = checkAccess('admin');
+    const formatPoints = (points: number) => points.toFixed(1).replace(/\.0$/, '');
+    const getDisplayId = (member: WeeklyLeaderboardEntry) => member.discordId.startsWith('mock-') ? 'pending' : member.discordId;
+    const rankTone = (rank: number) => {
+      if (rank === 1) return 'border-[#ff9f1c]/55 bg-[#ff9f1c]/12 text-[#ffbf5c]';
+      if (rank === 2) return 'border-cyan-300/45 bg-cyan-300/10 text-cyan-100';
+      if (rank === 3) return 'border-emerald-300/40 bg-emerald-300/10 text-emerald-200';
+      return 'border-cyan-400/18 bg-cyan-400/5 text-zinc-300';
+    };
 
     return (
-      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#1c1a2a]/50 pb-3 gap-3">
-          <div>
-            <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2 uppercase">
-              📊┃𝐖𝐞𝐞𝐤𝐥𝐲 𝐄𝐯𝐞𝐧𝐭 𝐋𝐞𝐚𝐝𝐞𝐫𝐛𝐨𝐚𝐫𝐝
-            </h2>
-            <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mt-0.5">
-              Live event points leaderboard matching our Discord feed
-            </p>
+      <div className="space-y-5 font-sans stagger-child">
+        <section className="border border-cyan-400/18 bg-[#0d1117]/92 shadow-[0_0_34px_rgba(0,212,255,0.08)]">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-cyan-400/15 px-4 sm:px-5 py-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="h-2 w-2 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
+                <h2 className="font-title text-2xl font-black uppercase text-[#f0f6ff] leading-none">
+                  Weekly Event Leaderboard
+                </h2>
+                <span className={`font-tech text-[9px] uppercase px-2 py-1 border ${isMock ? 'border-[#ff9f1c]/40 text-[#ffb84d] bg-[#ff9f1c]/10' : 'border-emerald-400/35 text-emerald-300 bg-emerald-400/10'}`}>
+                  {isMock ? 'Mock Roster' : 'Live Roster'}
+                </span>
+              </div>
+              <p className="mt-1 font-tech text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                Event point standings // channel relay
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="border border-cyan-400/20 bg-cyan-400/5 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Total Points</div>
+                <div className="font-tech text-sm font-bold text-cyan-200">{formatPoints(totalPoints)}</div>
+              </div>
+              <div className="border border-cyan-400/20 bg-cyan-400/5 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Players</div>
+                <div className="font-tech text-sm font-bold text-cyan-200">{totalPlayers}</div>
+              </div>
+              <div className="border border-[#ff9f1c]/25 bg-[#ff9f1c]/8 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Next Reset</div>
+                <div className="font-tech text-sm font-bold text-[#ffb84d]">in 4 days</div>
+              </div>
+            </div>
           </div>
-          {isAuditor && (
-            <button
-              onClick={async () => {
-                if (confirm('Are you sure you want to deploy/sync the Weekly Event Leaderboard Embed in Discord?')) {
-                  try {
-                    const res = await fetch(`${API_BASE_URL}/api/admin/deploy-leaderboard-prompt`, { method: 'POST' });
-                    if (res.ok) {
-                      addNotification('Embed Deployed', 'Leaderboard feed successfully pushed to Discord!', 'success');
-                    } else {
-                      addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
-                    }
-                  } catch (e) {}
-                }
-              }}
-              className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-title font-black italic tracking-wide py-1.5 px-3 rounded-lg border border-purple-500 hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
-            >
-              DEPLOY LEADERBOARD TO DISCORD
-            </button>
-          )}
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-sans">
-            <thead>
-              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
-                <th className="py-2.5 px-3">#</th>
-                <th className="py-2.5 px-3">Player Name</th>
-                <th className="py-2.5 px-3">Sync Handle</th>
-                <th className="py-2.5 px-3">Assigned Roles</th>
-                <th className="py-2.5 px-3 text-right">Event Points</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboardMembers.map((m, idx) => {
-                const pointsVal = weeklyPointsForm[m.discordId] !== undefined 
-                  ? weeklyPointsForm[m.discordId] 
-                  : String(m.weeklyPoints || 0);
+          <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5 p-4 sm:p-5">
+            <div className="border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
+              <div className="hidden md:grid grid-cols-[72px_minmax(0,1.3fr)_130px_130px_130px] gap-3 border-b border-cyan-400/15 bg-cyan-400/5 px-4 py-2 font-tech text-[9px] uppercase tracking-[0.14em] text-zinc-500">
+                <span>Rank</span>
+                <span>Member Name</span>
+                <span>Citizen ID</span>
+                <span>Role</span>
+                <span className="text-right">Points</span>
+              </div>
 
-                return (
-                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
-                    <td className="py-3 px-3 font-bold text-zinc-500 italic">#{idx + 1}</td>
-                    <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
-                    <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
-                    <td className="py-3 px-3 text-zinc-500">{m.roles.join(', ')}</td>
-                    <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">
-                      {isAuditor ? (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <input
-                            type="text"
-                            value={pointsVal}
-                            onChange={(e) => setWeeklyPointsForm(prev => ({ ...prev, [m.discordId]: e.target.value }))}
-                            className="w-16 bg-[#0a0a14] border border-[#1c1a2a] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
-                          />
-                          <button
-                            onClick={() => handleUpdateWeeklyPoints(m.discordId, pointsVal)}
-                            className="bg-purple-950/20 hover:bg-purple-950/40 border border-purple-800/35 hover:border-purple-600/60 text-purple-400 hover:text-white px-2 py-1 rounded text-[9px] font-sans font-bold transition-smooth cursor-pointer"
-                          >
-                            Set
-                          </button>
+              <div className="divide-y divide-cyan-400/10">
+                {leaderboardMembers.map((member, index) => {
+                  const rank = index + 1;
+                  const pointsVal = weeklyPointsForm[member.discordId] !== undefined
+                    ? weeklyPointsForm[member.discordId]
+                    : String(member.weeklyPoints || 0);
+                  const canEditLivePoints = isAuditor && member.source === 'live';
+
+                  return (
+                    <div
+                      key={member.discordId}
+                      className="grid md:grid-cols-[72px_minmax(0,1.3fr)_130px_130px_130px] gap-3 items-center px-4 py-3 hover:bg-cyan-400/5 transition-smooth"
+                    >
+                      <div>
+                        <span className={`inline-flex min-w-11 items-center justify-center border px-2 py-1 font-tech text-[11px] font-bold ${rankTone(rank)}`}>
+                          #{rank}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-title text-[16px] font-bold uppercase text-[#f0f6ff]">
+                          {member.username}
                         </div>
-                      ) : (
-                        <span>{(m.weeklyPoints || 0).toFixed(1).replace(/\.0$/, '')} pts</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        <div className="mt-0.5 truncate font-tech text-[10px] uppercase text-zinc-500">
+                          {member.nickname}
+                        </div>
+                      </div>
+                      <div className="font-tech text-[11px] uppercase text-cyan-200">
+                        {getDisplayId(member)}
+                      </div>
+                      <div className="truncate font-tech text-[10px] uppercase text-zinc-500">
+                        {member.roles[0] || 'Event Squad'}
+                      </div>
+                      <div className="flex items-center justify-end gap-2 font-tech text-[12px] text-[#f0f6ff]">
+                        {canEditLivePoints ? (
+                          <>
+                            <input
+                              type="text"
+                              value={pointsVal}
+                              onChange={(e) => setWeeklyPointsForm(prev => ({ ...prev, [member.discordId]: e.target.value }))}
+                              className="w-16 bg-[#0a0f18] border border-cyan-400/20 p-1 text-center text-cyan-100 outline-none focus:border-cyan-300"
+                              aria-label={`Weekly points for ${member.username}`}
+                            />
+                            <button
+                              onClick={() => handleUpdateWeeklyPoints(member.discordId, pointsVal)}
+                              className="border border-cyan-400/35 bg-cyan-400/10 px-2 py-1 text-[9px] font-bold uppercase text-cyan-200 hover:bg-cyan-400/18 active:scale-95 transition-smooth cursor-pointer"
+                            >
+                              Set
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-cyan-100"><strong>{formatPoints(member.weeklyPoints)}</strong> pts</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <aside className="space-y-4">
+              <div className="border border-cyan-400/15 bg-[#090f16]/88 p-4">
+                <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Data Source</div>
+                <div className="mt-3 flex items-center justify-between border border-cyan-400/15 bg-cyan-400/5 px-3 py-2">
+                  <span className="font-tech text-[11px] uppercase text-cyan-100">{isMock ? 'Mock sample loaded' : 'Live channel sync'}</span>
+                  <span className={`h-2 w-2 ${isMock ? 'bg-[#ff9f1c]' : 'bg-emerald-400'} shadow-[0_0_10px_rgba(0,212,255,0.7)]`} />
+                </div>
+                <p className="mt-3 text-[11px] leading-relaxed text-zinc-400">
+                  {isMock
+                    ? 'Local preview dataset active.'
+                    : 'Live member dataset active.'}
+                </p>
+              </div>
+
+              <div className="border border-cyan-400/15 bg-[#090f16]/88 p-4">
+                <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Point System</div>
+                <div className="mt-3 space-y-2 font-tech text-[11px] uppercase text-zinc-300">
+                  <div className="flex justify-between border-b border-cyan-400/10 pb-2"><span>Harbor</span><strong className="text-cyan-200">1</strong></div>
+                  <div className="flex justify-between border-b border-cyan-400/10 pb-2"><span>Weapons Factory</span><strong className="text-cyan-200">2</strong></div>
+                  <div className="flex justify-between border-b border-cyan-400/10 pb-2"><span>RP Ticket</span><strong className="text-cyan-200">2</strong></div>
+                  <div className="flex justify-between"><span>Foundry</span><strong className="text-cyan-200">3</strong></div>
+                </div>
+              </div>
+
+              {isAuditor && (
+                <button
+                  onClick={async () => {
+                    if (confirm('Are you sure you want to deploy/sync the Weekly Event Leaderboard Embed in Discord?')) {
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/api/admin/deploy-leaderboard-prompt`, { method: 'POST' });
+                        if (res.ok) {
+                          addNotification('Embed Deployed', 'Leaderboard feed successfully pushed to Discord!', 'success');
+                        } else {
+                          addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
+                        }
+                      } catch {
+                        addNotification('Deployment Failed', 'Network failure while syncing Discord embed.', 'error');
+                      }
+                    }
+                  }}
+                  className="w-full border border-cyan-400/35 bg-cyan-400/10 px-3 py-2.5 font-title text-[11px] font-black uppercase text-cyan-100 hover:bg-cyan-400/18 active:scale-[0.98] transition-smooth cursor-pointer"
+                >
+                  Sync Live Leaderboard
+                </button>
+              )}
+            </aside>
+          </div>
+        </section>
       </div>
     );
   };
 
   const renderLongTimeKillList = () => {
-    const list = [...members]
+    type KillLeaderboardEntry = {
+      discordId: string;
+      username: string;
+      nickname: string;
+      kills: number;
+      isTop10: boolean;
+      source: 'live' | 'mock';
+    };
+
+    const mockKillMembers: KillLeaderboardEntry[] = [
+      { discordId: '171896', username: 'Louis Silva', nickname: 'Louis Silva | 171896', kills: 137, isTop10: true, source: 'mock' },
+      { discordId: '155077', username: 'Akash', nickname: 'Akash | 155077', kills: 134, isTop10: true, source: 'mock' },
+      { discordId: '130686', username: 'Mikey Bonz', nickname: 'Mikey Bonz | 130686', kills: 132, isTop10: true, source: 'mock' },
+      { discordId: 'mock-cobra', username: 'Cobra Entity', nickname: 'Cobra Entity', kills: 116, isTop10: true, source: 'mock' },
+      { discordId: '48888', username: 'Michael Makarovvicious', nickname: 'Michael Makarovvicious 48888', kills: 110, isTop10: true, source: 'mock' },
+      { discordId: '170715', username: 'Clark Turechad', nickname: 'Clark Turechad 170715', kills: 107, isTop10: true, source: 'mock' },
+      { discordId: '48079', username: 'Yasseen Riviera', nickname: 'Yasseen Riviera | 48079', kills: 103, isTop10: true, source: 'mock' },
+      { discordId: '12623', username: 'winston wir', nickname: 'winston wir | 12623', kills: 101, isTop10: true, source: 'mock' },
+      { discordId: '70941', username: 'Chloe Veneta', nickname: 'Chloe Veneta | 70941', kills: 100, isTop10: true, source: 'mock' },
+      { discordId: 'mock-alikagan', username: 'Alikagan', nickname: 'Alikagan', kills: 93, isTop10: true, source: 'mock' },
+      { discordId: '61783', username: 'Quaresma | Dona ~', nickname: 'Quaresma | Dona ~ 61783', kills: 89, isTop10: false, source: 'mock' },
+      { discordId: 'mock-dick-supplier', username: 'Dick Supplier', nickname: 'Dick Supplier', kills: 86, isTop10: false, source: 'mock' },
+      { discordId: '82934', username: 'Sukuna MakarovVicious', nickname: 'Sukuna MakarovVicious | 82934', kills: 86, isTop10: false, source: 'mock' },
+      { discordId: '172247', username: 'Dryhes Mattis', nickname: 'Dryhes Mattis 172247', kills: 81, isTop10: false, source: 'mock' },
+      { discordId: '101254', username: 'Melissa MakarovVicious', nickname: 'Melissa MakarovVicious | 101254', kills: 81, isTop10: false, source: 'mock' },
+      { discordId: '3572', username: 'Lokmane Bonz', nickname: 'Lokmane Bonz | 3572', kills: 77, isTop10: false, source: 'mock' },
+      { discordId: '116365', username: 'Caln Vicious', nickname: 'Caln Vicious 116365', kills: 74, isTop10: false, source: 'mock' },
+      { discordId: '127353', username: 'Franz Barnicht', nickname: 'Franz Barnicht | 127353', kills: 72, isTop10: false, source: 'mock' },
+      { discordId: 'mock-gardy', username: 'Gardy', nickname: 'Gardy', kills: 71, isTop10: false, source: 'mock' },
+      { discordId: '7386', username: 'Bruno Dior', nickname: 'Bruno Dior | 7386', kills: 70, isTop10: false, source: 'mock' },
+      { discordId: '110116', username: 'Prem Cullen', nickname: 'Prem Cullen | 110116', kills: 70, isTop10: false, source: 'mock' },
+      { discordId: '152194', username: 'Calvin Revy', nickname: 'Calvin Revy | 152194', kills: 68, isTop10: false, source: 'mock' },
+      { discordId: '43022', username: 'Aditya/Fake Vicious', nickname: 'Aditya/Fake Vicious 43022', kills: 67, isTop10: false, source: 'mock' },
+      { discordId: 'mock-can', username: 'can', nickname: 'can', kills: 64, isTop10: false, source: 'mock' }
+    ];
+
+    const liveKillMembers: KillLeaderboardEntry[] = [...members]
       .filter(m => !['PigeonBoss', 'VitoScaletta', 'TonyMontana'].includes(m.username))
-      .sort((a, b) => b.kills - a.kills);
+      .sort((a, b) => b.kills - a.kills)
+      .slice(0, 50)
+      .map(member => ({
+        discordId: member.discordId,
+        username: member.username,
+        nickname: member.nickname || `${member.username} | ${member.discordId}`,
+        kills: member.kills || 0,
+        isTop10: member.isTop10,
+        source: 'live'
+      }));
+
+    const hasLiveKillData = liveKillMembers.length > 0;
+    const list = hasLiveKillData ? liveKillMembers : mockKillMembers;
+    const totalKills = list.reduce((sum, member) => sum + member.kills, 0);
+    const topKillCount = list[0]?.kills || 0;
+    const isMock = !hasLiveKillData;
     const isAuditor = checkAccess('admin');
+    const getDisplayId = (member: KillLeaderboardEntry) => member.discordId.startsWith('mock-') ? 'pending' : member.discordId;
+    const rankTone = (rank: number) => {
+      if (rank === 1) return 'border-[#ff9f1c]/55 bg-[#ff9f1c]/12 text-[#ffbf5c]';
+      if (rank === 2) return 'border-cyan-300/45 bg-cyan-300/10 text-cyan-100';
+      if (rank === 3) return 'border-emerald-300/40 bg-emerald-300/10 text-emerald-200';
+      return 'border-cyan-400/18 bg-cyan-400/5 text-zinc-300';
+    };
 
     return (
-      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#1c1a2a]/50 pb-2 gap-3">
-          <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
-            💀 ALL TIME KILLS LEADERBOARD
-          </h2>
-          {isAuditor && (
-            <button
-              onClick={async () => {
-                if (confirm('Are you sure you want to deploy the interactive All Time Kills Leaderboard Embed in Discord?')) {
-                  try {
-                    const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
-                    const res = await fetch(`${API_BASE_URL}/api/admin/deploy-alltime-kills-prompt`, {
-                      method: 'POST',
-                      headers: { 
-                        'Content-Type': 'application/json',
-                        'x-admin-passcode': passcode
-                      }
-                    });
-                    if (res.ok) {
-                      addNotification('Embed Deployed', 'All-time kills leaderboard feed pushed to Discord!', 'success');
-                    } else {
-                      addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
-                    }
-                  } catch (e) {}
-                }
-              }}
-              className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-title font-black italic tracking-wide py-1.5 px-3 rounded-lg border border-purple-500 hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
-            >
-              DEPLOY ALL-TIME KILLS TO DISCORD
-            </button>
-          )}
-        </div>
+      <div className="space-y-5 font-sans stagger-child">
+        <section className="border border-cyan-400/18 bg-[#0d1117]/92 shadow-[0_0_34px_rgba(0,212,255,0.08)]">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-cyan-400/15 px-4 sm:px-5 py-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="h-2 w-2 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
+                <h2 className="font-title text-2xl font-black uppercase text-[#f0f6ff] leading-none">
+                  All Time Kills
+                </h2>
+                <span className={`font-tech text-[9px] uppercase px-2 py-1 border ${isMock ? 'border-[#ff9f1c]/40 text-[#ffb84d] bg-[#ff9f1c]/10' : 'border-emerald-400/35 text-emerald-300 bg-emerald-400/10'}`}>
+                  {isMock ? 'Mock Roster' : 'Live Roster'}
+                </span>
+              </div>
+              <p className="mt-1 font-tech text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                Lifetime kill standings // channel relay
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="border border-cyan-400/20 bg-cyan-400/5 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Total Kills</div>
+                <div className="font-tech text-sm font-bold text-cyan-200">{totalKills.toLocaleString()}</div>
+              </div>
+              <div className="border border-cyan-400/20 bg-cyan-400/5 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Marksmen</div>
+                <div className="font-tech text-sm font-bold text-cyan-200">{list.length}</div>
+              </div>
+              <div className="border border-[#ff9f1c]/25 bg-[#ff9f1c]/8 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Top Count</div>
+                <div className="font-tech text-sm font-bold text-[#ffb84d]">{topKillCount}</div>
+              </div>
+            </div>
+          </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-sans">
-            <thead>
-              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
-                <th className="py-2.5 px-3">#</th>
-                <th className="py-2.5 px-3">Marksman</th>
-                <th className="py-2.5 px-3">Combat Tag</th>
-                <th className="py-2.5 px-3">Top 10 Priority</th>
-                <th className="py-2.5 px-3 text-right">Lifetime Kills</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((m, idx) => {
-                const killsVal = killsForm[m.discordId] !== undefined 
-                  ? killsForm[m.discordId] 
-                  : String(m.kills || 0);
+          <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5 p-4 sm:p-5">
+            <div className="border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
+              <div className="hidden md:grid grid-cols-[72px_minmax(0,1.3fr)_130px_130px_130px] gap-3 border-b border-cyan-400/15 bg-cyan-400/5 px-4 py-2 font-tech text-[9px] uppercase tracking-[0.14em] text-zinc-500">
+                <span>Rank</span>
+                <span>Marksman</span>
+                <span>Citizen ID</span>
+                <span>Status</span>
+                <span className="text-right">Kills</span>
+              </div>
 
-                let rankIcon = `#${idx + 1}`;
-                if (idx === 0) rankIcon = '👑 #1';
-                else if (idx === 1) rankIcon = '⭐ #2';
-                else if (idx === 2) rankIcon = '⚡ #3';
+              <div className="divide-y divide-cyan-400/10">
+                {list.map((member, index) => {
+                  const rank = index + 1;
+                  const killsVal = killsForm[member.discordId] !== undefined
+                    ? killsForm[member.discordId]
+                    : String(member.kills || 0);
+                  const canEditLiveKills = isAuditor && member.source === 'live';
+                  const shooterStatus = member.isTop10 || rank <= 10 ? 'Elite Shooter' : 'Operative';
 
-                return (
-                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
-                    <td className="py-3 px-3 font-bold text-zinc-500 italic">{rankIcon}</td>
-                    <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
-                    <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
-                    <td className="py-3 px-3 text-zinc-500">{m.isTop10 ? 'Elite Shooter' : 'Operative'}</td>
-                    <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">
-                      {isAuditor ? (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <input
-                            type="text"
-                            value={killsVal}
-                            onChange={(e) => setKillsForm(prev => ({ ...prev, [m.discordId]: e.target.value }))}
-                            className="w-16 bg-[#0a0a14] border border-[#1c1a2a] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
-                          />
-                          <button
-                            onClick={() => handleUpdateKills(m.discordId, killsVal)}
-                            className="bg-purple-950/20 hover:bg-purple-950/40 border border-purple-800/35 hover:border-purple-600/60 text-purple-400 hover:text-white px-2 py-1 rounded text-[9px] font-sans font-bold transition-smooth cursor-pointer"
-                          >
-                            Set
-                          </button>
+                  return (
+                    <div
+                      key={member.discordId}
+                      className="grid md:grid-cols-[72px_minmax(0,1.3fr)_130px_130px_130px] gap-3 items-center px-4 py-3 hover:bg-cyan-400/5 transition-smooth"
+                    >
+                      <div>
+                        <span className={`inline-flex min-w-11 items-center justify-center border px-2 py-1 font-tech text-[11px] font-bold ${rankTone(rank)}`}>
+                          #{rank}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-title text-[16px] font-bold uppercase text-[#f0f6ff]">
+                          {member.username}
                         </div>
-                      ) : (
-                        <span>💀 {m.kills || 0} kills</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        <div className="mt-0.5 truncate font-tech text-[10px] uppercase text-zinc-500">
+                          {member.nickname}
+                        </div>
+                      </div>
+                      <div className="font-tech text-[11px] uppercase text-cyan-200">
+                        {getDisplayId(member)}
+                      </div>
+                      <div className="truncate font-tech text-[10px] uppercase text-zinc-500">
+                        {shooterStatus}
+                      </div>
+                      <div className="flex items-center justify-end gap-2 font-tech text-[12px] text-[#f0f6ff]">
+                        {canEditLiveKills ? (
+                          <>
+                            <input
+                              type="text"
+                              value={killsVal}
+                              onChange={(e) => setKillsForm(prev => ({ ...prev, [member.discordId]: e.target.value }))}
+                              className="w-16 bg-[#0a0f18] border border-cyan-400/20 p-1 text-center text-cyan-100 outline-none focus:border-cyan-300"
+                              aria-label={`All time kills for ${member.username}`}
+                            />
+                            <button
+                              onClick={() => handleUpdateKills(member.discordId, killsVal)}
+                              className="border border-cyan-400/35 bg-cyan-400/10 px-2 py-1 text-[9px] font-bold uppercase text-cyan-200 hover:bg-cyan-400/18 active:scale-95 transition-smooth cursor-pointer"
+                            >
+                              Set
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-cyan-100"><strong>{member.kills}</strong> kills</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <aside className="space-y-4">
+              <div className="border border-cyan-400/15 bg-[#090f16]/88 p-4">
+                <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Data Source</div>
+                <div className="mt-3 flex items-center justify-between border border-cyan-400/15 bg-cyan-400/5 px-3 py-2">
+                  <span className="font-tech text-[11px] uppercase text-cyan-100">{isMock ? 'Mock sample loaded' : 'Live kill sync'}</span>
+                  <span className={`h-2 w-2 ${isMock ? 'bg-[#ff9f1c]' : 'bg-emerald-400'} shadow-[0_0_10px_rgba(0,212,255,0.7)]`} />
+                </div>
+                <p className="mt-3 text-[11px] leading-relaxed text-zinc-400">
+                  {isMock ? 'Local preview dataset active.' : 'Live member dataset active.'}
+                </p>
+              </div>
+
+              <div className="border border-cyan-400/15 bg-[#090f16]/88 p-4">
+                <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Kill Metrics</div>
+                <div className="mt-3 space-y-2 font-tech text-[11px] uppercase text-zinc-300">
+                  <div className="flex justify-between border-b border-cyan-400/10 pb-2"><span>Total Kills</span><strong className="text-cyan-200">{totalKills.toLocaleString()}</strong></div>
+                  <div className="flex justify-between border-b border-cyan-400/10 pb-2"><span>Top Count</span><strong className="text-cyan-200">{topKillCount}</strong></div>
+                  <div className="flex justify-between"><span>Tracked Marksmen</span><strong className="text-cyan-200">{list.length}</strong></div>
+                </div>
+              </div>
+
+              {isAuditor && (
+                <button
+                  onClick={async () => {
+                    if (confirm('Are you sure you want to deploy/sync the All Time Kills leaderboard in Discord?')) {
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/api/admin/deploy-alltime-kills-prompt`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          }
+                        });
+                        if (res.ok) {
+                          addNotification('Leaderboard Synced', 'All-time kills feed pushed to Discord.', 'success');
+                        } else {
+                          addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
+                        }
+                      } catch {
+                        addNotification('Deployment Failed', 'Network failure while syncing All Time Kills.', 'error');
+                      }
+                    }
+                  }}
+                  className="w-full border border-cyan-400/35 bg-cyan-400/10 px-3 py-2.5 font-title text-[11px] font-black uppercase text-cyan-100 hover:bg-cyan-400/18 active:scale-[0.98] transition-smooth cursor-pointer"
+                >
+                  Sync All Time Kills
+                </button>
+              )}
+            </aside>
+          </div>
+        </section>
       </div>
     );
   };
 
   const renderWeeklyKillList = () => {
-    const list = [...members]
+    type WeeklyKillEntry = {
+      discordId: string;
+      username: string;
+      nickname: string;
+      weeklyKills: number;
+      isTop10: boolean;
+      source: 'live' | 'mock';
+    };
+
+    const mockWeeklyKillMembers: WeeklyKillEntry[] = [
+      { discordId: '70941', username: 'Chloe Veneta', nickname: 'Chloe Veneta | 70941', weeklyKills: 60, isTop10: true, source: 'mock' },
+      { discordId: '170715', username: 'Clark Turechad', nickname: 'Clark Turechad 170715', weeklyKills: 56, isTop10: true, source: 'mock' },
+      { discordId: '155077', username: 'Akash', nickname: 'Akash | 155077', weeklyKills: 50, isTop10: true, source: 'mock' },
+      { discordId: '101254', username: 'Melissa MakarovVicious', nickname: 'Melissa MakarovVicious | 101254', weeklyKills: 49, isTop10: true, source: 'mock' },
+      { discordId: 'mock-cobra', username: 'Cobra Entity', nickname: 'Cobra Entity', weeklyKills: 46, isTop10: true, source: 'mock' },
+      { discordId: '82934', username: 'Sukuna MakarovVicious', nickname: 'Sukuna MakarovVicious | 82934', weeklyKills: 37, isTop10: true, source: 'mock' },
+      { discordId: '48888', username: 'Michael Makarovvicious', nickname: 'Michael Makarovvicious 48888', weeklyKills: 36, isTop10: true, source: 'mock' },
+      { discordId: 'mock-alikagan', username: 'Alikagan', nickname: 'Alikagan', weeklyKills: 33, isTop10: true, source: 'mock' },
+      { discordId: 'mock-harry', username: 'Harry', nickname: 'Harry', weeklyKills: 33, isTop10: true, source: 'mock' },
+      { discordId: '24644', username: 'Yash Riviera', nickname: 'Yash Riviera 24644', weeklyKills: 30, isTop10: true, source: 'mock' },
+      { discordId: '61783', username: 'Quaresma | Dona ~', nickname: 'Quaresma | Dona ~ 61783', weeklyKills: 29, isTop10: false, source: 'mock' },
+      { discordId: '152194', username: 'Calvin Reyy', nickname: 'Calvin Reyy | 152194', weeklyKills: 26, isTop10: false, source: 'mock' },
+      { discordId: '133338', username: 'Aayush MakarovVicious', nickname: 'Aayush MakarovVicious | 133338', weeklyKills: 25, isTop10: false, source: 'mock' },
+      { discordId: '110116', username: 'Prem Cullen', nickname: 'Prem Cullen | 110116', weeklyKills: 24, isTop10: false, source: 'mock' },
+      { discordId: 'mock-dick-supplier', username: 'Dick Supplier', nickname: 'Dick Supplier', weeklyKills: 23, isTop10: false, source: 'mock' },
+      { discordId: '171896', username: 'Louis Silva', nickname: 'Louis Silva | 171896', weeklyKills: 20, isTop10: false, source: 'mock' },
+      { discordId: '116365', username: 'Calm Vicious', nickname: 'Calm Vicious 116365', weeklyKills: 19, isTop10: false, source: 'mock' },
+      { discordId: '48079', username: 'Yasseen Riviera', nickname: 'Yasseen Riviera | 48079', weeklyKills: 19, isTop10: false, source: 'mock' }
+    ];
+
+    const liveWeeklyKillMembers: WeeklyKillEntry[] = [...members]
       .filter(m => !['PigeonBoss', 'VitoScaletta', 'TonyMontana'].includes(m.username))
-      .sort((a, b) => b.weeklyKills - a.weeklyKills);
+      .sort((a, b) => b.weeklyKills - a.weeklyKills)
+      .slice(0, 50)
+      .map(member => ({
+        discordId: member.discordId,
+        username: member.username,
+        nickname: member.nickname || `${member.username} | ${member.discordId}`,
+        weeklyKills: member.weeklyKills || 0,
+        isTop10: member.isTop10,
+        source: 'live'
+      }));
+
+    const hasLiveWeeklyKillData = liveWeeklyKillMembers.length > 0;
+    const list = hasLiveWeeklyKillData ? liveWeeklyKillMembers : mockWeeklyKillMembers;
+    const totalWeeklyKills = list.reduce((sum, member) => sum + member.weeklyKills, 0);
+    const topWeeklyKillCount = list[0]?.weeklyKills || 0;
+    const isMock = !hasLiveWeeklyKillData;
     const isAuditor = checkAccess('admin');
+    const getDisplayId = (member: WeeklyKillEntry) => member.discordId.startsWith('mock-') ? 'pending' : member.discordId;
+    const rankTone = (rank: number) => {
+      if (rank === 1) return 'border-[#ff9f1c]/55 bg-[#ff9f1c]/12 text-[#ffbf5c]';
+      if (rank === 2) return 'border-cyan-300/45 bg-cyan-300/10 text-cyan-100';
+      if (rank === 3) return 'border-emerald-300/40 bg-emerald-300/10 text-emerald-200';
+      return 'border-cyan-400/18 bg-cyan-400/5 text-zinc-300';
+    };
 
     return (
-      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#1c1a2a]/50 pb-2">
-          <div>
-            <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
-              📊 WEEKLY KILLS LEADERBOARD
-            </h2>
-            <div className="bg-[#0a0a14] border border-[#1c1a2a] px-3.5 py-1 rounded-xl text-[10px] text-zinc-500 flex items-center gap-1.5 w-fit mt-1">
-              <Clock className="w-3.5 h-3.5 text-purple-400" /> RESETS IN: <span className="font-bold text-purple-400 font-sans text-xs">4d 12h 32m</span>
+      <div className="space-y-5 font-sans stagger-child">
+        <section className="border border-cyan-400/18 bg-[#0d1117]/92 shadow-[0_0_34px_rgba(0,212,255,0.08)]">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-cyan-400/15 px-4 sm:px-5 py-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="h-2 w-2 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
+                <h2 className="font-title text-2xl font-black uppercase text-[#f0f6ff] leading-none">
+                  Weekly Kills
+                </h2>
+                <span className={`font-tech text-[9px] uppercase px-2 py-1 border ${isMock ? 'border-[#ff9f1c]/40 text-[#ffb84d] bg-[#ff9f1c]/10' : 'border-emerald-400/35 text-emerald-300 bg-emerald-400/10'}`}>
+                  {isMock ? 'Mock Roster' : 'Live Roster'}
+                </span>
+              </div>
+              <p className="mt-1 font-tech text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                Weekly kill standings // channel relay
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="border border-cyan-400/20 bg-cyan-400/5 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Weekly Kills</div>
+                <div className="font-tech text-sm font-bold text-cyan-200">{totalWeeklyKills.toLocaleString()}</div>
+              </div>
+              <div className="border border-cyan-400/20 bg-cyan-400/5 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Shooters</div>
+                <div className="font-tech text-sm font-bold text-cyan-200">{list.length}</div>
+              </div>
+              <div className="border border-[#ff9f1c]/25 bg-[#ff9f1c]/8 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Top Count</div>
+                <div className="font-tech text-sm font-bold text-[#ffb84d]">{topWeeklyKillCount}</div>
+              </div>
+              <div className="border border-cyan-400/20 bg-cyan-400/5 px-3 py-2">
+                <div className="font-tech text-[8px] uppercase text-zinc-500">Reset</div>
+                <div className="font-tech text-sm font-bold text-cyan-200">4d 12h 32m</div>
+              </div>
             </div>
           </div>
 
-          {isAuditor && (
-            <div className="flex gap-2">
-              <button
-                onClick={async () => {
-                  if (confirm('Are you sure you want to deploy the interactive Weekly Kills Leaderboard Embed in Discord?')) {
-                    try {
-                      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
-                      const res = await fetch(`${API_BASE_URL}/api/admin/deploy-weekly-kills-prompt`, {
-                        method: 'POST',
-                        headers: { 
-                          'Content-Type': 'application/json',
-                          'x-admin-passcode': passcode
-                        }
-                      });
-                      if (res.ok) {
-                        addNotification('Embed Deployed', 'Weekly kills leaderboard feed pushed to Discord!', 'success');
-                      } else {
-                        addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
-                      }
-                    } catch (e) {}
-                  }
-                }}
-                className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-title font-black italic tracking-wide py-1.5 px-3 rounded-lg border border-purple-500 hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
-              >
-                DEPLOY TO DISCORD
-              </button>
+          <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5 p-4 sm:p-5">
+            <div className="border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
+              <div className="hidden md:grid grid-cols-[72px_minmax(0,1.3fr)_130px_130px_130px] gap-3 border-b border-cyan-400/15 bg-cyan-400/5 px-4 py-2 font-tech text-[9px] uppercase tracking-[0.14em] text-zinc-500">
+                <span>Rank</span>
+                <span>Shooter</span>
+                <span>Citizen ID</span>
+                <span>Status</span>
+                <span className="text-right">Kills</span>
+              </div>
 
-              <button
-                onClick={async () => {
-                  if (confirm('Are you sure you want to reset all members\' Weekly Kills to 0? This will sync to Discord instantly.')) {
-                    try {
-                      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
-                      const res = await fetch(`${API_BASE_URL}/api/admin/reset-weekly-kills`, {
-                        method: 'POST',
-                        headers: { 
-                          'Content-Type': 'application/json',
-                          'x-admin-passcode': passcode
-                        }
-                      });
-                      if (res.ok) {
-                        addNotification('Leaderboard Reset', 'All weekly kills successfully reset to 0.', 'success');
-                        loadDashboardData();
-                      } else {
-                        addNotification('Reset Failed', 'Error resetting weekly leaderboard.', 'warning');
-                      }
-                    } catch (e) {}
-                  }
-                }}
-                className="bg-red-950/20 hover:bg-red-950/40 border border-red-900/35 hover:border-red-650 text-red-400 text-[10px] font-title font-black italic tracking-wide py-1.5 px-3 rounded-lg transition-smooth cursor-pointer"
-              >
-                RESET WEEKLY KILLS
-              </button>
-            </div>
-          )}
-        </div>
+              <div className="divide-y divide-cyan-400/10">
+                {list.map((member, index) => {
+                  const rank = index + 1;
+                  const weeklyKillsVal = weeklyKillsForm[member.discordId] !== undefined
+                    ? weeklyKillsForm[member.discordId]
+                    : String(member.weeklyKills || 0);
+                  const canEditLiveWeeklyKills = isAuditor && member.source === 'live';
+                  const shooterStatus = member.isTop10 || rank <= 10 ? 'Top Shooter' : 'Operative';
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-sans">
-            <thead>
-              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
-                <th className="py-2.5 px-3">#</th>
-                <th className="py-2.5 px-3">Shooter</th>
-                <th className="py-2.5 px-3">Radio Tag</th>
-                <th className="py-2.5 px-3">Elite Status</th>
-                <th className="py-2.5 px-3 text-right">Weekly Kills</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((m, idx) => {
-                const weeklyKillsVal = weeklyKillsForm[m.discordId] !== undefined 
-                  ? weeklyKillsForm[m.discordId] 
-                  : String(m.weeklyKills || 0);
-
-                let rankIcon = `#${idx + 1}`;
-                if (idx === 0) rankIcon = '🥇 #1';
-                else if (idx === 1) rankIcon = '🥈 #2';
-                else if (idx === 2) rankIcon = '🥉 #3';
-
-                return (
-                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
-                    <td className="py-3 px-3 font-bold text-zinc-500 italic">{rankIcon}</td>
-                    <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
-                    <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
-                    <td className="py-3 px-3 text-zinc-500">{m.isTop10 ? 'TOP 10 Shooters' : 'Operatives'}</td>
-                    <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">
-                      {isAuditor ? (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <input
-                            type="text"
-                            value={weeklyKillsVal}
-                            onChange={(e) => setWeeklyKillsForm(prev => ({ ...prev, [m.discordId]: e.target.value }))}
-                            className="w-16 bg-[#0a0a14] border border-[#1c1a2a] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
-                          />
-                          <button
-                            onClick={() => handleUpdateWeeklyKills(m.discordId, weeklyKillsVal)}
-                            className="bg-purple-950/20 hover:bg-purple-950/40 border border-purple-800/35 hover:border-purple-600/60 text-purple-400 hover:text-white px-2 py-1 rounded text-[9px] font-sans font-bold transition-smooth cursor-pointer"
-                          >
-                            Set
-                          </button>
+                  return (
+                    <div
+                      key={member.discordId}
+                      className="grid md:grid-cols-[72px_minmax(0,1.3fr)_130px_130px_130px] gap-3 items-center px-4 py-3 hover:bg-cyan-400/5 transition-smooth"
+                    >
+                      <div>
+                        <span className={`inline-flex min-w-11 items-center justify-center border px-2 py-1 font-tech text-[11px] font-bold ${rankTone(rank)}`}>
+                          #{rank}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-title text-[16px] font-bold uppercase text-[#f0f6ff]">
+                          {member.username}
                         </div>
-                      ) : (
-                        <span>💀 {m.weeklyKills || 0} kills</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        <div className="mt-0.5 truncate font-tech text-[10px] uppercase text-zinc-500">
+                          {member.nickname}
+                        </div>
+                      </div>
+                      <div className="font-tech text-[11px] uppercase text-cyan-200">
+                        {getDisplayId(member)}
+                      </div>
+                      <div className="truncate font-tech text-[10px] uppercase text-zinc-500">
+                        {shooterStatus}
+                      </div>
+                      <div className="flex items-center justify-end gap-2 font-tech text-[12px] text-[#f0f6ff]">
+                        {canEditLiveWeeklyKills ? (
+                          <>
+                            <input
+                              type="text"
+                              value={weeklyKillsVal}
+                              onChange={(e) => setWeeklyKillsForm(prev => ({ ...prev, [member.discordId]: e.target.value }))}
+                              className="w-16 bg-[#0a0f18] border border-cyan-400/20 p-1 text-center text-cyan-100 outline-none focus:border-cyan-300"
+                              aria-label={`Weekly kills for ${member.username}`}
+                            />
+                            <button
+                              onClick={() => handleUpdateWeeklyKills(member.discordId, weeklyKillsVal)}
+                              className="border border-cyan-400/35 bg-cyan-400/10 px-2 py-1 text-[9px] font-bold uppercase text-cyan-200 hover:bg-cyan-400/18 active:scale-95 transition-smooth cursor-pointer"
+                            >
+                              Set
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-cyan-100"><strong>{member.weeklyKills}</strong> kills</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <aside className="space-y-4">
+              <div className="border border-cyan-400/15 bg-[#090f16]/88 p-4">
+                <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Data Source</div>
+                <div className="mt-3 flex items-center justify-between border border-cyan-400/15 bg-cyan-400/5 px-3 py-2">
+                  <span className="font-tech text-[11px] uppercase text-cyan-100">{isMock ? 'Mock sample loaded' : 'Live weekly sync'}</span>
+                  <span className={`h-2 w-2 ${isMock ? 'bg-[#ff9f1c]' : 'bg-emerald-400'} shadow-[0_0_10px_rgba(0,212,255,0.7)]`} />
+                </div>
+                <p className="mt-3 text-[11px] leading-relaxed text-zinc-400">
+                  {isMock ? 'Local preview dataset active.' : 'Live member dataset active.'}
+                </p>
+              </div>
+
+              <div className="border border-cyan-400/15 bg-[#090f16]/88 p-4">
+                <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Weekly Metrics</div>
+                <div className="mt-3 space-y-2 font-tech text-[11px] uppercase text-zinc-300">
+                  <div className="flex justify-between border-b border-cyan-400/10 pb-2"><span>Weekly Kills</span><strong className="text-cyan-200">{totalWeeklyKills.toLocaleString()}</strong></div>
+                  <div className="flex justify-between border-b border-cyan-400/10 pb-2"><span>Top Count</span><strong className="text-cyan-200">{topWeeklyKillCount}</strong></div>
+                  <div className="flex justify-between border-b border-cyan-400/10 pb-2"><span>Tracked Shooters</span><strong className="text-cyan-200">{list.length}</strong></div>
+                  <div className="flex justify-between"><span>Reset Window</span><strong className="text-cyan-200">4d 12h</strong></div>
+                </div>
+              </div>
+
+              {isAuditor && (
+                <div className="space-y-2">
+                  <button
+                    onClick={async () => {
+                      if (confirm('Are you sure you want to deploy/sync the Weekly Kills leaderboard in Discord?')) {
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/deploy-weekly-kills-prompt`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Leaderboard Synced', 'Weekly kills feed pushed to Discord.', 'success');
+                          } else {
+                            addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
+                          }
+                        } catch {
+                          addNotification('Deployment Failed', 'Network failure while syncing Weekly Kills.', 'error');
+                        }
+                      }
+                    }}
+                    className="w-full border border-cyan-400/35 bg-cyan-400/10 px-3 py-2.5 font-title text-[11px] font-black uppercase text-cyan-100 hover:bg-cyan-400/18 active:scale-[0.98] transition-smooth cursor-pointer"
+                  >
+                    Sync Weekly Kills
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      if (confirm("Are you sure you want to reset all members' Weekly Kills to 0? This will sync to Discord instantly.")) {
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/reset-weekly-kills`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Leaderboard Reset', 'All weekly kills successfully reset to 0.', 'success');
+                            loadDashboardData();
+                          } else {
+                            addNotification('Reset Failed', 'Error resetting weekly leaderboard.', 'warning');
+                          }
+                        } catch {
+                          addNotification('Reset Failed', 'Network failure while resetting Weekly Kills.', 'error');
+                        }
+                      }
+                    }}
+                    className="w-full border border-red-400/35 bg-red-400/10 px-3 py-2.5 font-title text-[11px] font-black uppercase text-red-200 hover:bg-red-400/15 active:scale-[0.98] transition-smooth cursor-pointer"
+                  >
+                    Reset Weekly Kills
+                  </button>
+                </div>
+              )}
+            </aside>
+          </div>
+        </section>
       </div>
     );
   };
@@ -3218,12 +3204,11 @@ export default function RootDashboard() {
     const confirmed = signups.filter(s => s.status === 'confirmed');
     const reserve = signups.filter(s => s.status === 'reserve' || s.status === 'displaced');
 
-    const title = eventId === 'rp-signup' ? 'Docks Turf Battle' : 'Informal Roster';
     const directives = eventId === 'rp-signup' 
       ? 'Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.'
       : 'Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.';
 
-    const bannerImage = eventId === 'rp-signup' ? '/rp_ticket_banner_v2.png' : '/informal_fight_banner_v2.png';
+    const bannerImage = eventId === 'rp-signup' ? '/rp_ticket_banner.webp' : '/informal_fight_banner.webp';
     const statusBadge = isClosed ? '🔴 Registration is closed!' : '🟢 Registration is active!';
     const embedColor = isClosed ? 'border-[#ff003c]' : 'border-[#00f0ff]';
 
@@ -3258,7 +3243,7 @@ export default function RootDashboard() {
           <div className="flex gap-3">
             {/* Bot Avatar */}
             <div className="w-9 h-9 rounded-full bg-[#111118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
-              <img src="/logo.png" alt="Bot PFP" className="w-full h-full object-cover" />
+              <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
             </div>
 
             {/* Message Body */}
@@ -4209,8 +4194,8 @@ export default function RootDashboard() {
               🏆 LOG PUBLIC INFORMAL WIN
             </h3>
 
-            <form onSubmit={handleLogWin} className="font-sans text-xs flex flex-col gap-4">
-              <input type="hidden" value={winForm.type = 'informal'} />
+            <form onSubmit={(event) => handleLogWin(event, 'informal')} className="font-sans text-xs flex flex-col gap-4">
+              <input type="hidden" value="informal" readOnly />
               
               <div>
                 <label className="text-[10px] text-zinc-500 font-bold block mb-1">BATTLE TITLE</label>

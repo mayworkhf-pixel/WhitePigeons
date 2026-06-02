@@ -1,9 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const path = require('path');
+const { createRateLimiter, isAllowedOrigin } = require('./security');
 
-const db = require('./database');
 const botService = require('./bot');
 
 const authRoutes = require('./routes/auth');
@@ -12,22 +11,11 @@ const apiRoutes = require('./routes/api');
 
 const app = express();
 
-// Dynamic CORS configuration (support both local and Firebase Domains)
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://whitepigeons-35431.web.app',
-  'https://whitepigeons-35431.firebaseapp.com'
-];
+app.set('trust proxy', 1);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      // Allow dynamic check - if it ends with firebaseapp.com/web.app or is localhost
-      if (origin.match(/^https:\/\/whitepigeons-35431\.(web\.app|firebaseapp\.com)$/) || origin.includes('localhost:')) {
-        return callback(null, true);
-      }
+    if (!isAllowedOrigin(origin)) {
       return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
     }
     return callback(null, true);
@@ -35,8 +23,13 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(createRateLimiter({ windowMs: 60_000, max: 240 }));
+app.use('/api/auth/verify-admin', createRateLimiter({ windowMs: 15 * 60_000, max: 10 }));
+app.use('/api/auth/member-login', createRateLimiter({ windowMs: 15 * 60_000, max: 20 }));
+app.use('/api/auth/register', createRateLimiter({ windowMs: 15 * 60_000, max: 12 }));
+
+app.use(express.json({ limit: '64kb' }));
+app.use(express.urlencoded({ extended: true, limit: '64kb' }));
 app.use(cookieParser());
 
 // Mount Routes

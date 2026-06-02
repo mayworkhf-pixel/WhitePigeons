@@ -3,26 +3,44 @@ const router = express.Router();
 const db = require('../database');
 const botService = require('../bot');
 const axios = require('axios');
+const {
+  getConfiguredAdminPassword,
+  getSessionFromRequest,
+  isLeadershipSession,
+  safeEqual,
+  sanitizeMembers,
+  sanitizeString,
+  isHttpUrl
+} = require('../security');
+
+const VALID_EVENT_IDS = new Set(['rp-signup', 'informal-signup']);
+const VALID_CHANNEL_KEYS = new Set([
+  'role-request', 'rolereq-review', 'strikes', 'tickets', 'check-balance',
+  'bonus-approval', 'bizwar-collect', 'rp-collect', 'submit-activity',
+  'activity-results', 'activity-points-leaderboard', 'point-shop',
+  'activity-review', 'order-details', 'rp-signup', 'informal-signup',
+  'public-winlog', 'public-informallog', 'top-10-list', 'bonus-admin-panel'
+]);
+
+function isValidEventId(eventId) {
+  return VALID_EVENT_IDS.has(String(eventId || ''));
+}
 
 // Session helper middlewares
 async function requireMember(req, res, next) {
-  // Check passcode header first (supports client-side local verification bypass)
+  // Optional passcode header supports older clients, but only with the configured server-side passcode.
   const adminPasscodeHeader = req.headers['x-admin-passcode'];
   if (adminPasscodeHeader) {
     const config = await db.getConfig();
-    const correctPassword = config.adminPassword || 'anvy2026';
-    if (adminPasscodeHeader === correctPassword || adminPasscodeHeader === 'anvy2026') {
+    const correctPassword = getConfiguredAdminPassword(config);
+    if (correctPassword && safeEqual(String(adminPasscodeHeader), correctPassword)) {
       req.user = { roles: ['Admin'], admin_authenticated: true, username: 'WP_Admin' };
       return next();
     }
   }
 
-  const authHeader = req.headers['authorization'];
-  let cookie = req.cookies ? req.cookies['wp_session'] : null;
-  if (!cookie && authHeader && authHeader.startsWith('Bearer ')) {
-    cookie = authHeader.substring(7);
-  }
-  if (!cookie) {
+  const session = getSessionFromRequest(req);
+  if (!session) {
     if (req.method === 'GET') {
       req.user = { discordId: 'public-guest', username: 'Guest', roles: ['Member'] };
       return next();
@@ -30,59 +48,38 @@ async function requireMember(req, res, next) {
     return res.status(401).json({ error: 'Please login to access this area.' });
   }
   try {
-    const session = JSON.parse(Buffer.from(cookie, 'base64').toString('utf8'));
     req.user = session;
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: 'Invalid session.' });
   }
 }
 
 async function requireAdmin(req, res, next) {
   const config = await db.getConfig();
-  const correctPassword = config.adminPassword || 'anvy2026';
+  const correctPassword = getConfiguredAdminPassword(config);
 
-  // Check passcode header first (supports client-side local verification bypass)
+  // Optional passcode header supports older clients, but only with the configured server-side passcode.
   const adminPasscodeHeader = req.headers['x-admin-passcode'];
-  if (adminPasscodeHeader) {
-    if (adminPasscodeHeader === correctPassword || adminPasscodeHeader === 'anvy2026') {
+  if (adminPasscodeHeader && correctPassword) {
+    if (safeEqual(String(adminPasscodeHeader), correctPassword)) {
       req.user = { roles: ['Admin'], admin_authenticated: true, username: 'WP_Admin' };
       return next();
     }
   }
 
-  const authHeader = req.headers['authorization'];
-  let cookie = req.cookies ? req.cookies['wp_session'] : null;
-  if (!cookie && authHeader && authHeader.startsWith('Bearer ')) {
-    cookie = authHeader.substring(7);
-  }
-  if (!cookie) {
+  const session = getSessionFromRequest(req);
+  if (!session) {
     return res.status(401).json({ error: 'Please login.' });
   }
 
-  // Fallback check if Authorization Bearer token is the passcode itself
-  if (cookie === correctPassword || cookie === 'anvy2026') {
-    req.user = { roles: ['Admin'], admin_authenticated: true, username: 'WP_Admin' };
-    return next();
-  }
   try {
-    const session = JSON.parse(Buffer.from(cookie, 'base64').toString('utf8'));
-    const isLead = session.isMock || (session.roles && (
-      session.roles.includes('Leadership') || 
-      session.roles.includes('Admin') || 
-      session.roles.includes('High Command') || 
-      session.roles.includes('HIGH COMMAND') || 
-      session.roles.includes('👑 | Leader') || 
-      session.roles.includes('🥇 | UnderBoss') || 
-      session.roles.includes('High-Command') || 
-      session.roles.includes('HC')
-    ));
-    if (!isLead) {
+    if (!isLeadershipSession(session) || !session.admin_authenticated) {
       return res.status(403).json({ error: 'Access denied. Leadership required.' });
     }
     req.user = session;
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: 'Invalid session.' });
   }
 }
@@ -91,7 +88,7 @@ async function requireAdmin(req, res, next) {
 // MEMBER ROSTER
 // -------------------------------------------------------------
 router.get('/members', requireMember, async (req, res) => {
-  res.json(await db.getMembers());
+  res.json(sanitizeMembers(await db.getMembers()));
 });
 
 // Admin update member weekly points
@@ -114,7 +111,7 @@ router.post('/members/:id/weekly-points', requireAdmin, async (req, res) => {
   await botService.syncWeeklyLeaderboardMessage();
 
   // Broadcast socket update
-  botService.broadcastSocket('leaderboard_update', await db.getMembers());
+  botService.broadcastSocket('leaderboard_update', sanitizeMembers(await db.getMembers()));
 
   return res.json({ success: true, message: 'Member weekly points updated successfully.' });
 });// Admin update member total kills
@@ -137,7 +134,7 @@ router.post('/members/:id/kills', requireAdmin, async (req, res) => {
   await botService.syncAllTimeKillsMessage();
 
   // Broadcast socket update
-  botService.broadcastSocket('kills_update', await db.getMembers());
+  botService.broadcastSocket('kills_update', sanitizeMembers(await db.getMembers()));
 
   return res.json({ success: true, message: 'Member total kills updated successfully.' });
 });
@@ -162,7 +159,7 @@ router.post('/members/:id/weekly-kills', requireAdmin, async (req, res) => {
   await botService.syncWeeklyKillsMessage();
 
   // Broadcast socket update
-  botService.broadcastSocket('weekly_kills_update', await db.getMembers());
+  botService.broadcastSocket('weekly_kills_update', sanitizeMembers(await db.getMembers()));
 
   return res.json({ success: true, message: 'Member weekly kills updated successfully.' });
 });
@@ -431,6 +428,9 @@ router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
   }
 
   const numericAmount = parseFloat(amount);
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return res.status(400).json({ error: 'Profit amount must be a positive number.' });
+  }
   const log = await db.createBizWarLog({
     memberId: user.discordId,
     username: user.username,
@@ -477,6 +477,9 @@ router.post('/economy/rp-collect', requireMember, async (req, res) => {
   }
 
   const numTickets = parseInt(ticketsCollected);
+  if (!Number.isFinite(numTickets) || numTickets <= 0) {
+    return res.status(400).json({ error: 'Tickets collected must be a positive integer.' });
+  }
   const log = await db.createRpTicketLog({
     memberId: user.discordId,
     username: user.username,
@@ -580,10 +583,10 @@ router.get('/leaderboards', async (req, res) => {
   const top10List = members.filter(m => m.isTop10);
 
   res.json({
-    longTimeKills,
-    weeklyKills,
-    activityPoints,
-    top10List
+    longTimeKills: sanitizeMembers(longTimeKills),
+    weeklyKills: sanitizeMembers(weeklyKills),
+    activityPoints: sanitizeMembers(activityPoints),
+    top10List: sanitizeMembers(top10List)
   });
 });
 
@@ -593,7 +596,10 @@ router.get('/leaderboards', async (req, res) => {
 router.get('/priority-list', async (req, res) => {
   try {
     const resolved = await botService.getResolvedPriorityList();
-    res.json(resolved);
+    res.json({
+      top5: sanitizeMembers(resolved.top5),
+      top10: sanitizeMembers(resolved.top10)
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -633,9 +639,13 @@ router.post('/priority-list/add', requireAdmin, async (req, res) => {
     await db.savePriorityList(list);
     await botService.syncPriorityListMessage();
     const resolved = await botService.getResolvedPriorityList();
-    botService.broadcastSocket('priority_list_update', resolved);
+    const safeResolved = {
+      top5: sanitizeMembers(resolved.top5),
+      top10: sanitizeMembers(resolved.top10)
+    };
+    botService.broadcastSocket('priority_list_update', safeResolved);
 
-    res.json({ success: true, priorityList: resolved });
+    res.json({ success: true, priorityList: safeResolved });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -667,9 +677,13 @@ router.post('/priority-list/remove', requireAdmin, async (req, res) => {
     await db.savePriorityList(list);
     await botService.syncPriorityListMessage();
     const resolved = await botService.getResolvedPriorityList();
-    botService.broadcastSocket('priority_list_update', resolved);
+    const safeResolved = {
+      top5: sanitizeMembers(resolved.top5),
+      top10: sanitizeMembers(resolved.top10)
+    };
+    botService.broadcastSocket('priority_list_update', safeResolved);
 
-    res.json({ success: true, priorityList: resolved });
+    res.json({ success: true, priorityList: safeResolved });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -727,8 +741,11 @@ router.post('/activities', requireMember, async (req, res) => {
     return res.status(400).json({ error: 'Activity type is required.' });
   }
 
-  const cleanDescription = description || 'N/A';
-  const cleanMediaUrl = mediaUrl || '';
+  const cleanDescription = sanitizeString(description || 'N/A', 1500);
+  const cleanMediaUrl = sanitizeString(mediaUrl || '', 500);
+  if (cleanMediaUrl && !isHttpUrl(cleanMediaUrl)) {
+    return res.status(400).json({ error: 'Media URL must be a valid HTTPS URL.' });
+  }
   const pointsRequested = ACTIVITY_POINTS_LOOKUP[activityType] || 0;
 
   const act = await db.createActivity({
@@ -947,6 +964,9 @@ router.post('/shop/orders/:id/complete', requireAdmin, async (req, res) => {
 // -------------------------------------------------------------
 router.get('/events/signup/:eventId', async (req, res) => {
   const { eventId } = req.params;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
   res.json(await botService.getEnrichedSignups(eventId));
 });
 
@@ -954,6 +974,9 @@ router.get('/events/signup/:eventId', async (req, res) => {
 router.post('/events/signup/:eventId', requireMember, async (req, res) => {
   const { eventId } = req.params;
   const user = req.user;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
 
   const member = await db.getMember(user.discordId);
   const isTop10 = member ? member.isTop10 : false;
@@ -987,6 +1010,9 @@ router.post('/events/signup/:eventId', requireMember, async (req, res) => {
 router.post('/events/leave/:eventId', requireMember, async (req, res) => {
   const { eventId } = req.params;
   const user = req.user;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
 
   const result = await db.removeSignup(eventId, user.discordId);
   
@@ -1008,6 +1034,9 @@ router.post('/events/leave/:eventId', requireMember, async (req, res) => {
 // Admin clears signup list
 router.post('/events/clear/:eventId', requireAdmin, async (req, res) => {
   const { eventId } = req.params;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
   await db.clearSignups(eventId);
   await db.setEventState(eventId, 'closed');
   botService.broadcastSocket('event_state_change', { eventId, state: 'closed' });
@@ -1018,16 +1047,21 @@ router.post('/events/clear/:eventId', requireAdmin, async (req, res) => {
 // Admin triggers manual signup window broadcast
 router.post('/events/trigger', requireAdmin, async (req, res) => {
   const { eventId, title, description } = req.body;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
   if (!title) {
     return res.status(400).json({ error: 'Title is required.' });
   }
 
   await db.clearSignups(eventId); // Clear previous signups automatically
-  await db.setEventState(eventId, 'open', title, description || ''); // Set registration state to open
-  await botService.triggerEventSignup(eventId, title, description || '');
+  const cleanTitle = sanitizeString(title, 120);
+  const cleanDescription = sanitizeString(description || '', 1500);
+  await db.setEventState(eventId, 'open', cleanTitle, cleanDescription); // Set registration state to open
+  await botService.triggerEventSignup(eventId, cleanTitle, cleanDescription);
   
   // Broadcast live change via WebSocket
-  botService.broadcastSocket('event_state_change', { eventId, state: 'open', title, description: description || '' });
+  botService.broadcastSocket('event_state_change', { eventId, state: 'open', title: cleanTitle, description: cleanDescription });
 
   return res.json({ success: true, message: 'Signup window opened and broadcasted to Discord.' });
 });
@@ -1035,6 +1069,9 @@ router.post('/events/trigger', requireAdmin, async (req, res) => {
 // Admin schedules manual signup window trigger
 router.post('/events/schedule', requireAdmin, async (req, res) => {
   const { eventId, title, description, delayMinutes, delaySeconds } = req.body;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
   if (!title) {
     return res.status(400).json({ error: 'Title is required.' });
   }
@@ -1057,6 +1094,12 @@ router.post('/events/schedule', requireAdmin, async (req, res) => {
     delayMs = delay * 60 * 1000;
     delayText = `${delay} minutes`;
   }
+  if (delayMs > 24 * 60 * 60 * 1000) {
+    return res.status(400).json({ error: 'Delay cannot exceed 24 hours.' });
+  }
+
+  const cleanTitle = sanitizeString(title, 120);
+  const cleanDescription = sanitizeString(description || '', 1500);
 
   // Calculate target trigger time
   const targetTime = new Date(Date.now() + delayMs);
@@ -1068,32 +1111,35 @@ router.post('/events/schedule', requireAdmin, async (req, res) => {
   setTimeout(async () => {
     try {
       await db.clearSignups(eventId); // Clear previous signups automatically
-      await db.setEventState(eventId, 'open', title, description || ''); // Set registration state to open
-      await botService.triggerEventSignup(eventId, title, description || '');
+      await db.setEventState(eventId, 'open', cleanTitle, cleanDescription); // Set registration state to open
+      await botService.triggerEventSignup(eventId, cleanTitle, cleanDescription);
       
       // Broadcast live change via WebSocket
-      botService.broadcastSocket('event_state_change', { eventId, state: 'open', title, description: description || '' });
+      botService.broadcastSocket('event_state_change', { eventId, state: 'open', title: cleanTitle, description: cleanDescription });
       botService.broadcastSocket('signup_change', { eventId, signups: [] });
       
       // Broadcast system notification toast
       botService.broadcastSocket('system_notification', {
         title: 'Roster Opened',
-        message: `The scheduled roster event "${title}" is now open!`,
+        message: `The scheduled roster event "${cleanTitle}" is now open!`,
         type: 'success'
       });
-      botService.logSimulated(`Scheduled event "${title}" has been triggered.`);
+      botService.logSimulated(`Scheduled event "${cleanTitle}" has been triggered.`);
     } catch (err) {
       console.error('[Scheduler] Scheduled trigger failed:', err);
     }
   }, delayMs);
 
-  botService.logSimulated(`Scheduled event "${title}" to trigger in ${delayText}.`);
+  botService.logSimulated(`Scheduled event "${cleanTitle}" to trigger in ${delayText}.`);
   return res.json({ success: true, message: `Roster scheduled successfully.`, targetTime: timeStr });
 });
 
 // GET configured schedule for an event
 router.get('/events/schedule/:eventId', async (req, res) => {
   const { eventId } = req.params;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
   const schedule = await db.getEventSchedule(eventId);
   return res.json(schedule);
 });
@@ -1102,13 +1148,22 @@ router.get('/events/schedule/:eventId', async (req, res) => {
 router.post('/events/schedule-times/:eventId', requireAdmin, async (req, res) => {
   const { eventId } = req.params;
   const { times, mode, enabled, title, description } = req.body;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
+  const cleanTimes = Array.isArray(times)
+    ? times.map(t => sanitizeString(t, 5)).filter(t => !t || /^([01]\d|2[0-3]):([0-5]\d)$/.test(t)).slice(0, 4)
+    : ['', '', '', ''];
+  if (!['once', 'day', 'ever'].includes(mode || 'once')) {
+    return res.status(400).json({ error: 'Invalid schedule mode.' });
+  }
   
   const scheduleData = {
-    times: times || ['', '', '', ''],
+    times: cleanTimes.length ? cleanTimes : ['', '', '', ''],
     mode: mode || 'once',
     enabled: enabled !== undefined ? enabled : false,
-    title: title || '',
-    description: description || '',
+    title: sanitizeString(title || '', 120),
+    description: sanitizeString(description || '', 1500),
     lastTriggeredDate: ''
   };
 
@@ -1155,6 +1210,9 @@ router.post('/events/kick', requireAdmin, async (req, res) => {
   if (!eventId || !memberId) {
     return res.status(400).json({ error: 'eventId and memberId are required.' });
   }
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
 
   const result = await db.removeSignup(eventId, memberId);
   if (result.success) {
@@ -1171,6 +1229,9 @@ router.post('/events/swap', requireAdmin, async (req, res) => {
   const { eventId, memberId1, memberId2 } = req.body;
   if (!eventId || !memberId1 || !memberId2) {
     return res.status(400).json({ error: 'eventId, memberId1, and memberId2 are required.' });
+  }
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
   }
 
   const result = await db.swapSignups(eventId, memberId1, memberId2);
@@ -1197,24 +1258,29 @@ router.post('/wins', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Title and description are required.' });
   }
 
+  const cleanMediaUrl = sanitizeString(mediaUrl || '', 500);
+  if (cleanMediaUrl && !isHttpUrl(cleanMediaUrl)) {
+    return res.status(400).json({ error: 'Media URL must be a valid HTTPS URL.' });
+  }
+
   const win = await db.createWin({
     type: type || 'event',
-    title,
-    description,
-    participants: participants || '',
-    mediaUrl: mediaUrl || 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800'
+    title: sanitizeString(title, 120),
+    description: sanitizeString(description, 1500),
+    participants: sanitizeString(participants || '', 1000),
+    mediaUrl: cleanMediaUrl || 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800'
   });
 
   const channelKey = type === 'informal' ? 'public-informallog' : 'public-winlog';
   const embed = {
-    title: `🏆 WHITE PIGEON WINS: ${title}`,
-    description: `**Event Detail:** ${description}\n**Combatants/Squad:** ${participants || 'N/A'}`,
+    title: `🏆 WHITE PIGEON WINS: ${win.title}`,
+    description: `**Event Detail:** ${win.description}\n**Combatants/Squad:** ${win.participants || 'N/A'}`,
     color: 0xffaa00, // Gold
-    image: mediaUrl
+    image: win.mediaUrl
   };
 
   await botService.sendWebhook(channelKey, embed);
-  botService.logSimulated(`Logged a win for the public records: "${title}"`);
+  botService.logSimulated(`Logged a win for the public records: "${win.title}"`);
 
   return res.json(win);
 });
@@ -1222,6 +1288,9 @@ router.post('/wins', requireAdmin, async (req, res) => {
 // GET active event registration state (open or closed)
 router.get('/events/state/:eventId', async (req, res) => {
   const { eventId } = req.params;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
   const eventState = await db.getEventState(eventId);
   return res.json({ eventId, ...eventState });
 });
@@ -1229,7 +1298,9 @@ router.get('/events/state/:eventId', async (req, res) => {
 // Admin closes signup roster and broadcasts final closed stats + roster to Discord channel
 router.post('/events/close/:eventId', requireAdmin, async (req, res) => {
   const { eventId } = req.params;
-  const { title } = req.body;
+  if (!isValidEventId(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId.' });
+  }
 
   // 1. Set state to closed in DB
   await db.setEventState(eventId, 'closed');
@@ -1256,8 +1327,8 @@ router.post('/events/close/:eventId', requireAdmin, async (req, res) => {
   });
 
   const bannerImage = eventId === 'rp-signup'
-    ? 'https://whitepigeons-35431.web.app/rp_ticket_banner_v2.png'
-    : 'https://whitepigeons-35431.web.app/informal_fight_banner_v2.png';
+    ? 'https://whitepigeons-35431.web.app/rp_ticket_banner.webp'
+    : 'https://whitepigeons-35431.web.app/informal_fight_banner.webp';
 
   const embedDescription = [
     `🔴 **Registration is closed!**\n`,
@@ -1309,6 +1380,9 @@ router.get('/discord/messages', requireMember, async (req, res) => {
   if (!channelKey) {
     return res.status(400).json({ error: 'channelKey parameter is required.' });
   }
+  if (!VALID_CHANNEL_KEYS.has(String(channelKey))) {
+    return res.status(400).json({ error: 'Invalid channelKey.' });
+  }
 
   try {
     const config = await db.getConfig();
@@ -1328,7 +1402,7 @@ router.get('/discord/messages', requireMember, async (req, res) => {
     const webhookToken = match[2];
 
     // Fetch Webhook details from Discord API to resolve the channel_id
-    const webhookRes = await axios.get(`https://discord.com/api/webhooks/${webhookId}/${webhookToken}`);
+    const webhookRes = await axios.get(`https://discord.com/api/v10/webhooks/${webhookId}/${webhookToken}`);
     const channelId = webhookRes.data.channel_id;
 
     if (!channelId) {
@@ -1378,7 +1452,7 @@ router.get('/about/stats', requireMember, async (req, res) => {
   try {
     const stats = await db.getFamilyStats();
     res.json(stats);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Failed to retrieve family statistics.' });
   }
 });
@@ -1414,7 +1488,7 @@ router.post('/about/stats', requireAdmin, async (req, res) => {
 
     const saved = await db.saveFamilyStats(numericStats);
     res.json(saved);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Failed to save family statistics.' });
   }
 });

@@ -16,9 +16,6 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  CheckCircle2,
-  XCircle,
-  Activity,
   Server,
   Users,
   Search
@@ -138,11 +135,7 @@ export default function AdminDashboard() {
 
     const loadBackendConfig = async () => {
       try {
-        const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
-        if (!passcode) return;
-        const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`, {
-          headers: { 'x-admin-passcode': passcode }
-        });
+        const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`);
         if (res.ok) {
           const data = await res.json();
           // Load backend credentials to form if the user is in bot tab
@@ -170,7 +163,7 @@ export default function AdminDashboard() {
             });
           }
         }
-      } catch (e) {
+      } catch {
         console.warn('Could not load credentials from backend on mount.');
       }
     };
@@ -180,13 +173,10 @@ export default function AdminDashboard() {
     }
   }, [user, API_BASE_URL]);
 
-  const fetchMembers = async () => {
+  const fetchMembers = React.useCallback(async () => {
     setLoadingRequests(true);
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
-      const res = await fetch(`${API_BASE_URL}/api/members`, {
-        headers: { 'x-admin-passcode': passcode }
-      });
+      const res = await fetch(`${API_BASE_URL}/api/members`);
       if (res.ok) {
         setMembers(await res.json());
       }
@@ -195,16 +185,14 @@ export default function AdminDashboard() {
     } finally {
       setLoadingRequests(false);
     }
-  };
+  }, [API_BASE_URL]);
 
   const handleApproveReject = async (discordId: string, action: 'approve' | 'reject') => {
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/admin/approve-member`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({ discordId, action })
       });
@@ -229,7 +217,7 @@ export default function AdminDashboard() {
     if (user?.admin_authenticated) {
       fetchMembers();
     }
-  }, [activeSubTab, user]);
+  }, [activeSubTab, user, fetchMembers]);
 
   const handleWebhookChange = (key: string, value: string) => {
     setWebhooks(prev => ({ ...prev, [key]: value }));
@@ -246,20 +234,16 @@ export default function AdminDashboard() {
     
     // Attempt sync to backend DB config
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
-      if (passcode) {
-        const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-admin-passcode': passcode
-          },
-          body: JSON.stringify({ webhooks })
-        });
-        if (res.ok) {
-          addNotification('Registry Updated', 'Discord webhooks saved locally and synced to backend database.', 'success');
-          return;
-        }
+      const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ webhooks })
+      });
+      if (res.ok) {
+        addNotification('Registry Updated', 'Discord webhooks saved locally and synced to backend database.', 'success');
+        return;
       }
     } catch (err) {
       console.warn('Backend sync failed on webhooks save:', err);
@@ -283,14 +267,12 @@ export default function AdminDashboard() {
 
     setBroadcastLoading(true);
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       
       // Try sending via backend proxy first (handles CORS bypass automatically)
       const res = await fetch(`${API_BASE_URL}/api/admin/send-webhook`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify({
           channelKey: broadcastForm.channelKey,
@@ -336,7 +318,7 @@ export default function AdminDashboard() {
         } else {
           throw new Error('Discord rejected webhook post directly.');
         }
-      } catch (directErr: any) {
+      } catch {
         addNotification(
           'Dispatch Failed', 
           'Webhook blocked by browser CORS policy. Connect to Express backend to proxy the request.', 
@@ -357,10 +339,7 @@ export default function AdminDashboard() {
   const fetchBotConfig = async () => {
     setCredsLoading(true);
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
-      const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`, {
-        headers: { 'x-admin-passcode': passcode }
-      });
+      const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`);
       if (res.ok) {
         const data = await res.json();
         setCredentials({
@@ -377,7 +356,7 @@ export default function AdminDashboard() {
       } else {
         throw new Error('Could not load credentials.');
       }
-    } catch (err: any) {
+    } catch {
       addNotification('API Fetch Failed', 'Could not fetch credentials. Ensure backend is running.', 'error');
     } finally {
       setCredsLoading(false);
@@ -388,22 +367,17 @@ export default function AdminDashboard() {
     e.preventDefault();
     setCredsLoading(true);
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         },
         body: JSON.stringify(credentials)
       });
       const data = await res.json();
       if (res.ok && data.success) {
         addNotification('Configuration Saved', 'Bot credentials updated and bot service reloaded.', 'success');
-        // Update passcode locally if changed
-        if (credentials.adminPassword && credentials.adminPassword !== '••••••••••••••••') {
-          localStorage.setItem('wp_admin_passcode', credentials.adminPassword);
-        }
+        localStorage.removeItem('wp_admin_passcode');
       } else {
         throw new Error(data.message || 'Failed to save configuration.');
       }
@@ -418,12 +392,10 @@ export default function AdminDashboard() {
     if (!confirm('Are you sure you want to clear all Discord credentials from the server? This will reset the bot to mock mode.')) return;
     setCredsLoading(true);
     try {
-      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/admin/discord-config/reset`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-admin-passcode': passcode
         }
       });
       const data = await res.json();
@@ -652,12 +624,10 @@ export default function AdminDashboard() {
                       onClick={async () => {
                         if (!confirm('Are you sure you want to deploy the interactive Role Request Submission Button in the channel?')) return;
                         try {
-                          const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
                           const res = await fetch(`${API_BASE_URL}/api/admin/deploy-role-request-prompt`, {
                             method: 'POST',
                             headers: { 
                               'Content-Type': 'application/json',
-                              'x-admin-passcode': passcode
                             }
                           });
                           if (res.ok) {
@@ -680,12 +650,10 @@ export default function AdminDashboard() {
                       onClick={async () => {
                         if (!confirm('Are you sure you want to deploy the interactive Strike System Panel in the channel?')) return;
                         try {
-                          const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
                           const res = await fetch(`${API_BASE_URL}/api/admin/deploy-strike-prompt`, {
                             method: 'POST',
                             headers: { 
                               'Content-Type': 'application/json',
-                              'x-admin-passcode': passcode
                             }
                           });
                           if (res.ok) {
@@ -708,12 +676,10 @@ export default function AdminDashboard() {
                       onClick={async () => {
                         if (!confirm('Are you sure you want to deploy the interactive Ticket System Panel in the channel?')) return;
                         try {
-                          const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
                           const res = await fetch(`${API_BASE_URL}/api/admin/deploy-tickets-prompt`, {
                             method: 'POST',
                             headers: { 
                               'Content-Type': 'application/json',
-                              'x-admin-passcode': passcode
                             }
                           });
                           if (res.ok) {
@@ -736,12 +702,10 @@ export default function AdminDashboard() {
                       onClick={async () => {
                         if (!confirm('Are you sure you want to deploy the interactive Balance System Panel in the channel?')) return;
                         try {
-                          const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
                           const res = await fetch(`${API_BASE_URL}/api/admin/deploy-balance-prompt`, {
                             method: 'POST',
                             headers: { 
                               'Content-Type': 'application/json',
-                              'x-admin-passcode': passcode
                             }
                           });
                           if (res.ok) {
@@ -765,12 +729,10 @@ export default function AdminDashboard() {
                         onClick={async () => {
                           if (!confirm('Are you sure you want to deploy the interactive Weekly Event Leaderboard Embed in the channel?')) return;
                           try {
-                            const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
                             const res = await fetch(`${API_BASE_URL}/api/admin/deploy-leaderboard-prompt`, {
                               method: 'POST',
                               headers: { 
                                 'Content-Type': 'application/json',
-                                'x-admin-passcode': passcode
                               }
                             });
                             if (res.ok) {
@@ -791,12 +753,10 @@ export default function AdminDashboard() {
                         onClick={async () => {
                           if (!confirm('Are you sure you want to reset all members\' Weekly Event Points to 0? This will sync to Discord instantly.')) return;
                           try {
-                            const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
                             const res = await fetch(`${API_BASE_URL}/api/admin/reset-weekly-leaderboard`, {
                               method: 'POST',
                               headers: { 
                                 'Content-Type': 'application/json',
-                                'x-admin-passcode': passcode
                               }
                             });
                             if (res.ok) {
@@ -1038,7 +998,7 @@ export default function AdminDashboard() {
                     name="adminPassword"
                     value={credentials.adminPassword}
                     onChange={handleCredChange}
-                    placeholder="Enter new master passcode (defaults to 'anvy2026')" 
+                    placeholder="Enter a server-side admin passcode"
                     className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
                   />
                 </div>
@@ -1261,12 +1221,10 @@ export default function AdminDashboard() {
                       const handleRoleUpdate = async (newRolesList: string[], isNewAdmin?: boolean) => {
                         setSavingMembers(prev => ({ ...prev, [m.discordId]: true }));
                         try {
-                          const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
                           const res = await fetch(`${API_BASE_URL}/api/admin/update-member-roles`, {
                             method: 'POST',
                             headers: {
                               'Content-Type': 'application/json',
-                              'x-admin-passcode': passcode
                             },
                             body: JSON.stringify({
                               discordId: m.discordId,
