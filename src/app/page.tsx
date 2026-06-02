@@ -1370,7 +1370,7 @@ export default function RootDashboard() {
             </div>
             <h1 className="font-title font-black text-3xl md:text-4xl uppercase leading-tight">
               <span className="flex items-center gap-3">
-                <img src="/logo.png" alt="" className="w-10 h-10 object-contain inline-block" />
+                <img src="/logo.png" alt="" className="w-16 h-16 object-contain inline-block" />
                 <span className="text-white">WHITE PIGEONS</span>
               </span>
               <span className="bg-gradient-to-r from-purple-400 via-purple-500 to-violet-500 bg-clip-text text-transparent">FAMILY</span>
@@ -1391,11 +1391,11 @@ export default function RootDashboard() {
           
           {/* Logo Illustration */}
           <div className="relative shrink-0 select-none">
-            <div className="absolute inset-0 bg-purple-600/10 rounded-full filter blur-2xl animate-pulse" />
+            <div className="absolute inset-0 bg-purple-600/10 rounded-full filter blur-3xl animate-pulse scale-150" />
             <img 
               src="/logo.png" 
               alt="White Pigeons Original Logo" 
-              className="w-44 h-44 object-contain relative z-10 hover:scale-105 transition-smooth drop-shadow-[0_0_25px_rgba(168,85,247,0.35)]"
+              className="w-72 h-72 object-contain relative z-10 hover:scale-105 transition-smooth drop-shadow-[0_0_40px_rgba(168,85,247,0.4)]"
             />
           </div>
         </div>

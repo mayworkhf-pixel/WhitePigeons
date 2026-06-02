@@ -284,7 +284,12 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-600 to-indigo-600" />
 
             {/* Hub Branding */}
-            <div className="text-center mt-4 mb-6">
+            <div className="flex flex-col items-center text-center mt-2 mb-6">
+              <img 
+                src="/logo.png" 
+                alt="White Pigeons Logo" 
+                className="w-28 h-28 object-contain mb-3 drop-shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:scale-105 transition-smooth"
+              />
               <h1 className="font-title font-black text-3xl italic tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-200 to-purple-400 uppercase drop-shadow-[0_0_15px_rgba(168,85,247,0.15)] leading-none">
                 WHITE PIGEONS
               </h1>
