@@ -244,39 +244,16 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   const renderSidebarContent = () => (
     <div className="flex flex-col h-full bg-gradient-to-b from-[#050816] via-[#08111f] to-[#0c1427] border-r border-[#1c1a2a]/45 font-sans text-[11px] select-none wp-sidebar-shell relative">
       <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full filter blur-2xl pointer-events-none" />
-      <div className="p-3.5 border-b border-[#1c1a2a]/45 relative z-10">
-        <div className="flex items-center gap-3">
-          <img src="/logo.webp" alt="White Pigeon" className="w-9 h-9 object-contain border border-purple-500/20 bg-black/20 rounded-lg" />
-          <div className="min-w-0">
-            <div className="font-title text-[12px] leading-none font-extrabold uppercase tracking-wider text-white">White Pigeon</div>
-            <div className="font-tech text-[8px] uppercase tracking-[0.18em] text-purple-400/90 mt-1">Grand RP EN3</div>
-          </div>
-        </div>
-        <div className="mt-2.5 grid grid-cols-3 gap-1 font-tech text-[7.5px] uppercase">
-          <div className="border border-purple-500/10 bg-purple-500/5 px-1.5 py-1 text-center rounded-md">
-            <span className="block text-zinc-500">Gateway</span>
-            <span className={connectionState === 'connected' ? 'text-emerald-400' : 'text-amber-400'}>{connectionState}</span>
-          </div>
-          <div className="border border-purple-500/10 bg-purple-500/5 px-1.5 py-1 text-center rounded-md">
-            <span className="block text-zinc-500">Bot</span>
-            <span className={botReady ? 'text-emerald-400' : 'text-amber-400'}>{botReady ? 'online' : 'standby'}</span>
-          </div>
-          <div className="border border-purple-500/10 bg-purple-500/5 px-1.5 py-1 text-center rounded-md">
-            <span className="block text-zinc-500">Users</span>
-            <span className="text-[#f0f6ff]">{activeUsers}</span>
-          </div>
-        </div>
-      </div>
 
       {/* Tabs list navigation */}
-      <div className="flex-1 py-2 px-2 overflow-y-auto relative z-10">
+      <div className="flex-1 py-1.5 px-2 overflow-y-auto relative z-10 scrollbar-thin">
         {sidebarTabs.map((cat, idx) => (
-          <div key={idx} className="mb-2">
-            <div className={`text-[7.5px] font-extrabold tracking-[0.18em] text-zinc-500 uppercase mb-2 px-3 ${idx === 0 ? 'mt-1' : 'mt-4'}`}>
+          <div key={idx} className="mb-1.5">
+            <div className={`text-[7px] font-extrabold tracking-[0.18em] text-zinc-500 uppercase mb-1 px-2.5 ${idx === 0 ? 'mt-1' : 'mt-2.5'}`}>
               {cat.category}
             </div>
             
-            <div className="space-y-1">
+            <div className="space-y-[3px]">
               {cat.items.map((item) => {
                 if ('adminOnly' in item && item.adminOnly && !user?.admin_authenticated) {
                   return null;
@@ -302,7 +279,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
                       }
                       setMobileSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2.5 text-[9.5px] font-title font-black uppercase tracking-wider transition-smooth cursor-pointer px-3 py-2 rounded-lg ${
+                    className={`w-full flex items-center gap-2 text-[9px] font-title font-black uppercase tracking-wider transition-smooth cursor-pointer px-2.5 py-[5.5px] rounded-md ${
                       isActive 
                         ? 'wp-active-purple-tab'
                         : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#0c1427]/40 border border-transparent'
