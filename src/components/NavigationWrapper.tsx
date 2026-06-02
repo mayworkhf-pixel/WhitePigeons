@@ -58,8 +58,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   // Dynamic admin panel tabs added to the top if authenticated
   const adminPanelTabs = user?.admin_authenticated ? [
     { category: 'ADMIN CONSOLE', items: [
-      { id: 'admin-dashboard', label: 'Admin Dashboard', icon: Shield, href: '/admin' },
-      { id: 'admin-settings', label: 'Discord Settings', icon: Settings, href: '/admin/discord-config' }
+      { id: 'admin-dashboard', label: 'Admin Dashboard', icon: Shield, href: '/admin' }
     ]}
   ] : [];
 
