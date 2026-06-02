@@ -169,20 +169,8 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
       </div>
 
       {/* Admin Panel Gateway */}
-      <div className="p-2.5 border-t border-[#141320] bg-[#09090f] shrink-0">
-        {user?.admin_authenticated ? (
-          <button 
-            onClick={logout}
-            className="w-full flex items-center gap-2.5 bg-[#0e0e16] border border-[#1c1a2a] rounded-lg p-2.5 text-red-400 hover:text-red-300 hover:border-red-900/40 transition-smooth cursor-pointer"
-          >
-            <Lock className="w-4 h-4 shrink-0" />
-            <div className="flex-1 text-left">
-              <div className="text-[12px] font-semibold">Lock Admin Console</div>
-              <div className="text-[8px] text-zinc-500 mt-0.5">Administrator Access</div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
-          </button>
-        ) : (
+      {!user?.admin_authenticated && (
+        <div className="p-2.5 border-t border-[#141320] bg-[#09090f] shrink-0">
           <button 
             onClick={() => setIsPasscodeModalOpen(true)}
             className="w-full flex items-center gap-2.5 bg-[#0e0e16] border border-[#1c1a2a] rounded-lg p-2.5 text-purple-400 hover:text-purple-300 hover:border-purple-800/40 transition-smooth cursor-pointer"
@@ -194,8 +182,8 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
             </div>
             <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 
