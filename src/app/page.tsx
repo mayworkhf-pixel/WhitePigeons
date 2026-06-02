@@ -3106,7 +3106,7 @@ export default function RootDashboard() {
       ? 'Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.'
       : 'Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.';
 
-    const bannerImage = eventId === 'rp-signup' ? '/rp_ticket_banner.png' : '/informal_fight_banner.png';
+    const bannerImage = eventId === 'rp-signup' ? '/rp_ticket_banner_v2.png' : '/informal_fight_banner.png';
     const statusBadge = isClosed ? '🔴 Registration is closed!' : '🟢 Registration is active!';
     const embedColor = isClosed ? 'border-[#ff003c]' : 'border-[#00f0ff]';
 
