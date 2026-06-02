@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from './AppContext';
-import { Lock, Unlock, X, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Lock, Unlock, X, ShieldAlert, Eye, EyeOff } from 'lucide-react';
 
 interface PasscodeModalProps {
   isOpen: boolean;
@@ -11,48 +11,26 @@ interface PasscodeModalProps {
 }
 
 export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeModalProps) {
-  const { refreshUser, addNotification } = useApp();
+  const { refreshUser, addNotification, API_BASE_URL } = useApp();
   const [passcode, setPasscode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPasscode('');
+      setStatus('idle');
+      setShowPassword(false);
+      // Auto focus the input when modal opens
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const handleKeyPress = (num: string) => {
-    if (status !== 'idle') return;
-    playBeep(450, 0.05);
-    if (passcode.length < 8) {
-      setPasscode(prev => prev + num);
-    }
-  };
-
-  const handleBackspace = () => {
-    if (status !== 'idle') return;
-    playBeep(350, 0.05);
-    setPasscode(prev => prev.slice(0, -1));
-  };
-
-  const handleClear = () => {
-    if (status !== 'idle') return;
-    playBeep(300, 0.08);
-    setPasscode('');
-  };
-
-  // Beep Audio Utility
-  const playBeep = (freq: number, duration: number, type: OscillatorType = 'sine') => {
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-      osc.start();
-      osc.stop(audioCtx.currentTime + duration);
-    } catch (e) {}
-  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -62,7 +40,7 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
     setStatus('idle');
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/verify-admin', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/verify-admin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: passcode })
@@ -71,8 +49,6 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
 
       if (res.ok && data.success) {
         setStatus('success');
-        playBeep(880, 0.1, 'triangle');
-        setTimeout(() => playBeep(1200, 0.15, 'triangle'), 100);
         addNotification('Authentication Granted', 'Security clearance authorized.', 'success');
         await refreshUser();
         if (onSuccess) onSuccess();
@@ -82,10 +58,12 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
       }
     } catch (err: any) {
       setStatus('error');
-      playBeep(180, 0.45, 'sawtooth');
       addNotification('Access Denied', err.message || 'Passcode rejected.', 'error');
       setPasscode('');
-      setTimeout(() => setStatus('idle'), 2000);
+      setTimeout(() => {
+        setStatus('idle');
+        inputRef.current?.focus();
+      }, 2000);
     } finally {
       setLoading(false);
     }
@@ -111,6 +89,7 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
         {/* Close Button */}
         <button 
           onClick={onClose}
+          type="button"
           className="absolute top-4 right-4 p-1.5 text-zinc-500 hover:text-white bg-[#181622]/40 border border-[#201d2d] rounded-lg hover:border-purple-800/40 transition-smooth cursor-pointer"
         >
           <X className="w-4 h-4" />
@@ -145,52 +124,25 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <input 
-              type="password"
+              ref={inputRef}
+              type={showPassword ? "text" : "password"}
               value={passcode}
-              readOnly
-              placeholder="••••••••"
-              className={`w-full bg-[#09080d] border rounded-xl p-3 text-center text-lg font-mono tracking-[0.4em] outline-none select-none transition-smooth ${
+              onChange={(e) => setPasscode(e.target.value)}
+              placeholder="Enter passcode"
+              className={`w-full bg-[#09080d] border rounded-xl py-3 px-4 pr-12 text-center text-sm font-mono outline-none transition-smooth ${
                 status === 'success'
                   ? 'border-green-500/40 text-green-400'
                   : status === 'error'
-                    ? 'border-red-500/40 text-red-400'
+                    ? 'border-red-500/40 text-red-400 font-bold'
                     : 'border-[#1e1b29] focus:border-purple-600/40 text-purple-400'
               }`}
             />
-          </div>
-
-          {/* Number Pad Grid */}
-          <div className="grid grid-cols-3 gap-2.5 font-sans font-black text-sm italic">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-              <button
-                key={num}
-                type="button"
-                onClick={() => handleKeyPress(num.toString())}
-                className="py-3 bg-[#181622]/40 hover:bg-purple-950/20 border border-[#201d2d] hover:border-purple-800/40 text-zinc-300 hover:text-white rounded-xl transition-smooth cursor-pointer active:scale-95"
-              >
-                {num}
-              </button>
-            ))}
             <button
               type="button"
-              onClick={handleClear}
-              className="py-3 bg-red-500/5 hover:bg-red-500/15 border border-red-500/10 hover:border-red-500/20 text-red-400 rounded-xl transition-smooth cursor-pointer text-xs font-sans tracking-wider"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors p-1"
             >
-              CLEAR
-            </button>
-            <button
-              type="button"
-              onClick={() => handleKeyPress('0')}
-              className="py-3 bg-[#181622]/40 hover:bg-purple-950/20 border border-[#201d2d] hover:border-purple-800/40 text-zinc-300 hover:text-white rounded-xl transition-smooth cursor-pointer active:scale-95"
-            >
-              0
-            </button>
-            <button
-              type="button"
-              onClick={handleBackspace}
-              className="py-3 bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 text-zinc-500 hover:text-zinc-300 rounded-xl transition-smooth cursor-pointer"
-            >
-              ⌫
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
 
@@ -209,7 +161,7 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }: PasscodeMo
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
           10%, 30%, 50%, 70%, 90% { transform: translateX(-6px); }
-          20%, 40%, 60%, 80% { transform: translateX(6px); }
+          20%, 40% { transform: translateX(6px); }
         }
         .animate-shake {
           animation: shake 0.4s ease-in-out;

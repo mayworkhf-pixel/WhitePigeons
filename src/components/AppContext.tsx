@@ -204,19 +204,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         icon: '/favicon.ico'
       });
     }
-
-    // Play notification sound if desired (visual is mandatory, audio triggers clean)
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.frequency.setValueAtTime(type === 'warning' ? 300 : 520, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.15);
-    } catch (e) {}
   };
 
   // Request browser permission

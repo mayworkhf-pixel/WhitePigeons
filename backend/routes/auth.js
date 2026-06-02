@@ -167,7 +167,7 @@ router.post('/verify-admin', async (req, res) => {
   }
 
   const config = await db.getConfig();
-  const correctPassword = config.adminPassword || 'pigeon123';
+  const correctPassword = config.adminPassword || '123456';
 
   if (password === correctPassword) {
     const cookie = req.cookies ? req.cookies['wp_session'] : null;
