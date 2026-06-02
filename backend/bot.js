@@ -63,7 +63,7 @@ const botService = {
       try {
         await botService.sendDirectMessage(
           promotedMember.memberId,
-          `🎉 Good news! You have been promoted to the **confirmed** roster for the **${eventId === 'rp-signup' ? 'RP' : 'Informal'} Signup**!`
+          `🎉 Good news! You have been promoted to the **confirmed** roster for the **${eventId === 'rp-signup' ? 'RP' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal'} Signup**!`
         );
       } catch (err) {
         console.error('[Bot] Failed to send promotion DM:', err.message);
@@ -369,7 +369,7 @@ const botService = {
                 if (result.displaced) {
                   botService.sendDirectMessage(
                     result.displaced.memberId, 
-                    `⚠️ You have been displaced from the **${eventId === 'rp-signup' ? 'RP Signup' : 'Informal Signup'}** queue by a Top 10 member. You are now in the reserve list.`
+                    `⚠️ You have been displaced from the **${eventId === 'rp-signup' ? 'RP Signup' : eventId === 'signup-event' ? 'Signup-Event Signup' : 'Informal Signup'}** queue by a Top 10 member. You are now in the reserve list.`
                   );
                 }
               } else {
@@ -735,6 +735,7 @@ const botService = {
           if (oldState.channelId === voiceChannelId || newState.channelId === voiceChannelId) {
             await botService.syncRpSignupEmbed('rp-signup');
             await botService.syncRpSignupEmbed('informal-signup');
+            await botService.syncRpSignupEmbed('signup-event');
           }
         } catch (err) {
           console.error('[Bot] voiceStateUpdate handler failed:', err.message);
@@ -841,14 +842,15 @@ const botService = {
 
   // Send direct message confirmation on successful signup
   sendSignupDm: async (eventId, discordId, action) => {
-    if (eventId !== 'rp-signup') return;
+    if (eventId !== 'rp-signup' && eventId !== 'signup-event') return;
     
     let rosterType = 'Waitlist';
     if (action === 'confirmed' || action === 'displaced') {
       rosterType = 'Main Roster';
     }
     
-    const text = `✅ You have joined the event: RP Ticket (${rosterType})`;
+    const eventName = eventId === 'rp-signup' ? 'RP Ticket' : 'Signup-Event';
+    const text = `✅ You have joined the event: ${eventName} (${rosterType})`;
     await botService.sendDirectMessage(discordId, text);
   },
 
@@ -955,7 +957,7 @@ const botService = {
           return m.author.id === client.user.id && 
                  m.embeds.length > 0 && 
                  m.embeds[0].title && 
-                 m.embeds[0].title.includes(eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight') &&
+                 m.embeds[0].title.includes(eventId === 'rp-signup' ? 'RP Ticket' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal Fight') &&
                  m.components.length > 0;
         });
 
@@ -1005,7 +1007,7 @@ const botService = {
     });
 
     const config = await db.getConfig();
-    const pointsText = eventId === 'rp-signup' ? 'Points: `2` ❤️' : 'Points: `1` ❤️';
+    const pointsText = (eventId === 'rp-signup' || eventId === 'signup-event') ? 'Points: `2` ❤️' : 'Points: `1` ❤️';
     const statusText = isClosed ? '🔴 **Registration is closed!**' : '🔔 **Registrations are now open!**';
     const voiceChannelText = config.factoryVoiceChannelId 
       ? `📡 **Voice Channel:** <#${config.factoryVoiceChannelId}>`
@@ -1026,10 +1028,12 @@ const botService = {
 
     const bannerImage = eventId === 'rp-signup'
       ? 'https://whitepigeons-35431.web.app/rp_ticket_banner.webp'
+      : eventId === 'signup-event'
+      ? 'https://whitepigeons-35431.web.app/signup_event_banner.webp'
       : 'https://whitepigeons-35431.web.app/informal_fight_banner.webp';
 
     const embed = new EmbedBuilder()
-      .setTitle(`${eventId === 'rp-signup' ? '🚀 RP Ticket' : '⚔️ Informal Fight'}`)
+      .setTitle(`${eventId === 'rp-signup' ? '🚀 RP Ticket' : eventId === 'signup-event' ? '🚀 Signup-Event' : '⚔️ Informal Fight'}`)
       .setDescription(embedDescription)
       .setColor(isClosed ? 0xff003c : 0x00f0ff)
       .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
@@ -1074,7 +1078,7 @@ const botService = {
           return m.author.id === client.user.id && 
                  m.embeds.length > 0 && 
                  m.embeds[0].title && 
-                 m.embeds[0].title.includes(eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight') &&
+                 m.embeds[0].title.includes(eventId === 'rp-signup' ? 'RP Ticket' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal Fight') &&
                  m.components.length > 0;
         });
 
@@ -1098,11 +1102,11 @@ const botService = {
     botService.logSimulated(`Fired Event Signup: "${title}" for event ID "${eventId}"`);
 
     // If bot client is connected, we can send a rich button message
-    const channelKey = eventId === 'rp-signup' ? 'rp-signup' : 'informal-signup';
+    const channelKey = eventId === 'rp-signup' ? 'rp-signup' : eventId === 'signup-event' ? 'signup-event' : 'informal-signup';
     const config = await db.getConfig();
 
     const fallbackEmbed = {
-      title: `🚀 ${eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight'} - OPEN ⚔️`,
+      title: `🚀 ${eventId === 'rp-signup' ? 'RP Ticket' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal Fight'} - OPEN ⚔️`,
       description: `**Event Directives:**\n${description}\n\n🟢 **Registration is active for ${durationMinutes} minutes!**\n\nHave fun! 🎉`,
       color: 0x00f0ff,
       timestamp: new Date().toISOString()

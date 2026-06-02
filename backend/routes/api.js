@@ -13,12 +13,12 @@ const {
   isHttpUrl
 } = require('../security');
 
-const VALID_EVENT_IDS = new Set(['rp-signup', 'informal-signup']);
+const VALID_EVENT_IDS = new Set(['rp-signup', 'informal-signup', 'signup-event']);
 const VALID_CHANNEL_KEYS = new Set([
   'role-request', 'rolereq-review', 'strikes', 'tickets', 'check-balance',
   'bonus-approval', 'bizwar-collect', 'rp-collect', 'submit-activity',
   'activity-results', 'activity-points-leaderboard', 'point-shop',
-  'activity-review', 'order-details', 'rp-signup', 'informal-signup',
+  'activity-review', 'order-details', 'rp-signup', 'informal-signup', 'signup-event',
   'public-winlog', 'public-informallog', 'top-10-list', 'bonus-admin-panel'
 ]);
 
@@ -997,7 +997,7 @@ router.post('/events/signup/:eventId', requireMember, async (req, res) => {
     // Notify displaced user
     await botService.sendDirectMessage(
       result.displaced.memberId, 
-      `⚠️ Warning: You have been displaced from the **${eventId === 'rp-signup' ? 'RP' : 'Informal'} Signup** roster by a Top 10 shooter (${user.username}).`
+      `⚠️ Warning: You have been displaced from the **${eventId === 'rp-signup' ? 'RP' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal'} Signup** roster by a Top 10 shooter (${user.username}).`
     );
   }
 
@@ -1151,15 +1151,24 @@ router.post('/events/schedule-times/:eventId', requireAdmin, async (req, res) =>
   if (!isValidEventId(eventId)) {
     return res.status(400).json({ error: 'Invalid eventId.' });
   }
-  const cleanTimes = Array.isArray(times)
-    ? times.map(t => sanitizeString(t, 5)).filter(t => !t || /^([01]\d|2[0-3]):([0-5]\d)$/.test(t)).slice(0, 4)
-    : ['', '', '', ''];
+  let maxSlots = 3;
+  if (eventId === 'informal-signup') {
+    maxSlots = 1;
+  }
+  let cleanTimes = Array.isArray(times)
+    ? times.map(t => sanitizeString(t, 5)).filter(t => !t || /^([01]\d|2[0-3]):([0-5]\d)$/.test(t))
+    : [];
+  cleanTimes = cleanTimes.slice(0, maxSlots);
+  while (cleanTimes.length < maxSlots) {
+    cleanTimes.push('');
+  }
+
   if (!['once', 'day', 'ever'].includes(mode || 'once')) {
     return res.status(400).json({ error: 'Invalid schedule mode.' });
   }
   
   const scheduleData = {
-    times: cleanTimes.length ? cleanTimes : ['', '', '', ''],
+    times: cleanTimes,
     mode: mode || 'once',
     enabled: enabled !== undefined ? enabled : false,
     title: sanitizeString(title || '', 120),
@@ -1199,6 +1208,7 @@ router.post('/events/simulate-voice', requireAdmin, async (req, res) => {
   // Sync Discord embeds and broadcast socket change!
   await botService.syncRpSignupEmbed('rp-signup');
   await botService.syncRpSignupEmbed('informal-signup');
+  await botService.syncRpSignupEmbed('signup-event');
 
   botService.logSimulated(`Voice presence simulation updated for ${memberId}: ${inVoice ? 'Joined' : 'Left'}`);
   return res.json({ success: true, simulatedVoice });
@@ -1328,6 +1338,8 @@ router.post('/events/close/:eventId', requireAdmin, async (req, res) => {
 
   const bannerImage = eventId === 'rp-signup'
     ? 'https://whitepigeons-35431.web.app/rp_ticket_banner.webp'
+    : eventId === 'signup-event'
+    ? 'https://whitepigeons-35431.web.app/signup_event_banner.webp'
     : 'https://whitepigeons-35431.web.app/informal_fight_banner.webp';
 
   const embedDescription = [
@@ -1341,13 +1353,13 @@ router.post('/events/close/:eventId', requireAdmin, async (req, res) => {
   ].join('\n');
 
   const embed = {
-    title: `🚀 ${eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight'} - CLOSED ✅`,
+    title: `🚀 ${eventId === 'rp-signup' ? 'RP Ticket' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal Fight'} - CLOSED ✅`,
     description: embedDescription,
     color: 0xff003c, // Vibrant red-pink
     image: bannerImage
   };
 
-  const channelKey = eventId === 'rp-signup' ? 'rp-signup' : 'informal-signup';
+  const channelKey = eventId === 'rp-signup' ? 'rp-signup' : eventId === 'signup-event' ? 'signup-event' : 'informal-signup';
   await botService.closeSignupMessage(eventId);
   await botService.sendWebhook(channelKey, embed);
 
@@ -1355,7 +1367,7 @@ router.post('/events/close/:eventId', requireAdmin, async (req, res) => {
   botService.broadcastSocket('event_state_change', { eventId, state: 'closed' });
   botService.broadcastSocket('system_notification', {
     title: 'Registration Closed',
-    message: `${eventId === 'rp-signup' ? 'RP' : 'Informal'} Registration is now CLOSED. Final roster has been posted to Discord.`,
+    message: `${eventId === 'rp-signup' ? 'RP' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal'} Registration is now CLOSED. Final roster has been posted to Discord.`,
     type: 'warning'
   });
 

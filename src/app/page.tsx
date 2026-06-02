@@ -105,8 +105,10 @@ export default function RootDashboard() {
   // Roster registration states
   const [rpState, setRpState] = useState<'open' | 'closed'>('closed');
   const [informalState, setInformalState] = useState<'open' | 'closed'>('closed');
+  const [signupEventState, setSignupEventState] = useState<'open' | 'closed'>('closed');
   const [rpDescription, setRpDescription] = useState<string>('Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.');
   const [informalDescription, setInformalDescription] = useState<string>('Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.');
+  const [signupEventDescription, setSignupEventDescription] = useState<string>('Signup Event roster limit is 25. Top 10 Priority shooters can displace.');
   
   // Core Data states
   const [members, setMembers] = useState<Member[]>([]);
@@ -125,10 +127,12 @@ export default function RootDashboard() {
   // Signups
   const [rpSignups, setRpSignups] = useState<SignupModel[]>([]);
   const [informalSignups, setInformalSignups] = useState<SignupModel[]>([]);
+  const [signupEventSignups, setSignupEventSignups] = useState<SignupModel[]>([]);
 
   // Custom Timer states
   const [rpTriggerCountdown, setRpTriggerCountdown] = useState<number | null>(null);
   const [infTriggerCountdown, setInfTriggerCountdown] = useState<number | null>(null);
+  const [signupEventTriggerCountdown, setSignupEventTriggerCountdown] = useState<number | null>(null);
   
   // Schedule states for both events
   const [rpSchedule, setRpSchedule] = useState<{ times: string[]; mode: 'once' | 'day' | 'ever'; enabled: boolean; title: string; description: string }>({
@@ -145,14 +149,24 @@ export default function RootDashboard() {
     title: '',
     description: ''
   });
+  const [signupEventSchedule, setSignupEventSchedule] = useState<{ times: string[]; mode: 'once' | 'day' | 'ever'; enabled: boolean; title: string; description: string }>({
+    times: ['', '', '', ''],
+    mode: 'once',
+    enabled: false,
+    title: '',
+    description: ''
+  });
   
   // Kick & Swap admin states
   const [rpSwapFirstId, setRpSwapFirstId] = useState<string | null>(null);
   const [infSwapFirstId, setInfSwapFirstId] = useState<string | null>(null);
+  const [signupEventSwapFirstId, setSignupEventSwapFirstId] = useState<string | null>(null);
   const [rpBotAdminShow, setRpBotAdminShow] = useState(false);
   const [rpBotSwapFirstId, setRpBotSwapFirstId] = useState<string | null>(null);
   const [infBotAdminShow, setInfBotAdminShow] = useState(false);
   const [infBotSwapFirstId, setInfBotSwapFirstId] = useState<string | null>(null);
+  const [signupEventBotAdminShow, setSignupEventBotAdminShow] = useState(false);
+  const [signupEventBotSwapFirstId, setSignupEventBotSwapFirstId] = useState<string | null>(null);
   
   // Economy logs
   const [bizwarLogs, setBizwarLogs] = useState<any[]>([]);
@@ -175,6 +189,7 @@ export default function RootDashboard() {
   
   const [rpTriggerDesc, setRpTriggerDesc] = useState('');
   const [infTriggerDesc, setInfTriggerDesc] = useState('');
+  const [signupEventTriggerDesc, setSignupEventTriggerDesc] = useState('');
 
   // Shop state
   const [shopItems, setShopItems] = useState<any[]>([]);
@@ -367,12 +382,22 @@ export default function RootDashboard() {
       await Promise.all([
         fetch(`${API_BASE_URL}/api/events/signup/rp-signup`).then(r => r.ok ? r.json() : null).then(data => data && setRpSignups(data)),
         fetch(`${API_BASE_URL}/api/events/signup/informal-signup`).then(r => r.ok ? r.json() : null).then(data => data && setInformalSignups(data)),
+        fetch(`${API_BASE_URL}/api/events/signup/signup-event`).then(r => r.ok ? r.json() : null).then(data => data && setSignupEventSignups(data)),
         fetch(`${API_BASE_URL}/api/events/state/rp-signup`).then(r => r.ok ? r.json() : null).then(data => {
           if (data) {
             setRpState(data.state || 'closed');
             if (data.description) {
               setRpDescription(data.description);
               setRpTriggerDesc(data.description);
+            }
+          }
+        }),
+        fetch(`${API_BASE_URL}/api/events/state/signup-event`).then(r => r.ok ? r.json() : null).then(data => {
+          if (data) {
+            setSignupEventState(data.state || 'closed');
+            if (data.description) {
+              setSignupEventDescription(data.description);
+              setSignupEventTriggerDesc(data.description);
             }
           }
         }),
@@ -404,6 +429,17 @@ export default function RootDashboard() {
           description: rpData.description || ''
         });
       }
+      const seRes = await fetch(`${API_BASE_URL}/api/events/schedule/signup-event`);
+      if (seRes.ok) {
+        const seData = await seRes.json();
+        setSignupEventSchedule({
+          times: seData.times || ['', '', '', ''],
+          mode: seData.mode || 'once',
+          enabled: seData.enabled || false,
+          title: seData.title || '',
+          description: seData.description || ''
+        });
+      }
       const infRes = await fetch(`${API_BASE_URL}/api/events/schedule/informal-signup`);
       if (infRes.ok) {
         const infData = await infRes.json();
@@ -418,7 +454,7 @@ export default function RootDashboard() {
     } catch {}
   }, [API_BASE_URL, isLocalPreview]);
 
-  const handleSaveSchedule = async (eventId: 'rp-signup' | 'informal-signup', scheduleData: any) => {
+  const handleSaveSchedule = async (eventId: 'rp-signup' | 'informal-signup' | 'signup-event', scheduleData: any) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/events/schedule-times/${eventId}`, {
         method: 'POST',
@@ -453,6 +489,18 @@ export default function RootDashboard() {
   }, [rpTriggerCountdown]);
 
   useEffect(() => {
+    if (signupEventTriggerCountdown === null) return;
+    if (signupEventTriggerCountdown < 0) {
+      setSignupEventTriggerCountdown(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSignupEventTriggerCountdown(signupEventTriggerCountdown - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [signupEventTriggerCountdown]);
+
+  useEffect(() => {
     if (infTriggerCountdown === null) return;
     if (infTriggerCountdown < 0) {
       setInfTriggerCountdown(null);
@@ -483,6 +531,13 @@ export default function RootDashboard() {
           setRpTriggerDesc(data.description);
         }
         loadSignups();
+      } else if (data.eventId === 'signup-event') {
+        setSignupEventState(data.state);
+        if (data.description) {
+          setSignupEventDescription(data.description);
+          setSignupEventTriggerDesc(data.description);
+        }
+        loadSignups();
       } else if (data.eventId === 'informal-signup') {
         setInformalState(data.state);
         if (data.description) {
@@ -496,6 +551,8 @@ export default function RootDashboard() {
     const handleSignupChange = (data: { eventId: string; signups: any[] }) => {
       if (data.eventId === 'rp-signup') {
         setRpSignups(data.signups);
+      } else if (data.eventId === 'signup-event') {
+        setSignupEventSignups(data.signups);
       } else if (data.eventId === 'informal-signup') {
         setInformalSignups(data.signups);
       }
@@ -523,6 +580,8 @@ export default function RootDashboard() {
     const handleScheduleChange = (data: { eventId: string; schedule: any }) => {
       if (data.eventId === 'rp-signup') {
         setRpSchedule(data.schedule);
+      } else if (data.eventId === 'signup-event') {
+        setSignupEventSchedule(data.schedule);
       } else if (data.eventId === 'informal-signup') {
         setInfSchedule(data.schedule);
       }
@@ -949,6 +1008,8 @@ export default function RootDashboard() {
         const totalSecs = unit === 'seconds' ? val : val * 60;
         if (eventId === 'rp-signup') {
           setRpTriggerCountdown(totalSecs);
+        } else if (eventId === 'signup-event') {
+          setSignupEventTriggerCountdown(totalSecs);
         } else {
           setInfTriggerCountdown(totalSecs);
         }
@@ -1000,7 +1061,7 @@ export default function RootDashboard() {
   };
 
   // Kick a roster member
-  const handleKickRosterMember = async (eventId: 'rp-signup' | 'informal-signup', memberId: string) => {
+  const handleKickRosterMember = async (eventId: 'rp-signup' | 'informal-signup' | 'signup-event', memberId: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/events/kick`, {
         method: 'POST',
@@ -1022,7 +1083,7 @@ export default function RootDashboard() {
   };
 
   // Swap two roster members
-  const handleSwapRosterMembers = async (eventId: 'rp-signup' | 'informal-signup', memberId1: string, memberId2: string) => {
+  const handleSwapRosterMembers = async (eventId: 'rp-signup' | 'informal-signup' | 'signup-event', memberId1: string, memberId2: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/events/swap`, {
         method: 'POST',
@@ -1119,8 +1180,20 @@ export default function RootDashboard() {
     ];
 
     const DoveIcon = () => (
-      <svg className="w-8 h-8 text-[#7c3aed] fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 21.5c-1.35-3-3-4.5-5.5-5.5 2.5-1 4.15-2.5 5.5-5.5 1.35 3 3 4.5 5.5 5.5-2.5 1-4.15 2.5-5.5 5.5z M2 6.5C4 5 7.5 4 10 7.5c-2.5 1.5-5 1-8-1z M22 6.5c-2-1.5-5.5-2.5-8 1c2.5 1.5 5 1 8-1z" />
+      <svg className="w-9 h-9 text-[#7c3aed] fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 4c-1.5 0-3 1-3.5 2C12 7 10.5 6 9 6c-3 0-5 2.5-5 5.5s2.5 5.5 5.5 5.5c1.5 0 2.5-.5 3.5-1.5.5-.5 1-1.5 1-2.5 0-1.5-.5-2.5-1.5-3.5.5 0 1 .5 1.5 1 1 1 2.5 1 3.5.5s1-2.5 1-3.5c0-1.5-1.5-3-3-3zM5.5 11.5c0-2 1.5-3.5 3.5-3.5s3.5 1.5 3.5 3.5c0 1-.5 2-1.5 2.5s-2 .5-3 .5c-1.5 0-2.5-1-2.5-3z" />
+      </svg>
+    );
+
+    const RespectIcon = () => (
+      <svg className="w-4.5 h-4 text-[#cca43b] fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 8.5c2 0 3-1 5-1s3 1 5 1 3-1 5-1 3 1 5 1M2 12c2 0 3-1 5-1s3 1 5 1 3-1 5-1 3 1 5 1M2 15.5c2 0 3-1 5-1s3 1 5 1 3-1 5-1 3 1 5 1" />
+      </svg>
+    );
+
+    const PowerIcon = () => (
+      <svg className="w-4 h-4 text-[#cca43b] fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2l4.5 5.5L22 12l-5.5 4.5L12 22l-4.5-5.5L2 12l5.5-4.5Z" />
       </svg>
     );
 
@@ -1128,64 +1201,66 @@ export default function RootDashboard() {
       <div className="space-y-6 max-w-5xl mx-auto font-sans">
         {/* Story Intro Card */}
         <div 
-          className="border rounded-2xl relative overflow-hidden shadow-2xl flex flex-col md:flex-row justify-between items-center gap-8 p-8 border-slate-300"
+          className="border rounded-2xl relative overflow-hidden shadow-2xl flex flex-col md:flex-row justify-between items-center gap-8 py-3 px-8 border-slate-200/90 bg-[url('/about_banner_bg.png')] bg-no-repeat bg-center bg-cover md:bg-[position:98%_65%] md:bg-[size:114%_100%]"
           style={{
-            background: 'repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.4) 0px, rgba(255, 255, 255, 0.4) 1px, transparent 1px, transparent 8px), linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #cbd5e1 100%)',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.8)'
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.95)'
           }}
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full filter blur-3xl pointer-events-none" />
-          <div className="flex-1 space-y-6 relative z-10 text-left">
+          <div className="flex-1 space-y-3.5 relative z-10 text-left">
             <div className="flex items-center gap-2">
-              <span className="bg-purple-600/10 border border-purple-600/25 text-purple-700 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans">
+              <span className="bg-gradient-to-r from-purple-500/10 to-amber-500/5 border border-purple-500/20 text-purple-700 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans">
                 WHO WE ARE
               </span>
             </div>
             
-            <div className="flex items-center gap-4">
-              <div className="p-2.5 border border-purple-500/15 bg-purple-500/5 rounded-2xl shrink-0 flex items-center justify-center">
+            <div className="flex items-center gap-3.5">
+              <div className="shrink-0 text-[#7c3aed] flex items-center justify-center">
                 <DoveIcon />
               </div>
-              <div className="w-[1.5px] h-12 bg-purple-500/35 self-center" />
-              <div className="space-y-0.5">
-                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-slate-900 leading-none italic">
+              <div className="w-[1.5px] h-12 bg-gradient-to-b from-[#7c3aed] to-[#cca43b] self-center" />
+              <div className="space-y-0.5 animate-flip-in-left origin-left">
+                <h1 className="font-title font-black text-3xl md:text-[45px] uppercase tracking-wider text-slate-900 leading-none italic">
                   WHITE PIGEONS
                 </h1>
-                <h1 className="font-title font-black text-3xl md:text-4xl uppercase tracking-wider text-purple-700 leading-none italic">
+                <h1 className="font-title font-black text-3xl md:text-[45px] uppercase tracking-wider text-purple-700 leading-none italic">
                   FAMILY
                 </h1>
               </div>
             </div>
 
-            <p className="text-slate-700 text-[12px] leading-relaxed max-w-xl font-medium font-sans">
+            <p className="text-slate-700 text-[13.5px] leading-relaxed max-w-xl font-medium font-sans">
               Forged in city conflicts, the <strong className="text-slate-900 font-bold">White Pigeons</strong> family rises as the supreme power on the streets. 
               We operate with loyalty, respect, and clinical efficiency. Through turf dominance, strategic commerce collections, 
               and synchronized operations, we remain #TOP1. We stand undivided—a true brotherhood on top.
             </p>
 
-            <div className="flex flex-wrap items-center gap-6 text-slate-700 text-[10px] font-title font-black uppercase tracking-widest pt-1">
-              <span className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-slate-700" />
+            <div className="flex flex-wrap items-center gap-6 text-slate-800 text-[11px] font-title font-black uppercase tracking-widest pt-1">
+              <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
+                <Shield className="w-4 h-4 text-[#cca43b] shrink-0" />
                 LOYALTY
               </span>
-              <span className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-slate-700" />
+              <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
+                <RespectIcon />
                 RESPECT
               </span>
-              <span className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-slate-700" />
+              <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
+                <PowerIcon />
                 POWER
               </span>
             </div>
           </div>
           
           {/* Logo Illustration */}
-          <div className="relative shrink-0 select-none flex items-center justify-center py-6">
-            <div className="absolute w-[240px] h-[3px] bg-gradient-to-r from-transparent via-[#a855f7] to-transparent shadow-[0_0_22px_7px_rgba(168,85,247,0.85)] blur-xs translate-y-16" />
+          <div className="relative shrink-0 select-none flex items-center justify-center py-0 md:pr-0 md:-mr-4 z-10">
+            {/* Premium Golden-Purple Halos behind logo */}
+            <div className="absolute w-64 h-64 rounded-full bg-radial from-purple-300/20 via-transparent to-transparent blur-2xl pointer-events-none z-0" />
+            <div className="absolute w-56 h-56 rounded-full bg-radial from-amber-200/10 via-transparent to-transparent blur-3xl pointer-events-none z-0 translate-x-4 translate-y-4" />
+            
             <img 
-              src="/logo.webp"
-              alt="White Pigeons Original Logo" 
-              className="w-64 h-64 object-contain relative z-10 hover:scale-[1.03] transition-smooth drop-shadow-[0_0_40px_rgba(168,85,247,0.35)]"
+              src="/about_logo_isolated.png"
+              alt="White Pigeons Isolated Logo" 
+              className="w-96 h-96 md:w-[440px] md:h-[440px] object-contain relative z-10 hover:scale-[1.015] transition-smooth drop-shadow-[0_0_40px_rgba(168,85,247,0.35)] animate-float"
             />
           </div>
         </div>
@@ -3221,17 +3296,34 @@ export default function RootDashboard() {
     );
   };
 
-  const renderDiscordEmbedMockup = (eventId: 'rp-signup' | 'informal-signup') => {
-    const isClosed = eventId === 'rp-signup' ? rpState === 'closed' : informalState === 'closed';
-    const signups = eventId === 'rp-signup' ? rpSignups : informalSignups;
+  const renderDiscordEmbedMockup = (eventId: 'rp-signup' | 'informal-signup' | 'signup-event') => {
+    const isClosed = eventId === 'rp-signup'
+      ? rpState === 'closed'
+      : eventId === 'signup-event'
+      ? signupEventState === 'closed'
+      : informalState === 'closed';
+
+    const signups = eventId === 'rp-signup'
+      ? rpSignups
+      : eventId === 'signup-event'
+      ? signupEventSignups
+      : informalSignups;
+
     const confirmed = signups.filter(s => s.status === 'confirmed');
     const reserve = signups.filter(s => s.status === 'reserve' || s.status === 'displaced');
 
     const directives = eventId === 'rp-signup' 
-      ? 'Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.'
-      : 'Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.';
+      ? (rpDescription || 'Raid the central supply depot. Roster limit is 25. Gear requirements: Heavy Sniper, Tier-3 Armor Plates, Radio Freq: 104.4. Top 10 Priority shooters can displace.')
+      : eventId === 'signup-event'
+      ? (signupEventDescription || 'Signup Event roster limit is 25. Top 10 Priority shooters can displace.')
+      : (informalDescription || 'Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.');
 
-    const bannerImage = eventId === 'rp-signup' ? '/rp_ticket_banner.webp' : '/informal_fight_banner.webp';
+    const bannerImage = eventId === 'rp-signup'
+      ? '/rp_ticket_banner.webp'
+      : eventId === 'signup-event'
+      ? '/signup_event_banner.webp'
+      : '/informal_fight_banner.webp';
+
     const statusBadge = isClosed ? '🔴 Registration is closed!' : '🟢 Registration is active!';
     const embedColor = isClosed ? 'border-[#ff003c]' : 'border-[#00f0ff]';
 
@@ -3255,7 +3347,7 @@ export default function RootDashboard() {
           <div className="flex items-center gap-2">
             <span className="text-zinc-400 font-black text-sm select-none">#</span>
             <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
-              {eventId === 'rp-signup' ? 'rp-signup-feed' : 'informal-signup-feed'}
+              {eventId === 'rp-signup' ? 'rp-signup-feed' : eventId === 'signup-event' ? 'signup-event-feed' : 'informal-signup-feed'}
             </span>
           </div>
           <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
@@ -3281,7 +3373,7 @@ export default function RootDashboard() {
               <div className={`border-l-4 ${embedColor} bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-4 shadow-md`}>
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-white hover:underline cursor-pointer">
-                    {eventId === 'rp-signup' ? `🚀 RP Ticket - OPEN ⚔️` : `🚀 Informal Fight - OPEN ⚔️`}
+                    {eventId === 'rp-signup' ? `🚀 RP Ticket - OPEN ⚔️` : eventId === 'signup-event' ? `🚀 Signup-Event - OPEN ⚔️` : `🚀 Informal Fight - OPEN ⚔️`}
                   </h4>
                   <div className="border-l-4 border-[#4e5058] pl-3 py-0.5 text-[11px] text-[#949ba4] italic leading-relaxed">
                     <strong>Event Directives:</strong><br />
@@ -3345,6 +3437,14 @@ export default function RootDashboard() {
                 {eventId === 'rp-signup' && (
                   <button
                     onClick={() => setRpBotAdminShow(!rpBotAdminShow)}
+                    className="bg-[#4e5058] hover:bg-[#6d6f78] text-white font-sans text-xs font-bold py-1.5 px-4 rounded transition-colors flex items-center gap-1.5 cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.2)] hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    🛠️ ADMIN ACTIONS
+                  </button>
+                )}
+                {eventId === 'signup-event' && (
+                  <button
+                    onClick={() => setSignupEventBotAdminShow(!signupEventBotAdminShow)}
                     className="bg-[#4e5058] hover:bg-[#6d6f78] text-white font-sans text-xs font-bold py-1.5 px-4 rounded transition-colors flex items-center gap-1.5 cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.2)] hover:scale-[1.02] active:scale-[0.98]"
                   >
                     🛠️ ADMIN ACTIONS
@@ -3434,6 +3534,93 @@ export default function RootDashboard() {
                               </select>
                               <button
                                 onClick={() => setRpBotSwapFirstId(null)}
+                                className="bg-[#da373c] hover:bg-[#a92b2f] text-white px-2.5 rounded-md text-xs font-bold transition-colors cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Bot Ephemeral Administrative Actions Panel Simulation for signup-event */}
+              {eventId === 'signup-event' && signupEventBotAdminShow && (
+                <div className="mt-3 p-3 bg-[#2b2d31] border border-zinc-700/50 rounded-lg text-xs space-y-3 relative font-sans">
+                  <div className="absolute top-2 right-2 text-[9px] text-[#949ba4] font-bold tracking-wider select-none flex items-center gap-1">
+                    👤 Only you can see this • <span onClick={() => { setSignupEventBotAdminShow(false); setSignupEventBotSwapFirstId(null); }} className="text-blue-400 hover:underline cursor-pointer">Dismiss message</span>
+                  </div>
+                  <div className="font-bold text-[#f2f3f5] pr-20">🛠️ Roster Administrative Actions</div>
+                  
+                  {signups.length === 0 ? (
+                    <p className="text-[11px] text-[#949ba4] italic">The roster is currently empty.</p>
+                  ) : (
+                    <div className="space-y-3 pt-1">
+                      {/* Kick Select */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#949ba4] font-bold block uppercase">Kick Player</label>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleKickRosterMember('signup-event', e.target.value);
+                              setSignupEventBotAdminShow(false);
+                            }
+                          }}
+                          className="w-full bg-[#1e1f22] border border-[#151618] rounded-md p-1.5 text-xs text-[#dbdee1] outline-none cursor-pointer"
+                          defaultValue=""
+                        >
+                          <option value="">Select a member to KICK...</option>
+                          {signups.map(s => (
+                            <option key={s.memberId} value={s.memberId}>@{s.username} ({s.status.toUpperCase()})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Swap Select */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#949ba4] font-bold block uppercase">Swap Player</label>
+                        {signupEventBotSwapFirstId === null ? (
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignupEventBotSwapFirstId(e.target.value);
+                              }
+                            }}
+                            className="w-full bg-[#1e1f22] border border-[#151618] rounded-md p-1.5 text-xs text-[#dbdee1] outline-none cursor-pointer"
+                            defaultValue=""
+                          >
+                            <option value="">Select first member to SWAP...</option>
+                            {signups.map(s => (
+                              <option key={s.memberId} value={s.memberId}>@{s.username} ({s.status.toUpperCase()})</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="text-[11px] text-blue-400">
+                              Swapping <strong>@{signups.find(s => s.memberId === signupEventBotSwapFirstId)?.username}</strong>
+                            </p>
+                            <div className="flex gap-2">
+                              <select
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleSwapRosterMembers('signup-event', signupEventBotSwapFirstId, e.target.value);
+                                    setSignupEventBotSwapFirstId(null);
+                                    setSignupEventBotAdminShow(false);
+                                  }
+                                }}
+                                className="flex-1 bg-[#1e1f22] border border-[#151618] rounded-md p-1.5 text-xs text-[#dbdee1] outline-none cursor-pointer"
+                                defaultValue=""
+                              >
+                                <option value="">Select who to swap with...</option>
+                                {signups.filter(s => s.memberId !== signupEventBotSwapFirstId).map(s => (
+                                  <option key={s.memberId} value={s.memberId}>@{s.username} ({s.status.toUpperCase()})</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => setSignupEventBotSwapFirstId(null)}
                                 className="bg-[#da373c] hover:bg-[#a92b2f] text-white px-2.5 rounded-md text-xs font-bold transition-colors cursor-pointer"
                               >
                                 Cancel
@@ -3638,9 +3825,9 @@ export default function RootDashboard() {
                   </label>
                 </div>
                 
-                {/* 4 Time inputs */}
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[0, 1, 2, 3].map((idx) => (
+                {/* 3 Time inputs */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[0, 1, 2].map((idx) => (
                     <input 
                       key={idx}
                       type="text"
@@ -3972,9 +4159,9 @@ export default function RootDashboard() {
                   </label>
                 </div>
                 
-                {/* 4 Time inputs */}
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[0, 1, 2, 3].map((idx) => (
+                {/* 1 Time input */}
+                <div className="grid grid-cols-1 gap-1.5">
+                  {[0].map((idx) => (
                     <input 
                       key={idx}
                       type="text"
@@ -4202,6 +4389,340 @@ export default function RootDashboard() {
             🤖 DISCORD WEBHOOK INTEGRATION PREVIEW
           </div>
           {renderDiscordEmbedMockup('informal-signup')}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSignupEvent = () => {
+    if (!checkAccess('member')) return renderAccessDenied('Roster verification required');
+    const isAuditor = true;
+
+    const confirmedQueue = signupEventSignups.filter(s => s.status === 'confirmed');
+    const reserveQueue = signupEventSignups.filter(s => s.status === 'reserve' || s.status === 'displaced');
+
+    let normalCount = 0;
+    const confirmedIcons = confirmedQueue.map((s) => {
+      if (s.isTop10) return '👑';
+      normalCount++;
+      if (normalCount === 1) return '🥇';
+      if (normalCount === 2) return '🥈';
+      if (normalCount === 3) return '🥉';
+      if (normalCount === 4) return '🏅';
+      if (normalCount === 5) return '🎖️';
+      return '⚔️';
+    });
+
+    let normalSubCount = 0;
+    const reserveIcons = reserveQueue.map((s) => {
+      if (s.isTop10) return '👑';
+      normalSubCount++;
+      if (normalSubCount === 1) return '🥇';
+      if (normalSubCount === 2) return '🥈';
+      if (normalSubCount === 3) return '🥉';
+      if (normalSubCount === 4) return '🏅';
+      if (normalSubCount === 5) return '🎖️';
+      return '⚔️';
+    });
+
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto font-sans shadow-xl">
+        {/* Directive details */}
+        <div className="lg:col-span-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-5 h-fit">
+          <div className="flex justify-between items-center pb-2 border-b border-[#1c1a2a]/60">
+            <span className="text-xs font-bold text-zinc-300">ADMIN CONTROL HUB</span>
+            {signupEventState === 'closed' ? (
+              <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">CLOSED</span>
+            ) : (
+              <span className="bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">ACTIVE</span>
+            )}
+          </div>
+
+          {isAuditor && (
+            <div className="bg-[#0a0a14] p-4 border border-[#1c1a2a] rounded-xl space-y-3">
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">EVENT DIRECTIVES</span>
+                <textarea 
+                  rows={4}
+                  value={signupEventTriggerDesc}
+                  onChange={(e) => setSignupEventTriggerDesc(e.target.value)}
+                  placeholder="Type event directives to broadcast in Discord..." 
+                  className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none resize-none font-sans"
+                />
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2">
+                <button 
+                  onClick={() => handleTriggerSignupWindow('signup-event', 'Signup-Event', signupEventTriggerDesc || signupEventDescription)} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold"
+                >
+                  OPEN
+                </button>
+                <button 
+                  onClick={() => handleCloseEventSignup('signup-event')} 
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold"
+                >
+                  CLOSE
+                </button>
+                <button 
+                  onClick={() => handleScheduleTrigger('signup-event', 'Signup-Event', signupEventTriggerDesc || signupEventDescription, '10', 'seconds')} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold"
+                >
+                  10s
+                </button>
+              </div>
+
+              {signupEventTriggerCountdown !== null && signupEventTriggerCountdown >= 0 && (
+                <span className="text-[10px] text-green-400 font-bold block animate-pulse mt-1">
+                  ⏱️ Triggering in {signupEventTriggerCountdown}s
+                </span>
+              )}
+
+              {/* IST Scheduler section */}
+              <div className="border-t border-[#1c1a2a]/60 pt-3 mt-2 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">IST DAILY TRIGGER TIMES</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={signupEventSchedule.enabled}
+                      onChange={(e) => setSignupEventSchedule(prev => ({ ...prev, enabled: e.target.checked }))}
+                      className="rounded border-[#1c1a2a] text-purple-600 focus:ring-0 bg-[#111118] w-3 h-3"
+                    />
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase">ENABLED</span>
+                  </label>
+                </div>
+                
+                {/* 3 Time inputs */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[0, 1, 2].map((idx) => (
+                    <input 
+                      key={idx}
+                      type="text"
+                      placeholder="HH:MM"
+                      value={signupEventSchedule.times[idx] || ''}
+                      onChange={(e) => {
+                        const newTimes = [...signupEventSchedule.times];
+                        newTimes[idx] = e.target.value;
+                        setSignupEventSchedule(prev => ({ ...prev, times: newTimes }));
+                      }}
+                      className="bg-[#111118] border border-[#1c1a2a] rounded-lg p-1.5 text-center text-[10px] text-zinc-300 outline-none"
+                    />
+                  ))}
+                </div>
+
+                {/* Mode and Apply Button */}
+                <div className="flex items-center justify-between mt-2 gap-2">
+                  <select 
+                    value={signupEventSchedule.mode}
+                    onChange={(e) => setSignupEventSchedule(prev => ({ ...prev, mode: e.target.value as any }))}
+                    className="bg-[#111118] border border-[#1c1a2a] rounded-lg p-1.5 text-[10px] text-zinc-400 outline-none select-style"
+                  >
+                    <option value="once">set once</option>
+                    <option value="day">set for a day</option>
+                    <option value="ever">set to Ever</option>
+                  </select>
+                  
+                  <button 
+                    onClick={() => handleSaveSchedule('signup-event', { ...signupEventSchedule, title: 'Signup-Event', description: signupEventTriggerDesc || signupEventDescription })}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-1.5 px-3 rounded-lg cursor-pointer transition-smooth font-bold"
+                  >
+                    APPLY
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Signup lists */}
+        <div className="lg:col-span-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-6">
+          <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3">
+            <h2 className="font-title font-black text-lg italic text-purple-400 text-glow-magenta">
+              ⏰ EVENT SIGNUP TEAM LIST
+            </h2>
+            <span className="text-xs text-zinc-400 font-bold">CONFIRMED: <span className="text-purple-400 font-mono">{confirmedQueue.length} / 25</span></span>
+          </div>
+
+          {/* Roster Statistics Breakdown */}
+          <div className="grid grid-cols-2 gap-3 bg-[#0a090f] p-4 border border-[#1c1a2a] rounded-2xl font-sans text-xs">
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Total Signups</span>
+              <span className="text-base font-title font-black text-purple-400 font-mono">{confirmedQueue.length + reserveQueue.length}</span>
+            </div>
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Top Shooters</span>
+              <span className="text-base font-title font-black text-amber-500 font-mono">{confirmedQueue.filter(s => s.isTop10).length}</span>
+            </div>
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Normal Conf</span>
+              <span className="text-base font-title font-black text-zinc-300 font-mono">{confirmedQueue.filter(s => !s.isTop10).length}</span>
+            </div>
+            <div className="text-center p-2 bg-[#111118]/50 border border-[#1c1a2a]/40 rounded-xl">
+              <span className="text-[9px] text-zinc-500 font-bold block uppercase">Reserve List</span>
+              <span className="text-base font-title font-black text-red-400 font-mono">{reserveQueue.length}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 text-xs">
+            {/* Confirmed */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1c1a2a] pb-1">✅ CONFIRMED ROSTER</span>
+              {signupEventSwapFirstId && (
+                <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-3 py-1.5 rounded-xl text-[9px] flex justify-between items-center animate-pulse">
+                  <span>🔄 Swapping <strong>@{signupEventSignups.find(s => s.memberId === signupEventSwapFirstId)?.username || 'selected player'}</strong>. Click SWAP next to another member to exchange positions.</span>
+                  <button onClick={() => setSignupEventSwapFirstId(null)} className="text-zinc-400 hover:text-white underline cursor-pointer text-[8px] font-bold">Cancel</button>
+                </div>
+              )}
+              <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+                {confirmedQueue.length === 0 ? (
+                  <div className="text-center py-12 text-zinc-655 italic">ROSTER IS VACANT.</div>
+                ) : (
+                  confirmedQueue.map((s, idx) => {
+                    const badgeIcon = confirmedIcons[idx];
+                    return (
+                      <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-2.5 border border-[#1c1a2a] rounded-xl font-sans text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500 font-bold w-4 text-right">#{idx + 1}</span>
+                          <span className="text-base leading-none select-none">{badgeIcon}</span>
+                          <span className="font-bold text-zinc-200">@{s.username}</span>
+                          {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[8px] text-zinc-500">{new Date(s.signedUpAt).toLocaleTimeString()}</span>
+                          <button
+                            onClick={() => isAuditor && handleToggleVoiceSimulation(s.memberId, !!s.inVoice)}
+                            disabled={!isAuditor}
+                            className={`text-base select-none ${isAuditor ? 'cursor-pointer hover:scale-110 transition-transform' : 'cursor-default'}`}
+                            title={isAuditor ? "Toggle simulated voice presence" : ""}
+                          >
+                            {s.inVoice ? '✅' : '❌'}
+                          </button>
+                          {isAuditor && (
+                            <div className="flex items-center gap-1 border-l border-zinc-800 pl-1.5 ml-1">
+                              <button
+                                onClick={() => handleKickRosterMember('signup-event', s.memberId)}
+                                className="text-red-500 hover:text-red-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                title="Kick from roster"
+                              >
+                                🗑️
+                              </button>
+                              {signupEventSwapFirstId === null ? (
+                                <button
+                                  onClick={() => setSignupEventSwapFirstId(s.memberId)}
+                                  className="text-blue-500 hover:text-blue-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                  title="Swap member"
+                                >
+                                  🔄
+                                </button>
+                              ) : signupEventSwapFirstId === s.memberId ? (
+                                <button
+                                  onClick={() => setSignupEventSwapFirstId(null)}
+                                  className="text-amber-500 hover:text-amber-400 font-black p-0.5 cursor-pointer text-[10px] animate-pulse"
+                                  title="Cancel swap"
+                                >
+                                  ⏳
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { handleSwapRosterMembers('signup-event', signupEventSwapFirstId, s.memberId); setSignupEventSwapFirstId(null); }}
+                                  className="bg-green-600/30 hover:bg-green-600/50 text-green-400 border border-green-500/30 px-1 py-0.5 rounded text-[8px] font-bold cursor-pointer"
+                                  title="Swap with selected"
+                                >
+                                  SWAP
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Reserve */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1c1a2a] pb-1">⏳ RESERVE QUEUE</span>
+              <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+                {reserveQueue.length === 0 ? (
+                  <div className="text-center py-12 text-zinc-655 italic">RESERVE QUEUE VACANT.</div>
+                ) : (
+                  reserveQueue.map((s, idx) => {
+                    const badgeIcon = reserveIcons[idx];
+                    return (
+                      <div key={idx} className={`flex justify-between items-center p-2.5 border rounded-xl font-sans text-xs ${
+                        s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#13121d]/40 border-[#1c1a2a] text-zinc-400'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500 font-bold w-4 text-right">R#{idx + 1}</span>
+                          <span className="text-base leading-none select-none">{badgeIcon}</span>
+                          <span className="font-bold">@{s.username}</span>
+                          {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[9px] font-bold uppercase">{s.status}</span>
+                          <button
+                            onClick={() => isAuditor && handleToggleVoiceSimulation(s.memberId, !!s.inVoice)}
+                            disabled={!isAuditor}
+                            className={`text-base select-none ${isAuditor ? 'cursor-pointer hover:scale-110 transition-transform' : 'cursor-default'}`}
+                            title={isAuditor ? "Toggle simulated voice presence" : ""}
+                          >
+                            {s.inVoice ? '✅' : '❌'}
+                          </button>
+                          {isAuditor && (
+                            <div className="flex items-center gap-1 border-l border-zinc-800 pl-1.5 ml-1">
+                              <button
+                                onClick={() => handleKickRosterMember('signup-event', s.memberId)}
+                                className="text-red-500 hover:text-red-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                title="Kick from roster"
+                              >
+                                🗑️
+                              </button>
+                              {signupEventSwapFirstId === null ? (
+                                <button
+                                  onClick={() => setSignupEventSwapFirstId(s.memberId)}
+                                  className="text-blue-500 hover:text-blue-400 font-bold p-0.5 cursor-pointer text-[10px]"
+                                  title="Swap member"
+                                >
+                                  🔄
+                                </button>
+                              ) : signupEventSwapFirstId === s.memberId ? (
+                                <button
+                                  onClick={() => setSignupEventSwapFirstId(null)}
+                                  className="text-amber-500 hover:text-amber-400 font-black p-0.5 cursor-pointer text-[10px] animate-pulse"
+                                  title="Cancel swap"
+                                >
+                                  ⏳
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { handleSwapRosterMembers('signup-event', signupEventSwapFirstId, s.memberId); setSignupEventSwapFirstId(null); }}
+                                  className="bg-green-600/30 hover:bg-green-600/50 text-green-400 border border-green-500/30 px-1 py-0.5 rounded text-[8px] font-bold cursor-pointer"
+                                  title="Swap with selected"
+                                >
+                                  SWAP
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Discord Preview Panel */}
+        <div className="lg:col-span-4 space-y-4">
+          <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+            🤖 DISCORD WEBHOOK INTEGRATION PREVIEW
+          </div>
+          {renderDiscordEmbedMockup('signup-event')}
         </div>
       </div>
     );
@@ -4596,6 +5117,8 @@ export default function RootDashboard() {
       return renderRpSignup();
     case 'informal-signup':
       return renderInformalSignup();
+    case 'signup-event':
+      return renderSignupEvent();
     case 'public-informallog':
       return renderPublicInformallog();
     case 'top-10-list':

@@ -276,7 +276,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       'role-request', 'rolereq-review', 'strikes', 'tickets', 'check-balance',
       'bonus-approval', 'bizwar-collect', 'rp-collect', 'submit-activity',
       'activity-results', 'activity-points-leaderboard', 'point-shop',
-      'activity-review', 'order-details', 'rp-signup', 'informal-signup',
+      'activity-review', 'order-details', 'rp-signup', 'informal-signup', 'signup-event',
       'public-winlog', 'public-informallog', 'top-10-list'
     ];
 

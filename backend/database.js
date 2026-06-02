@@ -28,7 +28,7 @@ const initialDb = {
     webhooks: {},
     factoryVoiceChannelId: 'mock-voice-id',
     simulatedVoice: [],
-    rpTicketTimes: ["08:30", "15:00", "20:00", "22:30"]
+    rpTicketTimes: ["08:30", "15:00", "20:00"]
   },
   familyStats: {
     totalMembers: 403,
@@ -2097,7 +2097,8 @@ const db = {
       if (!data.eventSchedules) {
         data.eventSchedules = {};
       }
-      resolvedSchedule = data.eventSchedules[eventId] || { times: ['', '', '', ''], mode: 'once', enabled: false };
+      const defaultTimes = eventId === 'informal-signup' ? [''] : ['', '', ''];
+      resolvedSchedule = data.eventSchedules[eventId] || { times: defaultTimes, mode: 'once', enabled: false };
     }
 
     if (resolvedSchedule) {

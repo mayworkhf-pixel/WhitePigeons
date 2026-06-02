@@ -213,11 +213,11 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
     ]},
     { category: 'ACTIVITY & LEADERBOARDS', items: [
       { id: 'leaderboard', label: 'LEADERBOARD', icon: Crown, text: 'Leaderboard' },
-      { id: 'long-time-kill-list', label: 'ALL TIME KILLS LEADERBOARD', icon: Target, text: 'All Time Kills Leaderboard' },
-      { id: 'weekly-kill-list', label: 'WEEKLY KILLS LEADERBOARD', icon: Flame, text: 'Weekly Kills Leaderboard' },
+      { id: 'long-time-kill-list', label: 'ALL TIME KILLS', icon: Target, text: 'All Time Kills' },
+      { id: 'weekly-kill-list', label: 'WEEKLY KILLS', icon: Flame, text: 'Weekly Kills' },
       { id: 'submit-activity', label: 'SUBMIT-ACTIVITY', icon: Send, text: 'submit-activity' },
       { id: 'activity-results', label: 'ACTIVITY-RESULTS', icon: CheckCircle, text: 'Activity-Results' },
-      { id: 'activity-points-leaderboard', label: 'ACTIVITY-POINTS-LEADERBOARD', icon: Users, text: 'Activity-Points-LeaderBoard' }
+      { id: 'activity-points-leaderboard', label: 'ACTIVITY POINTS', icon: Users, text: 'Activity-Points' }
     ]},
     { category: 'POINTS & SHOP', items: [
       { id: 'point-shop', label: 'POINT-SHOP', icon: ShoppingBag, text: 'point-shop' },
@@ -233,6 +233,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
     ]},
     { category: 'EVENTS & SIGNUPS', items: [
       { id: 'rp-signup', label: 'RP-SIGNUP', icon: Users, text: 'RP-Signup' },
+      { id: 'signup-event', label: 'SIGNUP-EVENT', icon: Users, text: 'Signup-Event' },
       { id: 'informal-signup', label: 'INFORMAL-SIGNUP', icon: Radio, text: 'Informal-Signup' },
       { id: 'public-informallog', label: 'PUBLIC-INFORMALLOG', icon: FileCheck, text: 'public-informallog' },
       { id: 'top-10-list', label: 'TOP-10-LIST', icon: Shield, text: 'Top-10-List' }
@@ -249,11 +250,11 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
       <div className="flex-1 py-1.5 px-2 overflow-y-auto relative z-10 scrollbar-thin">
         {sidebarTabs.map((cat, idx) => (
           <div key={idx} className="mb-1.5">
-            <div className={`text-[7px] font-extrabold tracking-[0.18em] text-zinc-500 uppercase mb-1 px-2.5 ${idx === 0 ? 'mt-1' : 'mt-2.5'}`}>
+            <div className={`text-[7.8px] font-title font-black tracking-[0.14em] uppercase mb-1 px-2.5 ${idx === 0 ? 'mt-1' : 'mt-1.8'} text-[#a855f7]`}>
               {cat.category}
             </div>
             
-            <div className="space-y-[3px]">
+            <div className="space-y-[2px]">
               {cat.items.map((item) => {
                 if ('adminOnly' in item && item.adminOnly && !user?.admin_authenticated) {
                   return null;
@@ -279,13 +280,13 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
                       }
                       setMobileSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2 text-[9px] font-title font-black uppercase tracking-wider transition-smooth cursor-pointer px-2.5 py-[5.5px] rounded-md ${
+                    className={`w-full flex items-center gap-2.5 text-[10px] font-title font-black uppercase tracking-wider transition-smooth cursor-pointer px-2.5 py-[4.8px] rounded-md ${
                       isActive 
                         ? 'wp-active-purple-tab'
-                        : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#0c1427]/40 border border-transparent'
+                        : 'text-zinc-300 hover:text-zinc-100 hover:bg-[#0c1427]/40 border border-transparent'
                     }`}
                   >
-                    <item.icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-purple-300' : 'text-zinc-500'}`} />
+                    <item.icon className={`w-4 h-4 shrink-0 transition-smooth ${isActive ? 'text-purple-300' : 'text-zinc-400'}`} />
                     <span className="truncate flex-1 text-left">{item.label}</span>
                   </button>
                 );
@@ -692,20 +693,25 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
           </div>
         </header>
 
-        {/* Mobile bottom navigation sheet */}
+        {/* Mobile side drawer navigation */}
         {mobileSidebarOpen && (
-          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 lg:hidden">
-            <div className="absolute inset-x-0 bottom-0 h-[82vh] border-t border-[#1c1a2a]/35 bg-[#09090f] shadow-[0_-18px_60px_rgba(0,0,0,0.65)]">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 lg:hidden flex">
+            {/* Backdrop click closes it */}
+            <div className="absolute inset-0" onClick={() => setMobileSidebarOpen(false)} />
+            
+            {/* Slide-in sidebar container from left */}
+            <div className="relative w-52 h-screen border-r border-[#1c1a2a]/45 shadow-[4px_0_30px_rgba(0,0,0,0.65)] animate-slide-in-left z-10">
               {renderSidebarContent()}
-              <button 
-                onClick={() => setMobileSidebarOpen(false)}
-                className="absolute top-3 right-3 p-1.5 bg-zinc-950 text-zinc-400 hover:text-white border border-[#1c1a2a]/30 rounded cursor-pointer"
-                aria-label="Close command navigation"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
-            <div className="absolute inset-0 -z-10" onClick={() => setMobileSidebarOpen(false)} />
+            
+            {/* Close button floating next to sidebar */}
+            <button 
+              onClick={() => setMobileSidebarOpen(false)}
+              className="absolute top-4 left-[224px] p-2 bg-[#08111f]/80 text-zinc-400 hover:text-white border border-[#1c1a2a]/45 rounded-lg cursor-pointer shadow-lg animate-fade-in z-10"
+              aria-label="Close navigation"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         )}
 

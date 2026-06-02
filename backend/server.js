@@ -53,7 +53,7 @@ io.on('connection', (socket) => {
 // -------------------------------------------------------------
 // EVENT SCHEDULERS & TIMER LOOPS
 // -------------------------------------------------------------
-const INFORMAL_INTERVAL_MS = 104 * 60 * 1000; // 1 hour 44 minutes = 104 minutes
+const INFORMAL_INTERVAL_MS = 60 * 60 * 1000; // 60 minutes (1 hour)
 let nextInformalTime = Date.now() + INFORMAL_INTERVAL_MS;
 
 function getNextInformalCountdown() {
@@ -110,7 +110,7 @@ setInterval(async () => {
     const istTimeStr = new Date().toLocaleTimeString('en-US', options); // e.g. "14:30"
     const currentIstDay = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' }); // e.g. "6/2/2026"
 
-    const eventIds = ['rp-signup', 'informal-signup'];
+    const eventIds = ['rp-signup', 'informal-signup', 'signup-event'];
     
     for (const eventId of eventIds) {
       const schedule = await database.getEventSchedule(eventId);
@@ -138,7 +138,7 @@ setInterval(async () => {
         lastTriggeredMinutes[trackingKey] = true;
         console.log(`[Scheduler] Automatically opening ${eventId} at scheduled IST time: ${istTimeStr} (Mode: ${schedule.mode})`);
         
-        const title = schedule.title || (eventId === 'rp-signup' ? 'Roster control' : 'Roster control');
+        const title = schedule.title || (eventId === 'rp-signup' ? 'Roster control' : eventId === 'signup-event' ? 'Signup-Event' : 'Roster control');
         const description = schedule.description || '';
 
         // Clear previous signups and open registration
