@@ -213,64 +213,59 @@ export default function RootDashboard() {
   // Load backend data helper
   const loadDashboardData = async () => {
     try {
-      const membersRes = await fetch(`${API_BASE_URL}/api/members`);
-      if (membersRes.ok) setMembers(await membersRes.json());
+      // Run public fetches in parallel
+      const publicFetches = [
+        fetch(`${API_BASE_URL}/api/members`).then(r => r.ok ? r.json() : null).then(data => data && setMembers(data)),
+        fetch(`${API_BASE_URL}/api/wins`).then(r => r.ok ? r.json() : null).then(data => data && setWins(data)),
+        fetch(`${API_BASE_URL}/api/priority-list`).then(r => r.ok ? r.json() : null).then(data => data && setPriorityList(data))
+      ];
 
-      const winsRes = await fetch(`${API_BASE_URL}/api/wins`);
-      if (winsRes.ok) setWins(await winsRes.json());
-
-      const priorityRes = await fetch(`${API_BASE_URL}/api/priority-list`);
-      if (priorityRes.ok) setPriorityList(await priorityRes.json());
+      await Promise.all(publicFetches);
 
       if (user) {
-        const ticketRes = await fetch(`${API_BASE_URL}/api/tickets`);
-        if (ticketRes.ok) setTickets(await ticketRes.json());
+        const userFetches = [
+          fetch(`${API_BASE_URL}/api/tickets`).then(r => r.ok ? r.json() : null).then(data => data && setTickets(data)),
+          fetch(`${API_BASE_URL}/api/activities`).then(r => r.ok ? r.json() : null).then(data => data && setActivities(data)),
+          fetch(`${API_BASE_URL}/api/economy/bizwar-collect`).then(r => r.ok ? r.json() : null).then(data => data && setBizwarLogs(data)),
+          fetch(`${API_BASE_URL}/api/economy/rp-collect`).then(r => r.ok ? r.json() : null).then(data => {
+            if (data) {
+              setRpLogs(data.logs);
+              setRpTotalStock(data.totalCollected);
+            }
+          }),
+          fetch(`${API_BASE_URL}/api/shop/items`).then(r => r.ok ? r.json() : null).then(data => {
+            if (data) {
+              setShopItems(data.items);
+              setShopBalance(data.pointsBalance);
+            }
+          }),
+          fetch(`${API_BASE_URL}/api/members/role-requests`).then(r => r.ok ? r.json() : null).then(data => data && setRoleRequests(data)),
+          fetch(`${API_BASE_URL}/api/about/stats`).then(r => r.ok ? r.json() : null).then(statsData => {
+            if (statsData) {
+              setFamilyStats(statsData);
+              setStatsForm({
+                totalMembers: String(statsData.totalMembers),
+                totalGiveaways: String(statsData.totalGiveaways),
+                totalBonuses: String(statsData.totalBonuses),
+                hcWorkDone: String(statsData.hcWorkDone),
+                totalStrikes: String(statsData.totalStrikes),
+                totalBlacklisted: String(statsData.totalBlacklisted),
+                rpWon: String(statsData.rpWon),
+                eventsWon: String(statsData.eventsWon),
+                familyRankingPoints: String(statsData.familyRankingPoints),
+                familyRank: statsData.familyRank || '#1'
+              });
+            }
+          })
+        ];
 
-        const actRes = await fetch(`${API_BASE_URL}/api/activities`);
-        if (actRes.ok) setActivities(await actRes.json());
-
-        const bizRes = await fetch(`${API_BASE_URL}/api/economy/bizwar-collect`);
-        if (bizRes.ok) setBizwarLogs(await bizRes.json());
-
-        const rpRes = await fetch(`${API_BASE_URL}/api/economy/rp-collect`);
-        if (rpRes.ok) {
-          const rpData = await rpRes.json();
-          setRpLogs(rpData.logs);
-          setRpTotalStock(rpData.totalCollected);
+        if (isLeaderOrAdmin) {
+          userFetches.push(
+            fetch(`${API_BASE_URL}/api/shop/orders`).then(r => r.ok ? r.json() : null).then(data => data && setOrders(data))
+          );
         }
 
-        const shopRes = await fetch(`${API_BASE_URL}/api/shop/items`);
-        if (shopRes.ok) {
-          const shopData = await shopRes.json();
-          setShopItems(shopData.items);
-          setShopBalance(shopData.pointsBalance);
-        }
-
-        const reqsRes = await fetch(`${API_BASE_URL}/api/members/role-requests`);
-        if (reqsRes.ok) setRoleRequests(await reqsRes.json());
-
-        const statsRes = await fetch(`${API_BASE_URL}/api/about/stats`);
-        if (statsRes.ok) {
-          const statsData = await statsRes.json();
-          setFamilyStats(statsData);
-          setStatsForm({
-            totalMembers: String(statsData.totalMembers),
-            totalGiveaways: String(statsData.totalGiveaways),
-            totalBonuses: String(statsData.totalBonuses),
-            hcWorkDone: String(statsData.hcWorkDone),
-            totalStrikes: String(statsData.totalStrikes),
-            totalBlacklisted: String(statsData.totalBlacklisted),
-            rpWon: String(statsData.rpWon),
-            eventsWon: String(statsData.eventsWon),
-            familyRankingPoints: String(statsData.familyRankingPoints),
-            familyRank: statsData.familyRank || '#1'
-          });
-        }
-      }
-
-      if (isLeaderOrAdmin) {
-        const orderRes = await fetch(`${API_BASE_URL}/api/shop/orders`);
-        if (orderRes.ok) setOrders(await orderRes.json());
+        await Promise.all(userFetches);
       }
     } catch (e) {
       console.warn('Failed to load full API datasets.');
@@ -355,23 +350,16 @@ export default function RootDashboard() {
   // Poll event signups
   const loadSignups = async () => {
     try {
-      const rpRes = await fetch(`${API_BASE_URL}/api/events/signup/rp-signup`);
-      if (rpRes.ok) setRpSignups(await rpRes.json());
-
-      const infRes = await fetch(`${API_BASE_URL}/api/events/signup/informal-signup`);
-      if (infRes.ok) setInformalSignups(await infRes.json());
-
-      const rpStateRes = await fetch(`${API_BASE_URL}/api/events/state/rp-signup`);
-      if (rpStateRes.ok) {
-        const rpStateData = await rpStateRes.json();
-        setRpState(rpStateData.state || 'closed');
-      }
-
-      const infStateRes = await fetch(`${API_BASE_URL}/api/events/state/informal-signup`);
-      if (infStateRes.ok) {
-        const infStateData = await infStateRes.json();
-        setInformalState(infStateData.state || 'closed');
-      }
+      await Promise.all([
+        fetch(`${API_BASE_URL}/api/events/signup/rp-signup`).then(r => r.ok ? r.json() : null).then(data => data && setRpSignups(data)),
+        fetch(`${API_BASE_URL}/api/events/signup/informal-signup`).then(r => r.ok ? r.json() : null).then(data => data && setInformalSignups(data)),
+        fetch(`${API_BASE_URL}/api/events/state/rp-signup`).then(r => r.ok ? r.json() : null).then(data => {
+          if (data) setRpState(data.state || 'closed');
+        }),
+        fetch(`${API_BASE_URL}/api/events/state/informal-signup`).then(r => r.ok ? r.json() : null).then(data => {
+          if (data) setInformalState(data.state || 'closed');
+        })
+      ]);
     } catch (e) {}
   };
 
