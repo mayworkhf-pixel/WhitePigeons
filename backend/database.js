@@ -1965,6 +1965,13 @@ const db = {
         const doc = await firebaseDb.collection('settings').doc('priority_list').get();
         if (doc.exists) {
           return doc.data();
+        } else {
+          const data = readDb();
+          if (data.priorityList) {
+            await firebaseDb.collection('settings').doc('priority_list').set(data.priorityList);
+            console.log('[Database] Initialized priority_list in Firestore from local db.json');
+            return data.priorityList;
+          }
         }
       } catch (err) {
         console.error('Firestore getPriorityList failed:', err.message);
