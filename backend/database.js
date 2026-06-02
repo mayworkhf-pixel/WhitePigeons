@@ -216,12 +216,12 @@ const db = {
         if (config.adminPassword) {
           config.adminPassword = decrypt(config.adminPassword);
         } else {
-          config.adminPassword = '123456';
+          config.adminPassword = 'anvy2026';
         }
         return config;
       } catch (err) {
         console.error('Firestore getConfig failed, fallback to initial:', err.message);
-        return { ...initialDb.config, adminPassword: '123456' };
+        return { ...initialDb.config, adminPassword: 'anvy2026' };
       }
     }
     const data = readDb();
@@ -232,7 +232,7 @@ const db = {
     if (config.adminPassword) {
       config.adminPassword = decrypt(config.adminPassword);
     } else {
-      config.adminPassword = '123456';
+      config.adminPassword = 'anvy2026';
     }
     return config;
   },
@@ -244,7 +244,7 @@ const db = {
       guildId: newConfig.guildId || '',
       clientId: newConfig.clientId || '',
       clientSecret: newConfig.clientSecret ? encrypt(newConfig.clientSecret) : '',
-      adminPassword: newConfig.adminPassword ? encrypt(newConfig.adminPassword) : encrypt('123456'),
+      adminPassword: newConfig.adminPassword ? encrypt(newConfig.adminPassword) : encrypt('anvy2026'),
       webhooks: newConfig.webhooks || {}
     };
 

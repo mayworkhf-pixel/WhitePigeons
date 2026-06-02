@@ -61,6 +61,19 @@ interface AppContextType {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
+// Global fetch patch to automatically include credentials (cookies) for cross-origin API calls
+if (typeof window !== 'undefined') {
+  const originalFetch = window.fetch;
+  window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
+    if (url.startsWith(API_BASE_URL) || url.startsWith('http://localhost:5000') || url.startsWith('/api')) {
+      init = init || {};
+      init.credentials = 'include';
+    }
+    return originalFetch(input, init);
+  };
+}
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {

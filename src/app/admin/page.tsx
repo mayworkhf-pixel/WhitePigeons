@@ -17,7 +17,7 @@ import {
 import Link from 'next/link';
 
 export default function AdminDashboard() {
-  const { user, loading: userLoading, addNotification } = useApp();
+  const { user, loading: userLoading, addNotification, API_BASE_URL } = useApp();
 
   const [members, setMembers] = useState<any[]>([]);
   const [pendingActsCount, setPendingActsCount] = useState(0);
@@ -32,22 +32,22 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const memRes = await fetch('http://localhost:5000/api/members');
+      const memRes = await fetch(`${API_BASE_URL}/api/members`);
       if (memRes.ok) setMembers(await memRes.json());
 
-      const actRes = await fetch('http://localhost:5000/api/activities');
+      const actRes = await fetch(`${API_BASE_URL}/api/activities`);
       if (actRes.ok) {
         const acts = await actRes.json();
         setPendingActsCount(acts.filter((a: any) => a.status === 'pending').length);
       }
 
-      const tktRes = await fetch('http://localhost:5000/api/tickets');
+      const tktRes = await fetch(`${API_BASE_URL}/api/tickets`);
       if (tktRes.ok) {
         const tkts = await tktRes.json();
         setPendingTktCount(tkts.filter((t: any) => t.status === 'open').length);
       }
 
-      const orderRes = await fetch('http://localhost:5000/api/shop/orders');
+      const orderRes = await fetch(`${API_BASE_URL}/api/shop/orders`);
       if (orderRes.ok) {
         const ords = await orderRes.json();
         setPendingOrdersCount(ords.filter((o: any) => o.status === 'pending').length);
@@ -70,7 +70,7 @@ export default function AdminDashboard() {
 
     setBroadcastLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/admin/broadcast', {
+      const res = await fetch(`${API_BASE_URL}/api/admin/broadcast`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(broadcastForm)
