@@ -734,7 +734,7 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
         </main>
       </div>
 
-      {connectionState === 'disconnected' && (
+      {connectionState === 'disconnected' && !user?.admin_authenticated && (
         <div className="fixed inset-0 z-[60] bg-[#050816]/92 backdrop-blur-md flex items-center justify-center px-6">
           <div className="text-center font-tech uppercase tracking-[0.18em]">
             <div className="mx-auto mb-5 w-16 h-16 border border-[#ff9f1c]/40 bg-[#ff9f1c]/10 flex items-center justify-center pulse-reconnect">
@@ -742,6 +742,14 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
             </div>
             <div className="font-title text-2xl font-black text-[#f0f6ff]">Connection Lost</div>
             <div className="mt-2 text-[11px] text-zinc-500">Attempting to re-establish backend telemetry</div>
+            
+            <button
+              type="button"
+              onClick={() => setIsPasscodeModalOpen(true)}
+              className="mt-6 mx-auto bg-purple-950/20 hover:bg-purple-950/40 text-purple-400 border border-purple-900/30 hover:border-purple-800/50 py-2.5 px-4 rounded-xl text-[10px] font-sans font-bold transition-smooth flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(168,85,247,0.1)]"
+            >
+              Access Offline Console
+            </button>
           </div>
         </div>
       )}
