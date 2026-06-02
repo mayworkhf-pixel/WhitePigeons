@@ -37,7 +37,14 @@ const channelsList: WebhookChannel[] = [
   { key: 'bizwar-collect', name: '💲┃𝐁𝐢𝐳𝐰𝐚𝐫-𝐂𝐨𝐥𝐥𝐞𝐜𝐭', description: 'BizWar collection logs' },
   { key: 'rp-collect', name: '🎫┃𝐑𝐏-𝐂𝐨𝐥𝐥𝐞𝐜𝐭', description: 'Ticket output collections' },
   { key: 'weekly-kill-list', name: '🔻┃𝐰𝐞𝐞𝐤𝐥𝐲-𝐊𝐢𝐥𝐥-𝐋𝐢𝐬𝐭', description: 'Weekly kills resets' },
-  { key: 'point-shop', name: '💰┃𝐏𝐨𝐢𝐧𝐭-𝐒𝐡𝐨𝐩', description: 'Point shop order details' }
+  { key: 'point-shop', name: '💰┃𝐏𝐨𝐢𝐧𝐭-𝐒𝐡𝐨𝐩', description: 'Point shop order details' },
+  { key: 'rp-signup', name: '📅┃𝐑𝐏-𝐒𝐢𝐠𝐧𝐮𝐩-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'RP signup notifications' },
+  { key: 'informal-signup', name: '⚔️┃𝐈𝐧𝐟𝐨𝐫𝐦𝐚𝐥-𝐒𝐢𝐠𝐧𝐮𝐩-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Informal signup notifications' },
+  { key: 'signup-event', name: '🌟┃𝐒𝐢𝐠𝐧𝐮𝐩-𝐄𝐯𝐞𝐧𝐭-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Special events signup notifications' },
+  { key: 'public-winlog', name: '🏆┃𝐖𝐢𝐧-𝐋𝐨𝐠-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Public log for Event/Bizwar wins' },
+  { key: 'public-informallog', name: '⚔️┃𝐈𝐧𝐟𝐨𝐫𝐦𝐚𝐥-𝐋𝐨𝐠-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Public log for Informal wins' },
+  { key: 'bonus-approval', name: '💵┃𝐁𝐨𝐧𝐮𝐬-𝐀𝐩𝐩𝐫𝐨𝐯𝐚𝐥-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Logs for High Command bonus decisions' },
+  { key: 'bonus-admin-panel', name: '⚙️┃𝐁𝐨𝐧𝐮𝐬-𝐀𝐝𝐦𝐢𝐧-𝐏𝐚𝐧𝐞𝐥', description: 'Admin log for disbursed payouts' }
 ];
 
 const DEFAULT_ROLES = [

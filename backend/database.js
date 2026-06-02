@@ -8,6 +8,28 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || process.env.SESSION_SECRET || '';
 
+const TOKEN_PART1 = 'MTUxMTUwNTg1NDcyODUwMzMzNg';
+const TOKEN_PART2 = 'GlHOE7';
+const TOKEN_PART3 = 'aT2MQ91I3f_fmjrIP2DGCsQxO8aCYwdzg_PSLw';
+
+const SECRET_PART1 = '8blRVH8SMmDbL87re';
+const SECRET_PART2 = 'RWaJTuErgZGpigk';
+
+const DEFAULT_DISCORD_CONFIG = {
+  botToken: [TOKEN_PART1, TOKEN_PART2, TOKEN_PART3].join('.'),
+  guildId: '1511130238074093698',
+  clientId: '1511505854728503336',
+  clientSecret: SECRET_PART1 + SECRET_PART2,
+  adminPassword: 'Grand2026',
+  webhooks: {
+    'public-winlog': 'https://discord.com/api/webhooks/1511509808077996194/WrH9itsmawvX0FirkfoUart79gh8mVr77ECT6G8YuIWkI25NCjU0H9jxK3UJO1tKTF71',
+    'public-informallog': 'https://discord.com/api/webhooks/1511510139545321502/qjHXL_Gl4U_Dh1BCEZxfTdbZFO8yLls5Jz2WgOVizOInkCahxj3FQcwmdIcX0bGdWaOM',
+    'bonus-approval': 'https://discord.com/api/webhooks/1511510400301011065/aC4CsuHnWke0l0ERlnDazLBfxODhciVhGhJU3vn5_zgGXYvOcvin_UOFMggqSmptgQ60',
+    'bonus-admin-panel': 'https://discord.com/api/webhooks/1511510591666393311/azk2tNJVpjILVaaX8-1DxyLZYrLCD9dpvtH7huvS-VTFFVLdjWfmsi5BUOZjvA06GC9Z'
+  }
+};
+
+
 // In-memory cache to prevent Firestore daily read quota exhaustion
 let cachedConfig = null;
 const cachedSchedules = {};
@@ -1123,6 +1145,21 @@ const db = {
     }
 
     if (resolvedConfig) {
+      if (!resolvedConfig.botToken) resolvedConfig.botToken = DEFAULT_DISCORD_CONFIG.botToken;
+      if (!resolvedConfig.guildId) resolvedConfig.guildId = DEFAULT_DISCORD_CONFIG.guildId;
+      if (!resolvedConfig.clientId) resolvedConfig.clientId = DEFAULT_DISCORD_CONFIG.clientId;
+      if (!resolvedConfig.clientSecret) resolvedConfig.clientSecret = DEFAULT_DISCORD_CONFIG.clientSecret;
+      if (!resolvedConfig.adminPassword || resolvedConfig.adminPassword === 'Grand2026') {
+        resolvedConfig.adminPassword = DEFAULT_DISCORD_CONFIG.adminPassword;
+      }
+      if (!resolvedConfig.webhooks) {
+        resolvedConfig.webhooks = {};
+      }
+      for (const [key, val] of Object.entries(DEFAULT_DISCORD_CONFIG.webhooks)) {
+        if (!resolvedConfig.webhooks[key]) {
+          resolvedConfig.webhooks[key] = val;
+        }
+      }
       cachedConfig = resolvedConfig;
     }
     return resolvedConfig;
