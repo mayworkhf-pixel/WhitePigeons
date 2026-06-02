@@ -43,7 +43,53 @@ const channelsList: WebhookChannel[] = [
   { key: 'point-shop', name: '💰┃𝐏𝐨𝐢𝐧𝐭-𝐒𝐡𝐨𝐩', description: 'Point shop order details' }
 ];
 
-const DEFAULT_ROLES = ['Leader', 'Co-Leader', 'Underboss', 'Soldier', 'Associate', 'Recruit'];
+const DEFAULT_ROLES = [
+  '👑 | Leader',
+  '🥇 | UnderBoss',
+  '🥈 | Deputy',
+  '🥉 | UnderDeputy',
+  '❗ | Manager',
+  'HIGH COMMAND',
+  '👑 | TOP 5 Manager',
+  '👑 | TOP 5',
+  '🥇 | TOP 10 Manager',
+  '🥇 | TOP 10',
+  '💵 | Bonus Manager',
+  '🔫 | Event Manager',
+  '💥 | Activity Manager',
+  '🔥 | Profit Manager',
+  '🔗 | Ticket Manager',
+  '🔫 | Roaster Manager',
+  '🚨 | Strike Manager',
+  '🚗 | Ammocar Managers',
+  'Bot Manager',
+  'Discord Moderator',
+  '🤖 | Bot',
+  '💳 | RP Collector',
+  '👾 | TurfLeader',
+  '🔫 | Turfer',
+  '🚀 | Shooter',
+  '🔫 | Famwar',
+  '🔫 | Informal Role',
+  '⏰ | Events Role',
+  '💳 | RP Ticket Roaster',
+  '⚠️ | State Control Role',
+  '🏆 Tournament',
+  '🔱 | Family Member',
+  'Member',
+  'TR | TR',
+  'AE | Arab',
+  'FR | French',
+  'IN | Indian',
+  'Friends',
+  'Server Booster',
+  '😳 | Unmuted',
+  'Strike 1',
+  'Strike 2',
+  'Strike 3',
+  'noc4p',
+  'atcek'
+];
 
 export default function AdminDashboard() {
   const { user, loading: userLoading, addNotification, API_BASE_URL } = useApp();

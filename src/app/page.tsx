@@ -206,6 +206,9 @@ export default function RootDashboard() {
     user.roles.includes('Leadership') || 
     user.roles.includes('Admin') || 
     user.roles.includes('High Command') || 
+    user.roles.includes('HIGH COMMAND') || 
+    user.roles.includes('👑 | Leader') || 
+    user.roles.includes('🥇 | UnderBoss') || 
     user.roles.includes('High-Command') || 
     user.roles.includes('HC')
   );

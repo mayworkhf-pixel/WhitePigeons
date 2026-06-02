@@ -64,6 +64,9 @@ async function requireAdmin(req, res, next) {
       session.roles.includes('Leadership') || 
       session.roles.includes('Admin') || 
       session.roles.includes('High Command') || 
+      session.roles.includes('HIGH COMMAND') || 
+      session.roles.includes('👑 | Leader') || 
+      session.roles.includes('🥇 | UnderBoss') || 
       session.roles.includes('High-Command') || 
       session.roles.includes('HC')
     ));
