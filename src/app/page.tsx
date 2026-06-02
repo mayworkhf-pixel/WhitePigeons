@@ -129,10 +129,10 @@ export default function RootDashboard() {
   // Custom Timer states
   const [rpTriggerDelay, setRpTriggerDelay] = useState('5');
   const [rpScheduledTime, setRpScheduledTime] = useState<string | null>(null);
-  const [rpCountdown, setRpCountdown] = useState<number | null>(null);
+  const [rpTriggerCountdown, setRpTriggerCountdown] = useState<number | null>(null);
   const [infTriggerDelay, setInfTriggerDelay] = useState('5');
   const [infScheduledTime, setInfScheduledTime] = useState<string | null>(null);
-  const [infCountdown, setInfCountdown] = useState<number | null>(null);
+  const [infTriggerCountdown, setInfTriggerCountdown] = useState<number | null>(null);
   
   // Kick & Swap admin states
   const [rpSwapFirstId, setRpSwapFirstId] = useState<string | null>(null);
@@ -377,30 +377,30 @@ export default function RootDashboard() {
 
   // Countdown timers tickers
   useEffect(() => {
-    if (rpCountdown === null) return;
-    if (rpCountdown <= 0) {
-      setRpCountdown(null);
+    if (rpTriggerCountdown === null) return;
+    if (rpTriggerCountdown < 0) {
+      setRpTriggerCountdown(null);
       setRpScheduledTime(null);
       return;
     }
     const timer = setTimeout(() => {
-      setRpCountdown(rpCountdown - 1);
+      setRpTriggerCountdown(rpTriggerCountdown - 1);
     }, 1000);
     return () => clearTimeout(timer);
-  }, [rpCountdown]);
+  }, [rpTriggerCountdown]);
 
   useEffect(() => {
-    if (infCountdown === null) return;
-    if (infCountdown <= 0) {
-      setInfCountdown(null);
+    if (infTriggerCountdown === null) return;
+    if (infTriggerCountdown < 0) {
+      setInfTriggerCountdown(null);
       setInfScheduledTime(null);
       return;
     }
     const timer = setTimeout(() => {
-      setInfCountdown(infCountdown - 1);
+      setInfTriggerCountdown(infTriggerCountdown - 1);
     }, 1000);
     return () => clearTimeout(timer);
-  }, [infCountdown]);
+  }, [infTriggerCountdown]);
 
   // Run data timers & queries on mount
   useEffect(() => {
@@ -905,10 +905,10 @@ export default function RootDashboard() {
         const totalSecs = unit === 'seconds' ? val : val * 60;
         if (eventId === 'rp-signup') {
           setRpScheduledTime(data.targetTime);
-          setRpCountdown(totalSecs);
+          setRpTriggerCountdown(totalSecs);
         } else {
           setInfScheduledTime(data.targetTime);
-          setInfCountdown(totalSecs);
+          setInfTriggerCountdown(totalSecs);
         }
       } else {
         addNotification('Scheduling Failed', data.error || 'Failed to schedule trigger.', 'warning');
@@ -3539,9 +3539,9 @@ export default function RootDashboard() {
                     30s
                   </button>
                 </div>
-                {rpCountdown !== null && rpCountdown > 0 ? (
+                {rpTriggerCountdown !== null && rpTriggerCountdown >= 0 ? (
                   <span className="text-[10px] text-green-400 font-bold block animate-pulse">
-                    ⏱️ Triggering in {rpCountdown}s
+                    ⏱️ Triggering in {rpTriggerCountdown}s
                   </span>
                 ) : rpScheduledTime ? (
                   <span className="text-[9px] text-green-400 font-bold block animate-pulse">
@@ -3862,9 +3862,9 @@ export default function RootDashboard() {
                     30s
                   </button>
                 </div>
-                {infCountdown !== null && infCountdown > 0 ? (
+                {infTriggerCountdown !== null && infTriggerCountdown >= 0 ? (
                   <span className="text-[10px] text-green-400 font-bold block animate-pulse">
-                    ⏱️ Triggering in {infCountdown}s
+                    ⏱️ Triggering in {infTriggerCountdown}s
                   </span>
                 ) : infScheduledTime ? (
                   <span className="text-[9px] text-green-400 font-bold block animate-pulse">

@@ -949,6 +949,9 @@ router.post('/events/signup/:eventId', requireMember, async (req, res) => {
   // Sync Discord Embed and emit sockets
   await botService.syncRpSignupEmbed(eventId);
 
+  // Send direct message confirmation
+  await botService.sendSignupDm(eventId, user.discordId, result.action);
+
   if (result.action === 'displaced' && result.displaced) {
     // Notify displaced user
     await botService.sendDirectMessage(

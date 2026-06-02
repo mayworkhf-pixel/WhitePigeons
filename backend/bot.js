@@ -10,7 +10,10 @@ const findChannel = async (guild, filterFn) => {
   } catch (err) {
     console.warn('[Bot] Failed to fetch guild channels, falling back to cache:', err.message);
   }
-  return guild.channels.cache.find(filterFn);
+  return guild.channels.cache.find(c => {
+    if (typeof c.isTextBased === 'function' && !c.isTextBased()) return false;
+    return filterFn(c);
+  });
 };
 
 let client = null;
@@ -354,6 +357,9 @@ const botService = {
                   type: 'info'
                 });
               }
+
+              // Send direct message confirmation
+              await botService.sendSignupDm(eventId, discordId, result.action);
 
               if (result.action === 'confirmed') {
                 await interaction.reply({ content: `✅ Spot confirmed! Status: Confirmed.`, ephemeral: true });
@@ -826,6 +832,19 @@ const botService = {
       botService.logSimulated(`[DM Failed] Could not DM user (${discordId}): ${err.message}`);
     }
     return false;
+  },
+
+  // Send direct message confirmation on successful signup
+  sendSignupDm: async (eventId, discordId, action) => {
+    if (eventId !== 'rp-signup') return;
+    
+    let rosterType = 'Waitlist';
+    if (action === 'confirmed' || action === 'displaced') {
+      rosterType = 'Main Roster';
+    }
+    
+    const text = `✅ You have joined the event: RP Ticket (${rosterType})`;
+    await botService.sendDirectMessage(discordId, text);
   },
 
   // Update member nicknames and roles inside the server
