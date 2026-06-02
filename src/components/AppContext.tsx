@@ -110,13 +110,58 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const res = await fetch(`${API_BASE_URL}/api/auth/me`, { cache: 'no-store' });
       const data = await res.json();
       if (data.loggedIn) {
-        setUser(data.user);
+        const updatedUser = { ...data.user };
+        if (typeof window !== 'undefined' && localStorage.getItem('wp_admin_auth') === 'true') {
+          updatedUser.admin_authenticated = true;
+          if (!updatedUser.roles.includes('Admin')) {
+            updatedUser.roles.push('Admin');
+          }
+        }
+        setUser(updatedUser);
       } else {
-        setUser(null);
+        if (typeof window !== 'undefined' && localStorage.getItem('wp_admin_auth') === 'true') {
+          setUser({
+            discordId: 'admin-local',
+            username: 'WP_Admin',
+            nickname: 'WP | Admin',
+            roles: ['Admin'],
+            isTop10: false,
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+            isMock: true,
+            kills: 0,
+            weeklyKills: 0,
+            balance: 0,
+            strikes: [],
+            points: 0,
+            activityScore: 100,
+            admin_authenticated: true
+          });
+        } else {
+          setUser(null);
+        }
       }
     } catch (e) {
       console.warn('Backend not responding to session check.');
-      setUser(null);
+      if (typeof window !== 'undefined' && localStorage.getItem('wp_admin_auth') === 'true') {
+        setUser({
+          discordId: 'admin-local',
+          username: 'WP_Admin',
+          nickname: 'WP | Admin',
+          roles: ['Admin'],
+          isTop10: false,
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+          isMock: true,
+          kills: 0,
+          weeklyKills: 0,
+          balance: 0,
+          strikes: [],
+          points: 0,
+          activityScore: 100,
+          admin_authenticated: true
+        });
+      } else {
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -234,11 +279,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Logout routine
   const logout = async () => {
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('wp_admin_auth');
+      }
       await fetch(`${API_BASE_URL}/api/auth/logout`);
       setUser(null);
       window.location.href = '/';
     } catch (e) {
       console.error(e);
+      setUser(null);
+      window.location.href = '/';
     }
   };
 
