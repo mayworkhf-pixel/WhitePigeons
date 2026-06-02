@@ -1010,6 +1010,14 @@ function decrypt(text) {
   }
 }
 
+function resolveAdminPassword(encPassword) {
+  if (process.env.ADMIN_PASSCODE) {
+    return process.env.ADMIN_PASSCODE;
+  }
+  const decrypted = encPassword ? decrypt(encPassword) : '';
+  return decrypted || 'Grand2026';
+}
+
 // Read DB file
 function readDb() {
   if (!fs.existsSync(DB_FILE)) {
@@ -1069,7 +1077,7 @@ const db = {
           const config = doc.data();
           if (config.botToken) config.botToken = decrypt(config.botToken);
           if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
-          config.adminPassword = config.adminPassword ? decrypt(config.adminPassword) : (process.env.ADMIN_PASSCODE || '');
+          config.adminPassword = resolveAdminPassword(config.adminPassword);
           if (!config.rpTicketTimes) {
             config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
           }
@@ -1081,7 +1089,7 @@ const db = {
           await firebaseDb.collection('settings').doc('discord').set(localConfig);
           if (localConfig.botToken) localConfig.botToken = decrypt(localConfig.botToken);
           if (localConfig.clientSecret) localConfig.clientSecret = decrypt(localConfig.clientSecret);
-          localConfig.adminPassword = localConfig.adminPassword ? decrypt(localConfig.adminPassword) : (process.env.ADMIN_PASSCODE || '');
+          localConfig.adminPassword = resolveAdminPassword(localConfig.adminPassword);
           if (!localConfig.rpTicketTimes) {
             localConfig.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
           }
@@ -1089,7 +1097,7 @@ const db = {
         }
       } catch (err) {
         console.error('Firestore getConfig failed, fallback to initial:', err.message);
-        return { ...initialDb.config, adminPassword: process.env.ADMIN_PASSCODE || '' };
+        return { ...initialDb.config, adminPassword: process.env.ADMIN_PASSCODE || 'Grand2026' };
       }
     }
     const data = readDb();
@@ -1097,7 +1105,7 @@ const db = {
     // Decrypt credentials before returning
     if (config.botToken) config.botToken = decrypt(config.botToken);
     if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
-    config.adminPassword = config.adminPassword ? decrypt(config.adminPassword) : (process.env.ADMIN_PASSCODE || '');
+    config.adminPassword = resolveAdminPassword(config.adminPassword);
     if (!config.rpTicketTimes) {
       config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
     }

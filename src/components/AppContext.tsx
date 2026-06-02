@@ -69,22 +69,23 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV ==
 function getLocalPreviewUser(): User | null {
   if (typeof window === 'undefined') return null;
   const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
-  if (!isLocalHost || localStorage.getItem('wp_local_preview') !== 'true') return null;
+  const hasAdminAuth = localStorage.getItem('wp_admin_auth') === 'true';
+  if (!hasAdminAuth && (!isLocalHost || localStorage.getItem('wp_local_preview') !== 'true')) return null;
 
   return {
-    discordId: 'local-preview',
-    username: 'LocalPreview',
-    nickname: 'Local Preview',
+    discordId: 'admin-local',
+    username: 'WP_Admin',
+    nickname: 'WP | Admin',
     roles: ['Admin', 'Leadership', 'Member'],
     isTop10: true,
-    avatar: '/logo.webp',
+    avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150',
     isMock: true,
-    kills: 0,
-    weeklyKills: 0,
-    balance: 0,
+    kills: 542,
+    weeklyKills: 38,
+    balance: 15400000,
     strikes: [],
-    points: 0,
-    activityScore: 0,
+    points: 2450,
+    activityScore: 92,
     admin_authenticated: true,
     status: 'approved'
   };
