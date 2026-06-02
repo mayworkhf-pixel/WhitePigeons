@@ -1059,18 +1059,36 @@ const db = {
     if (firebaseDb) {
       try {
         const doc = await firebaseDb.collection('settings').doc('discord').get();
-        const config = doc.exists ? doc.data() : { ...initialDb.config };
-        if (config.botToken) config.botToken = decrypt(config.botToken);
-        if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
-        if (config.adminPassword) {
-          config.adminPassword = decrypt(config.adminPassword);
+        if (doc.exists) {
+          const config = doc.data();
+          if (config.botToken) config.botToken = decrypt(config.botToken);
+          if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
+          if (config.adminPassword) {
+            config.adminPassword = decrypt(config.adminPassword);
+          } else {
+            config.adminPassword = 'anvy2026';
+          }
+          if (!config.rpTicketTimes) {
+            config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
+          }
+          return config;
         } else {
-          config.adminPassword = 'anvy2026';
+          console.log('[Database] settings/discord does not exist in Firestore. Syncing local credentials...');
+          const localData = readDb();
+          const localConfig = { ...localData.config };
+          await firebaseDb.collection('settings').doc('discord').set(localConfig);
+          if (localConfig.botToken) localConfig.botToken = decrypt(localConfig.botToken);
+          if (localConfig.clientSecret) localConfig.clientSecret = decrypt(localConfig.clientSecret);
+          if (localConfig.adminPassword) {
+            localConfig.adminPassword = decrypt(localConfig.adminPassword);
+          } else {
+            localConfig.adminPassword = 'anvy2026';
+          }
+          if (!localConfig.rpTicketTimes) {
+            localConfig.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
+          }
+          return localConfig;
         }
-        if (!config.rpTicketTimes) {
-          config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
-        }
-        return config;
       } catch (err) {
         console.error('Firestore getConfig failed, fallback to initial:', err.message);
         return { ...initialDb.config, adminPassword: 'anvy2026' };
@@ -1126,8 +1144,15 @@ const db = {
     if (firebaseDb) {
       try {
         const snapshot = await firebaseDb.collection('members').get();
-        const members = snapshot.docs.map(doc => doc.data());
-        return members.length > 0 ? members : [...initialDb.members];
+        if (snapshot.size > 0) {
+          return snapshot.docs.map(doc => doc.data());
+        }
+        console.log('[Database] Firestore members collection is empty. Uploading local members list...');
+        const localMembers = readDb().members || [];
+        for (const member of localMembers) {
+          await firebaseDb.collection('members').doc(member.discordId).set(member);
+        }
+        return localMembers;
       } catch (err) {
         console.error('Firestore getMembers failed:', err.message);
       }
