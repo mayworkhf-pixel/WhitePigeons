@@ -1144,6 +1144,10 @@ const db = {
       resolvedConfig = config;
     }
 
+    if (!resolvedConfig) {
+      resolvedConfig = { ...initialDb.config };
+    }
+
     if (resolvedConfig) {
       if (!resolvedConfig.botToken) resolvedConfig.botToken = DEFAULT_DISCORD_CONFIG.botToken;
       if (!resolvedConfig.guildId) resolvedConfig.guildId = DEFAULT_DISCORD_CONFIG.guildId;

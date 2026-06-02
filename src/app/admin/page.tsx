@@ -96,7 +96,7 @@ const DEFAULT_ROLES = [
 ];
 
 export default function AdminDashboard() {
-  const { user, loading: userLoading, addNotification, API_BASE_URL } = useApp();
+  const { user, loading: userLoading, addNotification, API_BASE_URL, botReady } = useApp();
   
   const [activeSubTab, setActiveSubTab] = useState<'dispatch' | 'bot-config' | 'member-requests' | 'members'>('dispatch');
   const [members, setMembers] = useState<any[]>([]);
@@ -104,7 +104,12 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [customRoleInput, setCustomRoleInput] = useState<Record<string, string>>({}); // memberId -> role text
   const [savingMembers, setSavingMembers] = useState<Record<string, boolean>>({}); // memberId -> isSaving boolean
-  const [webhooks, setWebhooks] = useState<Record<string, string>>({});
+  const [webhooks, setWebhooks] = useState<Record<string, string>>({
+    'public-winlog': 'https://discord.com/api/webhooks/1511509808077996194/WrH9itsmawvX0FirkfoUart79gh8mVr77ECT6G8YuIWkI25NCjU0H9jxK3UJO1tKTF71',
+    'public-informallog': 'https://discord.com/api/webhooks/1511510139545321502/qjHXL_Gl4U_Dh1BCEZxfTdbZFO8yLls5Jz2WgOVizOInkCahxj3FQcwmdIcX0bGdWaOM',
+    'bonus-approval': 'https://discord.com/api/webhooks/1511510400301011065/aC4CsuHnWke0l0ERlnDazLBfxODhciVhGhJU3vn5_zgGXYvOcvin_UOFMggqSmptgQ60',
+    'bonus-admin-panel': 'https://discord.com/api/webhooks/1511510591666393311/azk2tNJVpjILVaaX8-1DxyLZYrLCD9dpvtH7huvS-VTFFVLdjWfmsi5BUOZjvA06GC9Z'
+  });
   const [showWebhooks, setShowWebhooks] = useState<Record<string, boolean>>({});
   const [broadcastForm, setBroadcastForm] = useState({
     channelKey: 'announcements',
@@ -116,13 +121,13 @@ export default function AdminDashboard() {
 
   // Bot Credentials form state
   const [credentials, setCredentials] = useState({
-    botToken: '',
-    guildId: '',
-    clientId: '',
-    clientSecret: '',
-    adminPassword: '',
+    botToken: '••••••••••••••••',
+    guildId: '1511130238074093698',
+    clientId: '1511505854728503336',
+    clientSecret: '••••••••••••••••',
+    adminPassword: '••••••••••••••••',
     rpTicketTimes: '08:30, 15:00, 20:00, 22:30',
-    factoryVoiceChannelId: '',
+    factoryVoiceChannelId: 'mock-voice-id',
     simulatedVoice: ''
   });
   const [credsLoading, setCredsLoading] = useState(false);
@@ -472,12 +477,12 @@ export default function AdminDashboard() {
 
         <div className="bg-[#09080d]/80 border border-[#201d2d]/65 px-4 py-2 rounded-xl flex items-center gap-3 shrink-0 relative z-10 backdrop-blur-sm">
           <div className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${botReady ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
+            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${botReady ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
           </div>
           <div className="text-left leading-tight">
             <span className="text-[9px] text-zinc-500 font-bold block">DISCORD BOT STATUS</span>
-            <span className="text-xs font-mono font-bold text-zinc-200">Active / Simulated</span>
+            <span className="text-xs font-mono font-bold text-zinc-200">{botReady ? 'Active / Live' : 'Active / Simulated'}</span>
           </div>
         </div>
       </div>
