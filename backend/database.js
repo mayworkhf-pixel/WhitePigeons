@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const admin = require('firebase-admin');
 
 // Paths
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'white-pigeon-command-hub-secret-key-32chars!'; // Must be 32 bytes
 
