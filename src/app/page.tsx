@@ -88,6 +88,7 @@ interface SignupModel {
   signedUpAt: string;
   isTop10: boolean;
   status: 'confirmed' | 'reserve' | 'displaced';
+  inVoice?: boolean;
 }
 
 // Helper to format countdown from milliseconds to HH:MM:SS
@@ -833,6 +834,30 @@ export default function RootDashboard() {
         loadSignups();
       }
     } catch (e) {}
+  };
+
+  // Toggle simulated voice presence
+  const handleToggleVoiceSimulation = async (memberId: string, currentInVoice: boolean) => {
+    try {
+      const passcode = localStorage.getItem('wp_admin_passcode') || '';
+      const res = await fetch(`${API_BASE_URL}/api/events/simulate-voice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ memberId, inVoice: !currentInVoice })
+      });
+      if (res.ok) {
+        addNotification('Voice Presence Toggled', 'Simulated voice status updated and Discord synced.', 'success');
+        loadSignups();
+      } else {
+        const errData = await res.json();
+        addNotification('Action Denied', errData.error || 'Failed to toggle voice status.', 'warning');
+      }
+    } catch (err: any) {
+      addNotification('Error', err.message || 'Error toggling voice status.', 'warning');
+    }
   };
 
   // Log public win
@@ -2921,6 +2946,30 @@ export default function RootDashboard() {
     const confirmedQueue = rpSignups.filter(s => s.status === 'confirmed');
     const reserveQueue = rpSignups.filter(s => s.status === 'reserve' || s.status === 'displaced');
 
+    let normalCount = 0;
+    const confirmedIcons = confirmedQueue.map((s) => {
+      if (s.isTop10) return '👑';
+      normalCount++;
+      if (normalCount === 1) return '🥇';
+      if (normalCount === 2) return '🥈';
+      if (normalCount === 3) return '🥉';
+      if (normalCount === 4) return '🏅';
+      if (normalCount === 5) return '🎖️';
+      return '⚔️';
+    });
+
+    let normalSubCount = 0;
+    const reserveIcons = reserveQueue.map((s) => {
+      if (s.isTop10) return '👑';
+      normalSubCount++;
+      if (normalSubCount === 1) return '🥇';
+      if (normalSubCount === 2) return '🥈';
+      if (normalSubCount === 3) return '🥉';
+      if (normalSubCount === 4) return '🏅';
+      if (normalSubCount === 5) return '🎖️';
+      return '⚔️';
+    });
+
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
         {/* Directive details */}
@@ -2961,7 +3010,7 @@ export default function RootDashboard() {
                 value={eventTriggerForm.description}
                 onChange={(e) => setEventTriggerForm(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Roster Event Directives..." 
-                className="w-full bg-[#121118] border border-[#1e1b29] rounded-lg p-2 text-xs text-zinc-350 outline-none resize-none"
+                className="w-full bg-[#121118] border border-[#1e1b29] rounded-lg p-2 text-xs text-zinc-355 outline-none resize-none"
               />
               <div className="grid grid-cols-3 gap-2">
                 <button onClick={() => handleTriggerSignupWindow('rp-signup', eventTriggerForm.title, eventTriggerForm.description)} className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center">
@@ -3013,18 +3062,32 @@ export default function RootDashboard() {
               <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1e1b29] pb-1">✅ CONFIRMED ROSTER</span>
               <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
                 {confirmedQueue.length === 0 ? (
-                  <div className="text-center py-12 text-zinc-600 italic">ROSTER IS VACANT.</div>
+                  <div className="text-center py-12 text-zinc-655 italic">ROSTER IS VACANT.</div>
                 ) : (
-                  confirmedQueue.map((s, idx) => (
-                    <div key={idx} className="flex justify-between items-center bg-[#181622]/40 p-2.5 border border-[#1e1b29] rounded-xl font-sans text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-zinc-500 font-bold">#{idx + 1}</span>
-                        <span className="font-bold text-zinc-200">@{s.username}</span>
-                        {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                  confirmedQueue.map((s, idx) => {
+                    const badgeIcon = confirmedIcons[idx];
+                    return (
+                      <div key={idx} className="flex justify-between items-center bg-[#181622]/40 p-2.5 border border-[#1e1b29] rounded-xl font-sans text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500 font-bold w-4 text-right">#{idx + 1}</span>
+                          <span className="text-base leading-none select-none">{badgeIcon}</span>
+                          <span className="font-bold text-zinc-200">@{s.username}</span>
+                          {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[8px] text-zinc-500">{new Date(s.signedUpAt).toLocaleTimeString()}</span>
+                          <button
+                            onClick={() => isAuditor && handleToggleVoiceSimulation(s.memberId, !!s.inVoice)}
+                            disabled={!isAuditor}
+                            className={`text-base select-none ${isAuditor ? 'cursor-pointer hover:scale-110 transition-transform' : 'cursor-default'}`}
+                            title={isAuditor ? "Toggle simulated voice presence" : ""}
+                          >
+                            {s.inVoice ? '✅' : '❌'}
+                          </button>
+                        </div>
                       </div>
-                      <span className="text-[8px] text-zinc-500">{new Date(s.signedUpAt).toLocaleTimeString()}</span>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -3036,18 +3099,32 @@ export default function RootDashboard() {
                 {reserveQueue.length === 0 ? (
                   <div className="text-center py-12 text-zinc-655 italic">RESERVE QUEUE VACANT.</div>
                 ) : (
-                  reserveQueue.map((s, idx) => (
-                    <div key={idx} className={`flex justify-between items-center p-2.5 border rounded-xl font-sans text-xs ${
-                      s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#181622]/40 border-[#1e1b29] text-zinc-400'
-                    }`}>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-zinc-500 font-bold">R#{idx + 1}</span>
-                        <span className="font-bold">@{s.username}</span>
-                        {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                  reserveQueue.map((s, idx) => {
+                    const badgeIcon = reserveIcons[idx];
+                    return (
+                      <div key={idx} className={`flex justify-between items-center p-2.5 border rounded-xl font-sans text-xs ${
+                        s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#181622]/40 border-[#1e1b29] text-zinc-400'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500 font-bold w-4 text-right">R#{idx + 1}</span>
+                          <span className="text-base leading-none select-none">{badgeIcon}</span>
+                          <span className="font-bold">@{s.username}</span>
+                          {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[9px] font-bold uppercase">{s.status}</span>
+                          <button
+                            onClick={() => isAuditor && handleToggleVoiceSimulation(s.memberId, !!s.inVoice)}
+                            disabled={!isAuditor}
+                            className={`text-base select-none ${isAuditor ? 'cursor-pointer hover:scale-110 transition-transform' : 'cursor-default'}`}
+                            title={isAuditor ? "Toggle simulated voice presence" : ""}
+                          >
+                            {s.inVoice ? '✅' : '❌'}
+                          </button>
+                        </div>
                       </div>
-                      <span className="text-[9px] font-bold uppercase">{s.status}</span>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -3063,6 +3140,30 @@ export default function RootDashboard() {
 
     const confirmedQueue = informalSignups.filter(s => s.status === 'confirmed');
     const reserveQueue = informalSignups.filter(s => s.status === 'reserve' || s.status === 'displaced');
+
+    let normalCount = 0;
+    const confirmedIcons = confirmedQueue.map((s) => {
+      if (s.isTop10) return '👑';
+      normalCount++;
+      if (normalCount === 1) return '🥇';
+      if (normalCount === 2) return '🥈';
+      if (normalCount === 3) return '🥉';
+      if (normalCount === 4) return '🏅';
+      if (normalCount === 5) return '🎖️';
+      return '⚔️';
+    });
+
+    let normalSubCount = 0;
+    const reserveIcons = reserveQueue.map((s) => {
+      if (s.isTop10) return '👑';
+      normalSubCount++;
+      if (normalSubCount === 1) return '🥇';
+      if (normalSubCount === 2) return '🥈';
+      if (normalSubCount === 3) return '🥉';
+      if (normalSubCount === 4) return '🏅';
+      if (normalSubCount === 5) return '🎖️';
+      return '⚔️';
+    });
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
@@ -3158,16 +3259,30 @@ export default function RootDashboard() {
                 {confirmedQueue.length === 0 ? (
                   <div className="text-center py-12 text-zinc-650 italic">ROSTER IS VACANT.</div>
                 ) : (
-                  confirmedQueue.map((s, idx) => (
-                    <div key={idx} className="flex justify-between items-center bg-[#181622]/40 p-2.5 border border-[#1e1b29] rounded-xl font-sans text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-zinc-500 font-bold">#{idx + 1}</span>
-                        <span className="font-bold text-zinc-200">@{s.username}</span>
-                        {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                  confirmedQueue.map((s, idx) => {
+                    const badgeIcon = confirmedIcons[idx];
+                    return (
+                      <div key={idx} className="flex justify-between items-center bg-[#181622]/40 p-2.5 border border-[#1e1b29] rounded-xl font-sans text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500 font-bold w-4 text-right">#{idx + 1}</span>
+                          <span className="text-base leading-none select-none">{badgeIcon}</span>
+                          <span className="font-bold text-zinc-200">@{s.username}</span>
+                          {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[8px] text-zinc-500">{new Date(s.signedUpAt).toLocaleTimeString()}</span>
+                          <button
+                            onClick={() => isAuditor && handleToggleVoiceSimulation(s.memberId, !!s.inVoice)}
+                            disabled={!isAuditor}
+                            className={`text-base select-none ${isAuditor ? 'cursor-pointer hover:scale-110 transition-transform' : 'cursor-default'}`}
+                            title={isAuditor ? "Toggle simulated voice presence" : ""}
+                          >
+                            {s.inVoice ? '✅' : '❌'}
+                          </button>
+                        </div>
                       </div>
-                      <span className="text-[8px] text-zinc-500">{new Date(s.signedUpAt).toLocaleTimeString()}</span>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -3177,20 +3292,34 @@ export default function RootDashboard() {
               <span className="text-[10px] font-bold text-zinc-500 tracking-wider block border-b border-[#1e1b29] pb-1">⏳ RESERVE QUEUE</span>
               <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
                 {reserveQueue.length === 0 ? (
-                  <div className="text-center py-12 text-zinc-650 italic">RESERVE QUEUE VACANT.</div>
+                  <div className="text-center py-12 text-zinc-655 italic">RESERVE QUEUE VACANT.</div>
                 ) : (
-                  reserveQueue.map((s, idx) => (
-                    <div key={idx} className={`flex justify-between items-center p-2.5 border rounded-xl font-sans text-xs ${
-                      s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#181622]/40 border-[#1e1b29] text-zinc-400'
-                    }`}>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-zinc-500 font-bold">R#{idx + 1}</span>
-                        <span className="font-bold">@{s.username}</span>
-                        {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                  reserveQueue.map((s, idx) => {
+                    const badgeIcon = reserveIcons[idx];
+                    return (
+                      <div key={idx} className={`flex justify-between items-center p-2.5 border rounded-xl font-sans text-xs ${
+                        s.status === 'displaced' ? 'bg-red-500/5 border-red-500/10 text-red-400 animate-pulse' : 'bg-[#181622]/40 border-[#1e1b29] text-zinc-400'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500 font-bold w-4 text-right">R#{idx + 1}</span>
+                          <span className="text-base leading-none select-none">{badgeIcon}</span>
+                          <span className="font-bold">@{s.username}</span>
+                          {s.isTop10 && <span className="text-[7px] bg-accent/20 text-accent border border-accent/30 font-black px-1 rounded">TOP 10</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[9px] font-bold uppercase">{s.status}</span>
+                          <button
+                            onClick={() => isAuditor && handleToggleVoiceSimulation(s.memberId, !!s.inVoice)}
+                            disabled={!isAuditor}
+                            className={`text-base select-none ${isAuditor ? 'cursor-pointer hover:scale-110 transition-transform' : 'cursor-default'}`}
+                            title={isAuditor ? "Toggle simulated voice presence" : ""}
+                          >
+                            {s.inVoice ? '✅' : '❌'}
+                          </button>
+                        </div>
                       </div>
-                      <span className="text-[9px] font-bold uppercase">{s.status}</span>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

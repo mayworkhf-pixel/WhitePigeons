@@ -872,7 +872,7 @@ router.post('/shop/orders/:id/complete', requireAdmin, async (req, res) => {
 // -------------------------------------------------------------
 router.get('/events/signup/:eventId', async (req, res) => {
   const { eventId } = req.params;
-  res.json(await db.getSignups(eventId));
+  res.json(await botService.getEnrichedSignups(eventId));
 });
 
 // Member signs up
@@ -888,6 +888,9 @@ router.post('/events/signup/:eventId', requireMember, async (req, res) => {
   if (!result.success) {
     return res.status(400).json({ error: result.message });
   }
+
+  // Sync Discord Embed and emit sockets
+  await botService.syncRpSignupEmbed(eventId);
 
   if (result.action === 'displaced' && result.displaced) {
     // Notify displaced user
@@ -927,6 +930,35 @@ router.post('/events/trigger', requireAdmin, async (req, res) => {
   botService.broadcastSocket('event_state_change', { eventId, state: 'open' });
 
   return res.json({ success: true, message: 'Signup window opened and broadcasted to Discord.' });
+});
+
+// Admin simulates voice state change for a member
+router.post('/events/simulate-voice', requireAdmin, async (req, res) => {
+  const { memberId, inVoice } = req.body;
+  if (!memberId) {
+    return res.status(400).json({ error: 'memberId is required.' });
+  }
+
+  const config = await db.getConfig();
+  let simulatedVoice = config.simulatedVoice || ['anvy-mock', 'alikagan-mock', '70941', '101254'];
+  
+  if (inVoice) {
+    if (!simulatedVoice.includes(memberId)) {
+      simulatedVoice.push(memberId);
+    }
+  } else {
+    simulatedVoice = simulatedVoice.filter(id => id !== memberId);
+  }
+
+  config.simulatedVoice = simulatedVoice;
+  await db.saveConfig(config);
+
+  // Sync Discord embeds and broadcast socket change!
+  await botService.syncRpSignupEmbed('rp-signup');
+  await botService.syncRpSignupEmbed('informal-signup');
+
+  botService.logSimulated(`Voice presence simulation updated for ${memberId}: ${inVoice ? 'Joined' : 'Left'}`);
+  return res.json({ success: true, simulatedVoice });
 });
 
 // -------------------------------------------------------------

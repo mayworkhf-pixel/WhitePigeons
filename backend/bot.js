@@ -36,7 +36,8 @@ const botService = {
           GatewayIntentBits.Guilds,
           GatewayIntentBits.GuildMembers,
           GatewayIntentBits.GuildMessages,
-          GatewayIntentBits.MessageContent
+          GatewayIntentBits.MessageContent,
+          GatewayIntentBits.GuildVoiceStates
         ]
       });
 
@@ -525,6 +526,19 @@ const botService = {
         }
       });
 
+      client.on('voiceStateUpdate', async (oldState, newState) => {
+        try {
+          const config = await db.getConfig();
+          const voiceChannelId = config.factoryVoiceChannelId || 'mock-voice-id';
+          if (oldState.channelId === voiceChannelId || newState.channelId === voiceChannelId) {
+            await botService.syncRpSignupEmbed('rp-signup');
+            await botService.syncRpSignupEmbed('informal-signup');
+          }
+        } catch (err) {
+          console.error('[Bot] voiceStateUpdate handler failed:', err.message);
+        }
+      });
+
       await client.login(config.botToken);
       return true;
     } catch (err) {
@@ -673,20 +687,138 @@ const botService = {
     return false;
   },
 
+  getClient: () => client,
+
+  getEnrichedSignups: async (eventId) => {
+    const signups = await db.getSignups(eventId);
+    const config = await db.getConfig();
+    let voiceMemberIds = new Set();
+    if (client) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId).catch(() => null);
+        if (guild) {
+          const voiceChannel = guild.channels.cache.get(config.factoryVoiceChannelId || 'mock-voice-id');
+          if (voiceChannel && voiceChannel.type === 2) {
+            for (const memberId of voiceChannel.members.keys()) {
+              voiceMemberIds.add(memberId);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to fetch voice channel members for enrichment:', err.message);
+      }
+    }
+    const simulatedVoice = config.simulatedVoice || ['anvy-mock', 'alikagan-mock', '70941', '101254'];
+    for (const id of simulatedVoice) {
+      voiceMemberIds.add(id);
+    }
+    return signups.map(s => ({
+      ...s,
+      inVoice: voiceMemberIds.has(s.memberId)
+    }));
+  },
+
+  syncRpSignupEmbed: async (eventId) => {
+    const enriched = await botService.getEnrichedSignups(eventId);
+    if (ioInstance) {
+      ioInstance.emit('signup_change', { eventId, signups: enriched });
+    }
+
+    if (!client) return;
+    try {
+      const config = await db.getConfig();
+      const guild = await client.guilds.fetch(config.guildId).catch(() => null);
+      if (!guild) return;
+      const channel = guild.channels.cache.find(c => c.name.includes('signup'));
+      if (channel) {
+        const messages = await channel.messages.fetch({ limit: 15 });
+        const signupMessage = messages.find(m => {
+          return m.author.id === client.user.id && 
+                 m.embeds.length > 0 && 
+                 m.embeds[0].title && 
+                 m.embeds[0].title.includes(eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight') &&
+                 m.components.length > 0;
+        });
+
+        if (signupMessage) {
+          const originalEmbed = signupMessage.embeds[0];
+          const descriptionMatch = originalEmbed.description.match(/\*\*Event Directives:\*\*\n([\s\S]+?)\n\n/);
+          const directives = descriptionMatch ? descriptionMatch[1] : '';
+
+          const updatedEmbed = await botService.buildSignupEmbed(eventId, originalEmbed.title, directives, false);
+          await signupMessage.edit({ embeds: [updatedEmbed] });
+          botService.logSimulated(`Synced active signup message in Discord channel #${channel.name}`);
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync signup message in Discord:', err.message);
+    }
+  },
+
   // Build a complete, live updating signup embed list matching reference layout
   buildSignupEmbed: async (eventId, title, description, isClosed = false) => {
     const signups = await db.getSignups(eventId);
     const confirmed = signups.filter(s => s.status === 'confirmed');
     const reserve = signups.filter(s => s.status === 'reserve' || s.status === 'displaced');
 
+    // Get voice members
+    let voiceMemberIds = new Set();
+    const config = await db.getConfig();
+    if (client) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId).catch(() => null);
+        if (guild) {
+          const voiceChannel = guild.channels.cache.get(config.factoryVoiceChannelId || 'mock-voice-id');
+          if (voiceChannel && voiceChannel.type === 2) {
+            for (const memberId of voiceChannel.members.keys()) {
+              voiceMemberIds.add(memberId);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to fetch voice channel members for embed:', err.message);
+      }
+    }
+    const simulatedVoice = config.simulatedVoice || ['anvy-mock', 'alikagan-mock', '70941', '101254'];
+    for (const id of simulatedVoice) {
+      voiceMemberIds.add(id);
+    }
+
+    // Determine normal rankings for medals
+    let normalCount = 0;
     const mainRosterLines = confirmed.map((s, idx) => {
-      const icon = s.isTop10 ? '👑' : '⚔️';
-      return `**${idx + 1}.** ${icon} <@${s.memberId}> ✅`;
+      let icon = '⚔️';
+      if (s.isTop10) {
+        icon = '👑';
+      } else {
+        normalCount++;
+        if (normalCount === 1) icon = '🥇';
+        else if (normalCount === 2) icon = '🥈';
+        else if (normalCount === 3) icon = '🥉';
+        else if (normalCount === 4) icon = '🏅';
+        else if (normalCount === 5) icon = '🎖️';
+      }
+      const inVoice = voiceMemberIds.has(s.memberId);
+      const voiceIcon = inVoice ? '✅' : '❌';
+      return `**${idx + 1}.** ${icon} <@${s.memberId}> ${voiceIcon}`;
     });
 
+    let normalSubCount = 0;
     const reserveLines = reserve.map((s, idx) => {
-      const icon = s.isTop10 ? '👑' : '⚔️';
-      return `**${idx + 1}.** ${icon} <@${s.memberId}>`;
+      let icon = '⚔️';
+      if (s.isTop10) {
+        icon = '👑';
+      } else {
+        normalSubCount++;
+        if (normalSubCount === 1) icon = '🥇';
+        else if (normalSubCount === 2) icon = '🥈';
+        else if (normalSubCount === 3) icon = '🥉';
+        else if (normalSubCount === 4) icon = '🏅';
+        else if (normalSubCount === 5) icon = '🎖️';
+      }
+      const inVoice = voiceMemberIds.has(s.memberId);
+      const voiceIcon = inVoice ? '✅' : '❌';
+      return `**${idx + 1}.** ${icon} <@${s.memberId}> ${voiceIcon}`;
     });
 
     const statusBadge = isClosed ? '🔴 **Registration is closed!**' : '🟢 **Registration is active!**';

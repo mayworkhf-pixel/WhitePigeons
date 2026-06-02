@@ -1083,7 +1083,9 @@ const db = {
       clientId: newConfig.clientId || '',
       clientSecret: newConfig.clientSecret ? encrypt(newConfig.clientSecret) : '',
       adminPassword: newConfig.adminPassword ? encrypt(newConfig.adminPassword) : encrypt('anvy2026'),
-      webhooks: newConfig.webhooks || {}
+      webhooks: newConfig.webhooks || {},
+      factoryVoiceChannelId: newConfig.factoryVoiceChannelId || '',
+      simulatedVoice: newConfig.simulatedVoice || []
     };
 
     if (firebaseDb) {
