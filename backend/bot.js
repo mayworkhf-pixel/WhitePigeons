@@ -4,6 +4,15 @@ const axios = require('axios');
 
 const cleanName = (name) => (name || '').normalize('NFKD').toLowerCase();
 
+const findChannel = async (guild, filterFn) => {
+  try {
+    await guild.channels.fetch();
+  } catch (err) {
+    console.warn('[Bot] Failed to fetch guild channels, falling back to cache:', err.message);
+  }
+  return guild.channels.cache.find(filterFn);
+};
+
 let client = null;
 let ioInstance = null; // Socket.io reference to broadcast simulated logs
 
@@ -32,7 +41,7 @@ const botService = {
         const config = await db.getConfig();
         const guild = await client.guilds.fetch(config.guildId).catch(() => null);
         if (guild) {
-          const channel = guild.channels.cache.find(c => cleanName(c.name).includes('signup'));
+          const channel = await findChannel(guild, c => cleanName(c.name).includes('signup'));
           if (channel) {
             if (promotedMember) {
               await channel.send(`👋 **[Roster Update]** @${leavingUsername} has left the queue. Reserve player <@${promotedMember.memberId}> has been promoted to the Main Roster!`);
@@ -915,7 +924,7 @@ const botService = {
       const config = await db.getConfig();
       const guild = await client.guilds.fetch(config.guildId).catch(() => null);
       if (!guild) return;
-      const channel = guild.channels.cache.find(c => cleanName(c.name).includes('signup'));
+      const channel = await findChannel(guild, c => cleanName(c.name).includes('signup'));
       if (channel) {
         const messages = await channel.messages.fetch({ limit: 15 });
         const signupMessage = messages.find(m => {
@@ -1074,7 +1083,7 @@ const botService = {
     try {
       const config = await db.getConfig();
       const guild = await client.guilds.fetch(config.guildId);
-      const channel = guild.channels.cache.find(c => cleanName(c.name).includes('signup'));
+      const channel = await findChannel(guild, c => cleanName(c.name).includes('signup'));
       if (channel) {
         // Fetch last 15 messages in the channel to locate the active roster embed
         const messages = await channel.messages.fetch({ limit: 15 });
@@ -1120,7 +1129,7 @@ const botService = {
     if (client && config.guildId) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
-        const channel = guild.channels.cache.find(c => cleanName(c.name).includes('signup'));
+        const channel = await findChannel(guild, c => cleanName(c.name).includes('signup'));
         if (channel) {
           const embedBuilder = await botService.buildSignupEmbed(eventId, title, description, false);
 
@@ -1506,9 +1515,9 @@ const botService = {
     if (client && config.guildId) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
-        let channel = guild.channels.cache.find(c => cleanName(c.name).includes('ticket'));
+        let channel = await findChannel(guild, c => cleanName(c.name).includes('ticket'));
         if (!channel) {
-          channel = guild.channels.cache.find(c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
+          channel = await findChannel(guild, c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
         }
 
         if (channel) {
@@ -1550,9 +1559,9 @@ const botService = {
     if (client && config.guildId) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
-        let channel = guild.channels.cache.find(c => cleanName(c.name).includes('balance') || cleanName(c.name).includes('check'));
+        let channel = await findChannel(guild, c => cleanName(c.name).includes('balance') || cleanName(c.name).includes('check'));
         if (!channel) {
-          channel = guild.channels.cache.find(c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
+          channel = await findChannel(guild, c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
         }
 
         if (channel) {
@@ -1590,9 +1599,9 @@ const botService = {
     if (client && config.guildId) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
-        let channel = guild.channels.cache.find(c => cleanName(c.name).includes('kill-list') || cleanName(c.name).includes('leaderboard') || cleanName(c.name).includes('weekly'));
+        let channel = await findChannel(guild, c => cleanName(c.name).includes('kill-list') || cleanName(c.name).includes('leaderboard') || cleanName(c.name).includes('weekly'));
         if (!channel) {
-          channel = guild.channels.cache.find(c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
+          channel = await findChannel(guild, c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
         }
 
         if (channel) {
@@ -1742,9 +1751,9 @@ const botService = {
     if (client && config.guildId) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
-        let channel = guild.channels.cache.find(c => cleanName(c.name).includes('long-time-kill') || cleanName(c.name).includes('all-time') || cleanName(c.name).includes('kill-list'));
+        let channel = await findChannel(guild, c => cleanName(c.name).includes('long-time-kill') || cleanName(c.name).includes('all-time') || cleanName(c.name).includes('kill-list'));
         if (!channel) {
-          channel = guild.channels.cache.find(c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
+          channel = await findChannel(guild, c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
         }
 
         if (channel) {
@@ -1838,9 +1847,9 @@ const botService = {
     if (client && config.guildId) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
-        let channel = guild.channels.cache.find(c => cleanName(c.name).includes('weekly-kill') || cleanName(c.name).includes('weekly') || cleanName(c.name).includes('kill-list'));
+        let channel = await findChannel(guild, c => cleanName(c.name).includes('weekly-kill') || cleanName(c.name).includes('weekly') || cleanName(c.name).includes('kill-list'));
         if (!channel) {
-          channel = guild.channels.cache.find(c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
+          channel = await findChannel(guild, c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
         }
 
         if (channel) {
@@ -1963,9 +1972,9 @@ const botService = {
     if (client && config.guildId) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
-        let channel = guild.channels.cache.find(c => cleanName(c.name).includes('top-10') || cleanName(c.name).includes('priority') || cleanName(c.name).includes('roster') || cleanName(c.name).includes('members'));
+        let channel = await findChannel(guild, c => cleanName(c.name).includes('top-10') || cleanName(c.name).includes('priority') || cleanName(c.name).includes('roster') || cleanName(c.name).includes('members'));
         if (!channel) {
-          channel = guild.channels.cache.find(c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
+          channel = await findChannel(guild, c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
         }
 
         if (channel) {
