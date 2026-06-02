@@ -222,7 +222,7 @@ export default function RootDashboard() {
     familyRank: '#1'
   });
 
-  const isLeaderOrAdmin = user?.roles && (
+  const isLeaderOrAdmin = !!(user?.admin_authenticated || (user?.roles && (
     user.roles.includes('Leadership') || 
     user.roles.includes('Admin') || 
     user.roles.includes('High Command') || 
@@ -231,7 +231,7 @@ export default function RootDashboard() {
     user.roles.includes('🥇 | UnderBoss') || 
     user.roles.includes('High-Command') || 
     user.roles.includes('HC')
-  );
+  )));
 
   // Load backend data helper
   const loadDashboardData = async () => {
