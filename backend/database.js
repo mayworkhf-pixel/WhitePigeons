@@ -8,6 +8,11 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || process.env.SESSION_SECRET || '';
 
+// In-memory cache to prevent Firestore daily read quota exhaustion
+let cachedConfig = null;
+const cachedSchedules = {};
+
+
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -1070,6 +1075,11 @@ if (process.env.NODE_ENV === 'production' || process.env.USE_FIRESTORE === 'true
 const db = {
   // Config
   getConfig: async () => {
+    if (cachedConfig) {
+      return cachedConfig;
+    }
+
+    let resolvedConfig = null;
     if (firebaseDb) {
       try {
         const doc = await firebaseDb.collection('settings').doc('discord').get();
@@ -1081,7 +1091,7 @@ const db = {
           if (!config.rpTicketTimes) {
             config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
           }
-          return config;
+          resolvedConfig = config;
         } else {
           console.log('[Database] settings/discord does not exist in Firestore. Syncing local credentials...');
           const localData = readDb();
@@ -1093,23 +1103,29 @@ const db = {
           if (!localConfig.rpTicketTimes) {
             localConfig.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
           }
-          return localConfig;
+          resolvedConfig = localConfig;
         }
       } catch (err) {
         console.error('Firestore getConfig failed, fallback to initial:', err.message);
-        return { ...initialDb.config, adminPassword: process.env.ADMIN_PASSCODE || 'Grand2026' };
+        resolvedConfig = { ...initialDb.config, adminPassword: process.env.ADMIN_PASSCODE || 'Grand2026' };
       }
+    } else {
+      const data = readDb();
+      const config = { ...data.config };
+      // Decrypt credentials before returning
+      if (config.botToken) config.botToken = decrypt(config.botToken);
+      if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
+      config.adminPassword = resolveAdminPassword(config.adminPassword);
+      if (!config.rpTicketTimes) {
+        config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
+      }
+      resolvedConfig = config;
     }
-    const data = readDb();
-    const config = { ...data.config };
-    // Decrypt credentials before returning
-    if (config.botToken) config.botToken = decrypt(config.botToken);
-    if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
-    config.adminPassword = resolveAdminPassword(config.adminPassword);
-    if (!config.rpTicketTimes) {
-      config.rpTicketTimes = ["08:30", "15:00", "20:00", "22:30"];
+
+    if (resolvedConfig) {
+      cachedConfig = resolvedConfig;
     }
-    return config;
+    return resolvedConfig;
   },
   
   saveConfig: async (newConfig) => {
@@ -1125,6 +1141,9 @@ const db = {
       simulatedVoice: newConfig.simulatedVoice || [],
       rpTicketTimes: newConfig.rpTicketTimes || ["08:30", "15:00", "20:00", "22:30"]
     };
+
+    // Invalidate local in-memory cache
+    cachedConfig = null;
 
     if (firebaseDb) {
       try {
@@ -2057,24 +2076,40 @@ const db = {
   },
 
   getEventSchedule: async (eventId) => {
+    if (cachedSchedules[eventId]) {
+      return cachedSchedules[eventId];
+    }
+
+    let resolvedSchedule = null;
     if (firebaseDb) {
       try {
         const doc = await firebaseDb.collection('event_schedules').doc(eventId).get();
         if (doc.exists) {
-          return doc.data();
+          resolvedSchedule = doc.data();
         }
       } catch (err) {
         console.error('Firestore getEventSchedule failed:', err.message);
       }
     }
-    const data = readDb();
-    if (!data.eventSchedules) {
-      data.eventSchedules = {};
+
+    if (!resolvedSchedule) {
+      const data = readDb();
+      if (!data.eventSchedules) {
+        data.eventSchedules = {};
+      }
+      resolvedSchedule = data.eventSchedules[eventId] || { times: ['', '', '', ''], mode: 'once', enabled: false };
     }
-    return data.eventSchedules[eventId] || { times: ['', '', '', ''], mode: 'once', enabled: false };
+
+    if (resolvedSchedule) {
+      cachedSchedules[eventId] = resolvedSchedule;
+    }
+    return resolvedSchedule;
   },
 
   setEventSchedule: async (eventId, scheduleData) => {
+    // Update local cache
+    cachedSchedules[eventId] = scheduleData;
+
     if (firebaseDb) {
       try {
         await firebaseDb.collection('event_schedules').doc(eventId).set(scheduleData);
