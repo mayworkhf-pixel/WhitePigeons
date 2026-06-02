@@ -3306,26 +3306,26 @@ export default function RootDashboard() {
       ).slice(0, 6);
 
       return (
-        <div className="absolute left-0 mt-1 w-64 bg-[#1e1f22] border border-[#232428] rounded-md shadow-2xl z-50 p-2 space-y-2">
+        <div className="absolute left-0 mt-2 w-full bg-[#121118] border border-[#1e1b29] rounded-xl shadow-2xl z-50 p-3 space-y-2">
           <input
             type="text"
-            placeholder="Search member..."
+            placeholder="Search member by name..."
             value={prioritySearch}
             onChange={(e) => setPrioritySearch(e.target.value)}
-            className="w-full bg-[#313338] border border-[#232428] text-xs rounded p-1.5 text-white focus:outline-none focus:border-[#5865f2] font-sans"
+            className="w-full bg-[#09080d] border border-[#1c1a24] text-xs rounded-lg p-2 text-white focus:outline-none focus:border-purple-600 font-sans"
             autoFocus
           />
-          <div className="max-h-40 overflow-y-auto space-y-0.5">
+          <div className="max-h-40 overflow-y-auto space-y-1">
             {filtered.length === 0 ? (
-              <div className="text-zinc-500 text-[10px] p-1 text-center font-sans">No members found</div>
+              <div className="text-zinc-500 text-[10px] p-2 text-center font-sans">No members found</div>
             ) : (
               filtered.map(m => (
                 <button
                   key={m.discordId}
                   onClick={() => handleAddMember(type, m.discordId)}
-                  className="w-full text-left text-xs hover:bg-[#5865f2] hover:text-white text-zinc-300 p-1.5 rounded transition-smooth truncate flex items-center justify-between font-sans"
+                  className="w-full text-left text-xs hover:bg-purple-600/20 hover:text-purple-400 text-zinc-300 p-2 rounded-lg transition-smooth truncate flex items-center justify-between font-sans cursor-pointer"
                 >
-                  <span>@{m.nickname || m.username}</span>
+                  <span className="font-bold">@{m.nickname || m.username}</span>
                   <span className="text-[9px] text-zinc-500 font-mono">ID: {m.discordId}</span>
                 </button>
               ))
@@ -3337,11 +3337,11 @@ export default function RootDashboard() {
 
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
-        {/* Page title and deployment block */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#121118] border border-[#1e1b29] p-4 rounded-2xl shadow-lg">
+        {/* Page header and deploy */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl shadow-xl">
           <div>
             <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
-              🎖️ 𝐏𝐫𝐢𝐨𝐫𝐢𝐭𝐲 𝐌𝐞𝐦𝐛𝐞𝐫𝐬
+              🎖️╭𝐓𝐨𝐩-𝟏0-𝐋𝐢𝐬𝐭 PRIORITY MEMBERS
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mt-1 font-sans">
               Manage and view the Priority Members list synced directly to the Discord server roster embed.
@@ -3359,188 +3359,184 @@ export default function RootDashboard() {
           )}
         </div>
 
-        {/* Discord Chat Simulator */}
-        <div className="bg-[#313338] border border-[#232428] rounded-xl p-4 md:p-6 shadow-xl font-sans text-left">
-          {/* Channel Header Mockup */}
-          <div className="flex items-center gap-2 border-b border-[#232428] pb-3 mb-4 text-[#dbdee1]">
-            <Radio className="w-4 h-4 text-[#80848e]" />
-            <span className="font-bold text-sm text-[#f2f3f5]">top-10-list</span>
-            <span className="text-xs text-[#80848e] border-l border-[#4e5058] pl-2 font-normal hidden sm:inline">
-              Roster for the family's top priority shooters
-            </span>
-          </div>
-
-          {/* Discord Bot Message */}
-          <div className="flex gap-4">
-            <div className="w-10 h-10 rounded-full bg-[#121118] border border-purple-600/35 flex items-center justify-center font-title font-black text-[#a855f7] italic shrink-0 text-xs shadow-sm">
-              WP
+        {/* Dashboard Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+          {/* TOP 5 CARD */}
+          <div className="bg-[#121118] border border-[#1e1b29] rounded-2xl p-6 space-y-4 shadow-lg">
+            <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3">
+              <h3 className="font-title font-black text-sm italic text-amber-400 flex items-center gap-2">
+                🥇 TOP 5 MEMBERS
+              </h3>
+              <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[8px] font-black uppercase px-2 py-0.5 rounded">
+                ELITE ROSTER
+              </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-sm text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
-                <span className="bg-[#5865f2] text-white text-[9px] font-bold px-1 py-0.5 rounded-sm select-none leading-none">APP</span>
-                <span className="text-[10px] text-[#949ba4]">5/13/2026 5:16 PM</span>
-              </div>
 
-              {/* Discord Embed */}
-              <div className="mt-2 max-w-xl bg-[#2b2d31] border-l-4 border-[#f1c40f] rounded-r p-4 relative text-[#dbdee1] flex justify-between gap-4">
-                <div className="flex-1 space-y-3 min-w-0">
-                  <h4 className="font-bold text-base text-white">Priority Members</h4>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* TOP 5 Column */}
-                    <div className="min-w-0">
-                      <div className="text-[#949ba4] text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-                        TOP 5 Members
+            <div className="space-y-2">
+              {(!priorityList.top5 || priorityList.top5.length === 0) ? (
+                <div className="text-zinc-500 text-xs italic py-6 text-center">No members listed</div>
+              ) : (
+                priorityList.top5.map((m, idx) => (
+                  <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a24] p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-6 h-6 bg-amber-950/40 text-amber-400 border border-amber-800/35 rounded-lg flex items-center justify-center font-title font-black italic text-xs shrink-0 select-none">
+                        #{idx + 1}
                       </div>
-                      <div className="space-y-1.5">
-                        {(!priorityList.top5 || priorityList.top5.length === 0) ? (
-                          <div className="text-[#949ba4] text-xs italic">*No members listed*</div>
-                        ) : (
-                          priorityList.top5.map((m, idx) => (
-                            <div key={m.discordId} className="flex items-center justify-between group py-0.5 text-xs">
-                              <span className="truncate">
-                                {idx + 1}. <span className="text-[#5865f2] hover:underline cursor-pointer font-medium">@{m.nickname || m.username}</span>
-                              </span>
-                              {isAdmin && (
-                                <button
-                                  onClick={() => handleRemoveMember('top5', m.discordId)}
-                                  className="text-[#da373c] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
-                                  title="Remove"
-                                >
-                                  <Trash size={11} />
-                                </button>
-                              )}
-                            </div>
-                          ))
-                        )}
+                      <div className="min-w-0">
+                        <h4 className="font-title font-black text-xs italic text-zinc-200 truncate">
+                          @{m.username}
+                        </h4>
+                        <p className="text-[9px] text-zinc-500 font-mono truncate">{m.nickname}</p>
                       </div>
-
-                      {/* Add Member inline selector for TOP 5 */}
-                      {isAdmin && (
-                        <div className="mt-2.5 relative">
-                          <button
-                            onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top5' ? null : 'top5')}
-                            className="flex items-center gap-1 text-[10px] text-[#248046] hover:text-[#1a6535] font-bold bg-[#248046]/10 hover:bg-[#248046]/20 px-2 py-0.5 rounded transition-smooth cursor-pointer"
-                          >
-                            <Plus className="w-2.5 h-2.5" /> Add Member
-                          </button>
-                          {showAddMemberDropdown === 'top5' && renderAddDropdown('top5')}
-                        </div>
-                      )}
                     </div>
-
-                    {/* TOP 10 Column */}
-                    <div className="min-w-0">
-                      <div className="text-[#949ba4] text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-                        TOP 10 Members
-                      </div>
-                      <div className="space-y-1.5">
-                        {(!priorityList.top10 || priorityList.top10.length === 0) ? (
-                          <div className="text-[#949ba4] text-xs italic">*No members listed*</div>
-                        ) : (
-                          priorityList.top10.map((m, idx) => (
-                            <div key={m.discordId} className="flex items-center justify-between group py-0.5 text-xs">
-                              <span className="truncate">
-                                {idx + 1}. <span className="text-[#5865f2] hover:underline cursor-pointer font-medium">@{m.nickname || m.username}</span>
-                              </span>
-                              {isAdmin && (
-                                <button
-                                  onClick={() => handleRemoveMember('top10', m.discordId)}
-                                  className="text-[#da373c] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
-                                  title="Remove"
-                                >
-                                  <Trash size={11} />
-                                </button>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      {/* Add Member inline selector for TOP 10 */}
+                    
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-[10px] font-bold text-zinc-400 font-sans">{m.kills || 0} Kills</span>
                       {isAdmin && (
-                        <div className="mt-2.5 relative">
-                          <button
-                            onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top10' ? null : 'top10')}
-                            className="flex items-center gap-1 text-[10px] text-[#248046] hover:text-[#1a6535] font-bold bg-[#248046]/10 hover:bg-[#248046]/20 px-2 py-0.5 rounded transition-smooth cursor-pointer"
-                          >
-                            <Plus className="w-2.5 h-2.5" /> Add Member
-                          </button>
-                          {showAddMemberDropdown === 'top10' && renderAddDropdown('top10')}
-                        </div>
+                        <button
+                          onClick={() => handleRemoveMember('top5', m.discordId)}
+                          className="text-rose-400 hover:text-white p-1 hover:bg-rose-950/30 border border-rose-900/30 hover:border-rose-600/50 rounded-lg transition-smooth cursor-pointer"
+                          title="Remove Member"
+                        >
+                          <Trash className="w-3 h-3" />
+                        </button>
                       )}
                     </div>
                   </div>
-                </div>
-
-                {/* Thumbnail */}
-                <div className="hidden sm:block shrink-0">
-                  <img
-                    src="https://whitepigeons-35431.web.app/logo.png"
-                    alt="Logo"
-                    className="w-12 h-12 object-contain font-sans"
-                  />
-                </div>
-              </div>
-
-              {/* Embed Footer */}
-              <div className="mt-1 ml-14 text-[10px] text-[#949ba4] font-medium font-sans">
-                White Pigeons #TOP1 • Priority List
-              </div>
-
-              {/* Discord Interactive Buttons Mockup */}
-              <div className="flex flex-wrap gap-2 mt-4 ml-14 select-none font-sans">
-                <button 
-                  onClick={() => {
-                    if (isAdmin) {
-                      setShowAddMemberDropdown('top5');
-                    } else {
-                      addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
-                    }
-                  }}
-                  className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-white bg-[#248046] hover:bg-[#1a6535] rounded font-medium transition-smooth cursor-pointer active:scale-95"
-                >
-                  + Add Top 5 Member
-                </button>
-                <button 
-                  onClick={() => {
-                    if (isAdmin) {
-                      setShowAddMemberDropdown('top10');
-                    } else {
-                      addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
-                    }
-                  }}
-                  className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-white bg-[#248046] hover:bg-[#1a6535] rounded font-medium transition-smooth cursor-pointer active:scale-95"
-                >
-                  + Add Top 10 Member
-                </button>
-                <button 
-                  onClick={() => {
-                    if (isAdmin) {
-                      addNotification('Roster Management', 'To remove members, use the inline red trash (X) icons next to their names in the list columns above.', 'info');
-                    } else {
-                      addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
-                    }
-                  }}
-                  className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-white bg-[#da373c] hover:bg-[#a92b2f] rounded font-medium transition-smooth cursor-pointer active:scale-95"
-                >
-                  X Remove Top 5 Member
-                </button>
-                <button 
-                  onClick={() => {
-                    if (isAdmin) {
-                      addNotification('Roster Management', 'To remove members, use the inline red trash (X) icons next to their names in the list columns above.', 'info');
-                    } else {
-                      addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
-                    }
-                  }}
-                  className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-white bg-[#da373c] hover:bg-[#a92b2f] rounded font-medium transition-smooth cursor-pointer active:scale-95"
-                >
-                  X Remove Top 10 Member
-                </button>
-              </div>
+                ))
+              )}
             </div>
+
+            {isAdmin && (
+              <div className="relative pt-2">
+                <button
+                  onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top5' ? null : 'top5')}
+                  className="w-full flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 hover:text-white font-title font-black italic tracking-wide bg-emerald-950/20 hover:bg-emerald-600 border border-emerald-800/35 hover:border-emerald-500 py-2.5 rounded-lg transition-smooth cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> ADD TOP 5 MEMBER
+                </button>
+                {showAddMemberDropdown === 'top5' && renderAddDropdown('top5')}
+              </div>
+            )}
+          </div>
+
+          {/* TOP 10 CARD */}
+          <div className="bg-[#121118] border border-[#1e1b29] rounded-2xl p-6 space-y-4 shadow-lg">
+            <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3">
+              <h3 className="font-title font-black text-sm italic text-purple-400 flex items-center gap-2">
+                🎖️ TOP 10 MEMBERS
+              </h3>
+              <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[8px] font-black uppercase px-2 py-0.5 rounded">
+                SHARPSHOOTERS
+              </span>
+            </div>
+
+            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+              {(!priorityList.top10 || priorityList.top10.length === 0) ? (
+                <div className="text-zinc-500 text-xs italic py-6 text-center">No members listed</div>
+              ) : (
+                priorityList.top10.map((m, idx) => (
+                  <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a24] p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-6 h-6 bg-purple-950/40 text-purple-400 border border-purple-800/35 rounded-lg flex items-center justify-center font-title font-black italic text-xs shrink-0 select-none">
+                        #{idx + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-title font-black text-xs italic text-zinc-200 truncate">
+                          @{m.username}
+                        </h4>
+                        <p className="text-[9px] text-zinc-500 font-mono truncate">{m.nickname}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-[10px] font-bold text-zinc-400 font-sans">{m.kills || 0} Kills</span>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleRemoveMember('top10', m.discordId)}
+                          className="text-rose-400 hover:text-white p-1 hover:bg-rose-950/30 border border-rose-900/30 hover:border-rose-600/50 rounded-lg transition-smooth cursor-pointer"
+                          title="Remove Member"
+                        >
+                          <Trash className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {isAdmin && (
+              <div className="relative pt-2">
+                <button
+                  onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top10' ? null : 'top10')}
+                  className="w-full flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 hover:text-white font-title font-black italic tracking-wide bg-emerald-950/20 hover:bg-emerald-600 border border-emerald-800/35 hover:border-emerald-500 py-2.5 rounded-lg transition-smooth cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> ADD TOP 10 MEMBER
+                </button>
+                {showAddMemberDropdown === 'top10' && renderAddDropdown('top10')}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Discord Bot Panel Simulator Console Footer */}
+        <div className="bg-[#121118] border border-[#1e1b29] rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-4 text-left shadow-xl">
+          <div className="text-left shrink-0">
+            <span className="text-[8px] bg-purple-950/40 text-purple-400 px-2 py-0.5 rounded border border-purple-900/30 font-mono tracking-wider">DISCORD BOT LIVE INTEGRATION</span>
+            <h4 className="font-title font-black text-xs italic text-zinc-300 mt-2">Interactive Bot Panel Simulator</h4>
+            <p className="text-[10px] text-zinc-500 font-sans mt-0.5">Simulate button interactions and modals linked to the Discord priority embed message.</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 justify-center md:justify-end">
+            <button 
+              onClick={() => {
+                if (isAdmin) {
+                  setShowAddMemberDropdown('top5');
+                } else {
+                  addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-title font-black italic tracking-wide py-2 px-3.5 rounded-lg border border-emerald-500 hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
+            >
+              + ADD TOP 5 MEMBER
+            </button>
+            <button 
+              onClick={() => {
+                if (isAdmin) {
+                  setShowAddMemberDropdown('top10');
+                } else {
+                  addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-title font-black italic tracking-wide py-2 px-3.5 rounded-lg border border-emerald-500 hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
+            >
+              + ADD TOP 10 MEMBER
+            </button>
+            <button 
+              onClick={() => {
+                if (isAdmin) {
+                  addNotification('Roster Management', 'To remove members, use the inline red trash (X) icons next to their names in the list columns above.', 'info');
+                } else {
+                  addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                }
+              }}
+              className="bg-rose-600 hover:bg-rose-700 text-white text-[9px] font-title font-black italic tracking-wide py-2 px-3.5 rounded-lg border border-[#f43f5e] hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
+            >
+              X REMOVE TOP 5 MEMBER
+            </button>
+            <button 
+              onClick={() => {
+                if (isAdmin) {
+                  addNotification('Roster Management', 'To remove members, use the inline red trash (X) icons next to their names in the list columns above.', 'info');
+                } else {
+                  addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                }
+              }}
+              className="bg-rose-600 hover:bg-rose-700 text-white text-[9px] font-title font-black italic tracking-wide py-2 px-3.5 rounded-lg border border-[#f43f5e] hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
+            >
+              X REMOVE TOP 10 MEMBER
+            </button>
           </div>
         </div>
       </div>
