@@ -25,6 +25,7 @@ export interface User {
   points: number;
   activityScore: number;
   admin_authenticated?: boolean;
+  status?: string;
 }
 
 export interface LogEntry {

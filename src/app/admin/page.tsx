@@ -44,7 +44,9 @@ const channelsList: WebhookChannel[] = [
 export default function AdminDashboard() {
   const { user, loading: userLoading, addNotification, API_BASE_URL } = useApp();
   
-  const [activeSubTab, setActiveSubTab] = useState<'dispatch' | 'bot-config'>('dispatch');
+  const [activeSubTab, setActiveSubTab] = useState<'dispatch' | 'bot-config' | 'member-requests'>('dispatch');
+  const [members, setMembers] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
   const [webhooks, setWebhooks] = useState<Record<string, string>>({});
   const [showWebhooks, setShowWebhooks] = useState<Record<string, boolean>>({});
   const [broadcastForm, setBroadcastForm] = useState({
@@ -124,6 +126,57 @@ export default function AdminDashboard() {
       loadBackendConfig();
     }
   }, [user, API_BASE_URL]);
+
+  const fetchMembers = async () => {
+    setLoadingRequests(true);
+    try {
+      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+      const res = await fetch(`${API_BASE_URL}/api/members`, {
+        headers: { 'x-admin-passcode': passcode }
+      });
+      if (res.ok) {
+        setMembers(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleApproveReject = async (discordId: string, action: 'approve' | 'reject') => {
+    try {
+      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+      const res = await fetch(`${API_BASE_URL}/api/admin/approve-member`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ discordId, action })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        addNotification(
+          action === 'approve' ? 'Request Approved' : 'Request Rejected',
+          action === 'approve' ? 'The user is now approved to access the hub.' : 'The registration request has been deleted.',
+          'success'
+        );
+        fetchMembers();
+      } else {
+        throw new Error(data.message || 'Action failed.');
+      }
+    } catch (err: any) {
+      addNotification('Action Failed', err.message || 'Error occurred.', 'error');
+    }
+  };
+
+  // Fetch members when requests tab is activated
+  useEffect(() => {
+    if (user?.admin_authenticated) {
+      fetchMembers();
+    }
+  }, [activeSubTab, user]);
 
   const handleWebhookChange = (key: string, value: string) => {
     setWebhooks(prev => ({ ...prev, [key]: value }));
@@ -418,6 +471,21 @@ export default function AdminDashboard() {
           }`}
         >
           <Cpu className="w-3.5 h-3.5" /> BOT CONFIGURATION
+        </button>
+        <button
+          onClick={() => setActiveSubTab('member-requests')}
+          className={`py-2 px-5 rounded-lg font-title font-black text-xs italic tracking-wider transition-smooth cursor-pointer flex items-center gap-2 ${
+            activeSubTab === 'member-requests'
+              ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-[0_0_15px_rgba(168,85,247,0.2)] border border-purple-500/50'
+              : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+          }`}
+        >
+          <ShieldAlert className="w-3.5 h-3.5 animate-pulse text-purple-400" /> MEMBER REQUESTS
+          {members.filter(m => m.status === 'pending').length > 0 && (
+            <span className="bg-red-500 text-white text-[8px] font-sans font-bold px-1.5 py-0.5 rounded-full animate-pulse ml-1">
+              {members.filter(m => m.status === 'pending').length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -963,6 +1031,87 @@ export default function AdminDashboard() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Member Requests Content */}
+      {activeSubTab === 'member-requests' && (
+        <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl flex flex-col gap-6 shadow-xl relative overflow-hidden font-sans">
+          <div className="border-b border-[#201d2d]/60 pb-3 flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-purple-950/20 border border-purple-800/35 text-purple-400">
+              <ShieldAlert className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h2 className="font-title font-black text-lg italic text-zinc-100 uppercase leading-none">
+                MEMBER REGISTRATION REQUESTS
+              </h2>
+              <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider mt-1 block">
+                Review and approve or reject player registration requests.
+              </span>
+            </div>
+          </div>
+
+          {loadingRequests ? (
+            <div className="text-center py-12 text-zinc-500 font-tech text-xs tracking-wider animate-pulse">
+              FETCHING REGISTRATION RECORDS...
+            </div>
+          ) : members.filter(m => m.status === 'pending').length === 0 ? (
+            <div className="text-center py-16 bg-[#09080d]/40 rounded-xl border border-[#1c1a2a]/30">
+              <ShieldCheck className="w-10 h-10 text-green-500/40 mx-auto mb-2 animate-bounce" />
+              <h3 className="font-title font-bold text-zinc-300 text-sm">NO PENDING REQUESTS</h3>
+              <p className="text-[10px] text-zinc-500 mt-1 uppercase tracking-wide">
+                All registration requests have been cleared.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs font-sans">
+                <thead>
+                  <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px] font-black">
+                    <th className="py-3 px-4">Player Name</th>
+                    <th className="py-3 px-4">In-Game ID</th>
+                    <th className="py-3 px-4">Discord ID / Username</th>
+                    <th className="py-3 px-4">First Name</th>
+                    <th className="py-3 px-4">Last Name</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members
+                    .filter(m => m.status === 'pending')
+                    .map((m) => (
+                      <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20 transition-smooth">
+                        <td className="py-4 px-4 font-bold text-zinc-200">{m.username || 'Unknown'}</td>
+                        <td className="py-4 px-4 text-purple-400 font-mono font-bold">{m.inGameId || 'N/A'}</td>
+                        <td className="py-4 px-4 text-zinc-450 font-mono">@{m.discordId}</td>
+                        <td className="py-4 px-4 text-zinc-400">{m.firstName || 'N/A'}</td>
+                        <td className="py-4 px-4 text-zinc-400">{m.lastName || 'N/A'}</td>
+                        <td className="py-4 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleApproveReject(m.discordId, 'approve')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-title text-[9px] font-black italic tracking-wider py-1.5 px-3 rounded-lg border border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.15)] hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
+                            >
+                              APPROVE
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to reject the registration request from ${m.username}?`)) {
+                                  handleApproveReject(m.discordId, 'reject');
+                                }
+                              }}
+                              className="bg-rose-950/20 hover:bg-rose-950/40 border border-rose-900/30 hover:border-rose-700/50 text-rose-400 hover:text-white font-title text-[9px] font-black italic tracking-wider py-1.5 px-3 rounded-lg hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
+                            >
+                              REJECT
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

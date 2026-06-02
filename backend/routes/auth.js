@@ -159,6 +159,88 @@ router.get('/callback', async (req, res) => {
   }
 });
 
+// POST register member request
+router.post('/register', async (req, res) => {
+  const { inGameId, firstName, lastName, discordId } = req.body;
+  if (!inGameId || !firstName || !lastName || !discordId) {
+    return res.status(400).json({ success: false, error: 'All fields are required.' });
+  }
+
+  const normalizedId = discordId.trim().toLowerCase();
+  
+  // Check if member already exists
+  const existing = await db.getMember(normalizedId);
+  if (existing) {
+    if (existing.status === 'pending') {
+      return res.status(400).json({ success: false, error: 'Your registration request is already pending admin approval.' });
+    }
+    if (existing.status === 'approved' || !existing.status) {
+      return res.status(400).json({ success: false, error: 'This account is already registered and approved. Please log in.' });
+    }
+  }
+
+  // Create new member with status: pending
+  const nickname = `@${firstName}_${lastName} | ${inGameId}`;
+  await db.updateMember(normalizedId, {
+    discordId: normalizedId,
+    username: `${firstName} ${lastName}`,
+    nickname,
+    inGameId,
+    firstName,
+    lastName,
+    status: 'pending',
+    roles: ['Member'],
+    kills: 0,
+    weeklyKills: 0,
+    balance: 0,
+    strikes: [],
+    points: 0,
+    isTop10: false,
+    activityScore: 70
+  });
+
+  botService.logSimulated(`New registration request submitted for ${firstName} ${lastName} (Discord: ${discordId})`);
+  return res.json({ success: true, message: 'Registration request submitted successfully. Awaiting admin approval.' });
+});
+
+// POST login as a registered member
+router.post('/member-login', async (req, res) => {
+  const { discordId } = req.body;
+  if (!discordId) {
+    return res.status(400).json({ success: false, error: 'Discord ID or Username is required.' });
+  }
+
+  const normalizedId = discordId.trim().toLowerCase();
+  const member = await db.getMember(normalizedId);
+
+  if (!member) {
+    return res.status(400).json({ success: false, error: 'No registration request found. Please register first.' });
+  }
+
+  if (member.status === 'pending') {
+    return res.status(400).json({ success: false, error: 'Your registration request is still pending admin approval.' });
+  }
+
+  // Approved or pre-existing member
+  const session = {
+    discordId: member.discordId,
+    username: member.username,
+    nickname: member.nickname,
+    roles: member.roles,
+    isTop10: member.isTop10,
+    avatar: member.avatar || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150',
+    isMock: true
+  };
+
+  res.cookie('wp_session', Buffer.from(JSON.stringify(session)).toString('base64'), {
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 1 day
+  });
+
+  botService.logSimulated(`Logged in as approved member ${member.nickname}`);
+  return res.json({ success: true, user: member });
+});
+
 // POST verify admin passcode
 router.post('/verify-admin', async (req, res) => {
   const { password } = req.body;

@@ -426,4 +426,39 @@ router.post('/deploy-priority-prompt', requireAdmin, async (req, res) => {
   }
 });
 
+// POST approve or reject a registration request
+router.post('/approve-member', requireAdmin, async (req, res) => {
+  const { discordId, action } = req.body;
+  if (!discordId || !action) {
+    return res.status(400).json({ success: false, message: 'discordId and action are required.' });
+  }
+
+  try {
+    const member = await db.getMember(discordId);
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Member not found.' });
+    }
+
+    if (action === 'approve') {
+      await db.updateMember(discordId, { status: 'approved' });
+      botService.logSimulated(`Admin approved member registration: ${member.nickname}`);
+      
+      // Sync client dashboards via WebSocket
+      botService.broadcastSocket('leaderboard_update', await db.getMembers());
+      return res.json({ success: true, message: 'Member registration approved.' });
+    } else if (action === 'reject') {
+      await db.deleteMember(discordId);
+      botService.logSimulated(`Admin rejected/deleted member registration: ${member.nickname}`);
+      
+      // Sync client dashboards via WebSocket
+      botService.broadcastSocket('leaderboard_update', await db.getMembers());
+      return res.json({ success: true, message: 'Member registration request rejected and deleted.' });
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid action. Must be approve or reject.' });
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

@@ -1199,6 +1199,21 @@ const db = {
     return finalMember;
   },
 
+  deleteMember: async (discordId) => {
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('members').doc(discordId).delete();
+        return true;
+      } catch (err) {
+        console.error('Firestore deleteMember failed:', err.message);
+      }
+    }
+    const data = readDb();
+    data.members = data.members.filter(m => m.discordId !== discordId);
+    writeDb(data);
+    return true;
+  },
+
   // Tickets
   getTickets: async () => {
     if (firebaseDb) {
