@@ -975,80 +975,44 @@ const botService = {
     const confirmed = signups.filter(s => s.status === 'confirmed');
     const reserve = signups.filter(s => s.status === 'reserve' || s.status === 'displaced');
 
-    // Strip blockquote markers if already present to avoid duplication during sync edits
-    let cleanDescription = description || '';
-    if (cleanDescription.startsWith('>>> ')) {
-      cleanDescription = cleanDescription.slice(4);
-    }
+    const priorityList = await db.getPriorityList();
+    const top5Ids = priorityList.top5 || [];
+    const top10Ids = priorityList.top10 || [];
 
-    // Get voice members
-    let voiceMemberIds = new Set();
-    const config = await db.getConfig();
-    if (client) {
-      try {
-        const guild = await client.guilds.fetch(config.guildId).catch(() => null);
-        if (guild) {
-          const voiceChannel = guild.channels.cache.get(config.factoryVoiceChannelId || 'mock-voice-id');
-          if (voiceChannel && voiceChannel.type === 2) {
-            for (const memberId of voiceChannel.members.keys()) {
-              voiceMemberIds.add(memberId);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[Bot] Failed to fetch voice channel members for embed:', err.message);
-      }
-    }
-    const simulatedVoice = config.simulatedVoice || ['anvy-mock', 'alikagan-mock', '70941', '101254'];
-    for (const id of simulatedVoice) {
-      voiceMemberIds.add(id);
-    }
-
-    // Determine normal rankings for medals
-    let normalCount = 0;
     const mainRosterLines = confirmed.map((s, idx) => {
       let icon = '⚔️';
-      if (s.isTop10) {
+      if (top5Ids.includes(s.memberId)) {
         icon = '👑';
-      } else {
-        normalCount++;
-        if (normalCount === 1) icon = '🥇';
-        else if (normalCount === 2) icon = '🥈';
-        else if (normalCount === 3) icon = '🥉';
-        else if (normalCount === 4) icon = '🏅';
-        else if (normalCount === 5) icon = '🎖️';
+      } else if (top10Ids.includes(s.memberId)) {
+        icon = '🥇';
       }
-      const inVoice = voiceMemberIds.has(s.memberId);
-      const voiceIcon = inVoice ? '✅' : '❌';
-      return `${voiceIcon} **${idx + 1}.** ${icon} <@${s.memberId}>`;
+      return `**${idx + 1}.** ${icon} <@${s.memberId}>`;
     });
 
-    let normalSubCount = 0;
     const reserveLines = reserve.map((s, idx) => {
       let icon = '⚔️';
-      if (s.isTop10) {
+      if (top5Ids.includes(s.memberId)) {
         icon = '👑';
-      } else {
-        normalSubCount++;
-        if (normalSubCount === 1) icon = '🥇';
-        else if (normalSubCount === 2) icon = '🥈';
-        else if (normalSubCount === 3) icon = '🥉';
-        else if (normalSubCount === 4) icon = '🏅';
-        else if (normalSubCount === 5) icon = '🎖️';
+      } else if (top10Ids.includes(s.memberId)) {
+        icon = '🥇';
       }
-      const inVoice = voiceMemberIds.has(s.memberId);
-      const voiceIcon = inVoice ? '✅' : '❌';
-      return `${voiceIcon} **${idx + 1}.** ${icon} <@${s.memberId}>`;
+      return `**${idx + 1}.** ${icon} <@${s.memberId}>`;
     });
 
-    const statusBadge = isClosed ? '🔴 **Registration is closed!**' : '🟢 **Registration is active!**';
-    const embedColor = isClosed ? 0xff003c : 0x00f0ff;
+    const config = await db.getConfig();
+    const pointsText = eventId === 'rp-signup' ? 'Points: `2` ❤️' : 'Points: `1` ❤️';
+    const statusText = isClosed ? '🔴 **Registration is closed!**' : '🔔 **Registrations are now open!**';
+    const voiceChannelText = config.factoryVoiceChannelId 
+      ? `📡 **Voice Channel:** <#${config.factoryVoiceChannelId}>`
+      : '📡 **Voice Channel:** 🔊 ⚔️ | Event VC';
 
     const embedDescription = [
-      `**Event Directives:**`,
-      `>>> ${cleanDescription}\n`,
-      statusBadge,
-      `📊 **Participants:** ${confirmed.length}/25\n`
+      statusText,
+      '',
+      pointsText,
+      '',
+      '',
+      voiceChannelText
     ].join('\n');
 
     const bannerImage = eventId === 'rp-signup'
@@ -1056,42 +1020,33 @@ const botService = {
       : 'https://whitepigeons-35431.web.app/informal_fight_banner.png';
 
     const embed = new EmbedBuilder()
-      .setTitle(`🚀 ${eventId === 'rp-signup' ? 'RP Ticket' : 'Informal Fight'} - ${isClosed ? 'CLOSED' : 'OPEN'} ⚔️`)
+      .setTitle(`${eventId === 'rp-signup' ? '🚀 RP Ticket' : '⚔️ Informal Fight'}`)
       .setDescription(embedDescription)
-      .setColor(embedColor)
+      .setColor(isClosed ? 0xff003c : 0x00f0ff)
+      .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
       .setImage(bannerImage)
       .setTimestamp();
 
-    // Roster Fields for two columns
-    if (mainRosterLines.length > 0) {
-      const midPoint = Math.ceil(mainRosterLines.length / 2);
-      const leftColumn = mainRosterLines.slice(0, midPoint);
-      const rightColumn = mainRosterLines.slice(midPoint);
-      
-      embed.addFields(
-        { name: `⚔️ Main Roster (1-${midPoint})`, value: leftColumn.join('\n'), inline: true }
-      );
-      if (rightColumn.length > 0) {
-        embed.addFields(
-          { name: `⚔️ Main Roster (${midPoint + 1}-${mainRosterLines.length})`, value: rightColumn.join('\n'), inline: true }
-        );
-      }
-    } else {
-      embed.addFields(
-        { name: '⚔️ Main Roster', value: '*Roster is vacant. Claim a slot!*', inline: false }
-      );
-    }
+    // Roster Fields in a single column matching the screenshot formatting exactly
+    const mainRosterValue = [
+      `\`${confirmed.length} / 25\``,
+      '',
+      ...(mainRosterLines.length > 0 ? mainRosterLines : ['*Roster is vacant. Claim a slot!*'])
+    ].join('\n');
 
-    // Substitutes Field
-    if (reserveLines.length > 0) {
-      embed.addFields(
-        { name: `⏳ Substitutes List (${reserveLines.length})`, value: reserveLines.join('\n'), inline: false }
-      );
-    } else {
-      embed.addFields(
-        { name: '⏳ Substitutes List', value: '*No substitutes yet.*', inline: false }
-      );
-    }
+    embed.addFields(
+      { name: 'Main Roster:', value: mainRosterValue, inline: false }
+    );
+
+    const reserveValue = [
+      `\`${reserveLines.length}/20 waiting\``,
+      '',
+      ...(reserveLines.length > 0 ? reserveLines : ['*No substitutes yet.*'])
+    ].join('\n');
+
+    embed.addFields(
+      { name: 'Subs Roster:', value: reserveValue, inline: false }
+    );
 
     return embed;
   },
@@ -1155,11 +1110,11 @@ const botService = {
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
               .setCustomId(`signup:${eventId}`)
-              .setLabel('⚔️ SIGN UP')
+              .setLabel('✅ Join')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
               .setCustomId(`leave:${eventId}`)
-              .setLabel('👋 LEAVE')
+              .setLabel('❌ Leave')
               .setStyle(ButtonStyle.Danger)
           );
 
