@@ -248,4 +248,142 @@ router.post('/deploy-role-request-prompt', requireAdmin, async (req, res) => {
   }
 });
 
+// POST deploy interactive strike system prompt in Discord channel
+router.post('/deploy-strike-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployStrikeSystemPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Strike System panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the strikes channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST deploy interactive ticket system prompt in Discord channel
+router.post('/deploy-tickets-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployTicketsPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Ticket System panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the tickets channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST deploy interactive balance system prompt in Discord channel
+router.post('/deploy-balance-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployBalanceSystemPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Balance System panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the check-balance channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST deploy interactive leaderboard system prompt in Discord channel
+router.post('/deploy-leaderboard-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployWeeklyLeaderboardPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Weekly Event Leaderboard panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the leaderboard channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST reset weekly event points for all members
+router.post('/reset-weekly-leaderboard', requireAdmin, async (req, res) => {
+  try {
+    await db.resetWeeklyPoints();
+    
+    // Sync with Discord message live if active
+    await botService.syncWeeklyLeaderboardMessage();
+    
+    // Trigger live UI reload via socket
+    botService.broadcastSocket('role_requests_update', await db.getRoleRequests());
+    
+    botService.logSimulated('Reset all members\' weekly event points to 0.');
+    return res.json({ success: true, message: 'Weekly Event Leaderboard reset successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST deploy interactive all time kills leaderboard in Discord
+router.post('/deploy-alltime-kills-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployAllTimeKillsPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'All Time Kills Leaderboard panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST deploy interactive weekly kills leaderboard in Discord
+router.post('/deploy-weekly-kills-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployWeeklyKillsPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Weekly Kills Leaderboard panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST reset weekly kills for all members
+router.post('/reset-weekly-kills', requireAdmin, async (req, res) => {
+  try {
+    // Reset in DB
+    const members = await db.getMembers();
+    for (const m of members) {
+      await db.updateMember(m.discordId, { weeklyKills: 0 });
+    }
+    
+    // Sync with Discord message live if active
+    await botService.syncWeeklyKillsMessage();
+    
+    // Trigger live UI reload via socket
+    botService.broadcastSocket('weekly_kills_update', await db.getMembers());
+    
+    botService.logSimulated('Reset all members\' weekly kills to 0.');
+    return res.json({ success: true, message: 'Weekly kills reset successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST deploy interactive priority list in Discord
+router.post('/deploy-priority-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployPriorityListPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Priority Members panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

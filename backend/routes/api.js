@@ -19,6 +19,10 @@ async function requireMember(req, res, next) {
 
   const cookie = req.cookies ? req.cookies['wp_session'] : null;
   if (!cookie) {
+    if (req.method === 'GET') {
+      req.user = { discordId: 'public-guest', username: 'Guest', roles: ['Member'] };
+      return next();
+    }
     return res.status(401).json({ error: 'Please login to access this area.' });
   }
   try {
@@ -66,8 +70,81 @@ router.get('/members', requireMember, async (req, res) => {
   res.json(await db.getMembers());
 });
 
+// Admin update member weekly points
+router.post('/members/:id/weekly-points', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { weeklyPoints } = req.body;
+  const numPoints = parseFloat(weeklyPoints);
+  if (isNaN(numPoints)) {
+    return res.status(400).json({ error: 'Weekly points must be a valid number.' });
+  }
+
+  const member = await db.getMember(id);
+  if (!member) {
+    return res.status(404).json({ error: 'Member not found.' });
+  }
+
+  await db.updateMember(id, { weeklyPoints: numPoints });
+  
+  // Sync the Discord Weekly Event Leaderboard embed message live!
+  await botService.syncWeeklyLeaderboardMessage();
+
+  // Broadcast socket update
+  botService.broadcastSocket('leaderboard_update', await db.getMembers());
+
+  return res.json({ success: true, message: 'Member weekly points updated successfully.' });
+});// Admin update member total kills
+router.post('/members/:id/kills', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { kills } = req.body;
+  const numKills = parseInt(kills);
+  if (isNaN(numKills)) {
+    return res.status(400).json({ error: 'Kills must be a valid integer.' });
+  }
+
+  const member = await db.getMember(id);
+  if (!member) {
+    return res.status(404).json({ error: 'Member not found.' });
+  }
+
+  await db.updateMember(id, { kills: numKills });
+  
+  // Sync the Discord All Time Kills Leaderboard message
+  await botService.syncAllTimeKillsMessage();
+
+  // Broadcast socket update
+  botService.broadcastSocket('kills_update', await db.getMembers());
+
+  return res.json({ success: true, message: 'Member total kills updated successfully.' });
+});
+
+// Admin update member weekly kills
+router.post('/members/:id/weekly-kills', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { weeklyKills } = req.body;
+  const numKills = parseInt(weeklyKills);
+  if (isNaN(numKills)) {
+    return res.status(400).json({ error: 'Weekly kills must be a valid integer.' });
+  }
+
+  const member = await db.getMember(id);
+  if (!member) {
+    return res.status(404).json({ error: 'Member not found.' });
+  }
+
+  await db.updateMember(id, { weeklyKills: numKills });
+  
+  // Sync the Discord Weekly Kills Leaderboard message
+  await botService.syncWeeklyKillsMessage();
+
+  // Broadcast socket update
+  botService.broadcastSocket('weekly_kills_update', await db.getMembers());
+
+  return res.json({ success: true, message: 'Member weekly kills updated successfully.' });
+});
+
 // Get all role requests
-router.get('/members/role-requests', requireAdmin, async (req, res) => {
+router.get('/members/role-requests', requireMember, async (req, res) => {
   res.json(await db.getRoleRequests());
 });
 
@@ -200,6 +277,7 @@ router.post('/discipline/strike', requireAdmin, async (req, res) => {
   if (strikeRole) rolesToGrant.push(strikeRole);
 
   await db.updateMember(memberId, { strikes });
+  await botService.syncStrikeSystemMessage();
 
   // Webhook notification
   const embed = {
@@ -477,6 +555,94 @@ router.get('/leaderboards', async (req, res) => {
     activityPoints,
     top10List
   });
+});
+
+// -------------------------------------------------------------
+// PRIORITY MEMBERS LIST (TOP 5 & TOP 10)
+// -------------------------------------------------------------
+router.get('/priority-list', async (req, res) => {
+  try {
+    const resolved = await botService.getResolvedPriorityList();
+    res.json(resolved);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/priority-list/add', requireAdmin, async (req, res) => {
+  try {
+    const { type, discordId } = req.body;
+    if (!type || !discordId) {
+      return res.status(400).json({ error: 'Missing type or discordId' });
+    }
+    if (type !== 'top5' && type !== 'top10') {
+      return res.status(400).json({ error: 'Invalid type (must be top5 or top10)' });
+    }
+
+    const members = await db.getMembers();
+    const found = members.find(m => m.discordId === discordId);
+    if (!found) {
+      return res.status(404).json({ error: 'Member not found in database.' });
+    }
+
+    const list = await db.getPriorityList();
+    if (type === 'top5') {
+      if (!list.top5) list.top5 = [];
+      if (list.top5.includes(discordId)) {
+        return res.status(400).json({ error: 'Member already in TOP 5 list.' });
+      }
+      list.top5.push(discordId);
+    } else {
+      if (!list.top10) list.top10 = [];
+      if (list.top10.includes(discordId)) {
+        return res.status(400).json({ error: 'Member already in TOP 10 list.' });
+      }
+      list.top10.push(discordId);
+    }
+
+    await db.savePriorityList(list);
+    await botService.syncPriorityListMessage();
+    const resolved = await botService.getResolvedPriorityList();
+    botService.broadcastSocket('priority_list_update', resolved);
+
+    res.json({ success: true, priorityList: resolved });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/priority-list/remove', requireAdmin, async (req, res) => {
+  try {
+    const { type, discordId } = req.body;
+    if (!type || !discordId) {
+      return res.status(400).json({ error: 'Missing type or discordId' });
+    }
+    if (type !== 'top5' && type !== 'top10') {
+      return res.status(400).json({ error: 'Invalid type (must be top5 or top10)' });
+    }
+
+    const list = await db.getPriorityList();
+    if (type === 'top5') {
+      if (!list.top5 || !list.top5.includes(discordId)) {
+        return res.status(400).json({ error: 'Member not in TOP 5 list.' });
+      }
+      list.top5 = list.top5.filter(id => id !== discordId);
+    } else {
+      if (!list.top10 || !list.top10.includes(discordId)) {
+        return res.status(400).json({ error: 'Member not in TOP 10 list.' });
+      }
+      list.top10 = list.top10.filter(id => id !== discordId);
+    }
+
+    await db.savePriorityList(list);
+    await botService.syncPriorityListMessage();
+    const resolved = await botService.getResolvedPriorityList();
+    botService.broadcastSocket('priority_list_update', resolved);
+
+    res.json({ success: true, priorityList: resolved });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // -------------------------------------------------------------
@@ -946,6 +1112,68 @@ router.get('/discord/messages', requireMember, async (req, res) => {
       timestamp: new Date().toISOString(),
       message: `[SIMULATED] Log monitor linked to #${channelKey} webhook.`
     }]);
+  }
+});
+
+// -------------------------------------------------------------
+// ABOUT US / FAMILY STATS
+// -------------------------------------------------------------
+
+// Get family stats
+router.get('/about/stats', requireMember, async (req, res) => {
+  try {
+    const stats = await db.getFamilyStats();
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to retrieve family statistics.' });
+  }
+});
+
+// Update family stats
+router.post('/about/stats', requireAdmin, async (req, res) => {
+  try {
+    const {
+      totalMembers,
+      totalGiveaways,
+      totalBonuses,
+      hcWorkDone,
+      totalStrikes,
+      totalBlacklisted,
+      rpWon,
+      eventsWon,
+      familyRankingPoints,
+      familyRank
+    } = req.body;
+
+    const numericStats = {
+      totalMembers: Number(totalMembers) || 0,
+      totalGiveaways: Number(totalGiveaways) || 0,
+      totalBonuses: Number(totalBonuses) || 0,
+      hcWorkDone: Number(hcWorkDone) || 0,
+      totalStrikes: Number(totalStrikes) || 0,
+      totalBlacklisted: Number(totalBlacklisted) || 0,
+      rpWon: Number(rpWon) || 0,
+      eventsWon: Number(eventsWon) || 0,
+      familyRankingPoints: Number(familyRankingPoints) || 0,
+      familyRank: familyRank || '#1'
+    };
+
+    const saved = await db.saveFamilyStats(numericStats);
+    res.json(saved);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save family statistics.' });
+  }
+});
+
+// Broadcast family stats to Discord
+router.post('/about/stats/broadcast', requireAdmin, async (req, res) => {
+  try {
+    const { channelKey } = req.body;
+    const stats = await db.getFamilyStats();
+    const broadcastResult = await botService.sendStatsBroadcast(channelKey, stats);
+    res.json({ success: broadcastResult });
+  } catch (err) {
+    res.status(500).json({ error: `Failed to broadcast stats to Discord: ${err.message}` });
   }
 });
 

@@ -112,6 +112,77 @@ const botService = {
             await interaction.showModal(modal);
           }
           
+          else if (customId === 'refresh_stats') {
+            try {
+              const stats = await db.getFamilyStats();
+              const updatedEmbed = await botService.buildStatsEmbed(stats);
+              
+              const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId('refresh_stats')
+                  .setLabel('🔄 Refresh Stats')
+                  .setStyle(ButtonStyle.Secondary)
+              );
+              
+              await interaction.update({ embeds: [updatedEmbed], components: [row] });
+            } catch (err) {
+              console.error('[Bot] Failed to refresh family stats in Discord:', err.message);
+              await interaction.reply({ content: '⚠️ Failed to refresh stats. Please try again later.', ephemeral: true });
+            }
+          }
+          else if (customId === 'my_strikes') {
+            try {
+              const members = await db.getMembers();
+              const member = members.find(m => m.discordId === interaction.user.id);
+              
+              if (!member || !member.strikes || member.strikes.length === 0) {
+                return interaction.reply({ content: '✅ **You have 0 active strikes.** Keep up the good work!', ephemeral: true });
+              }
+              
+              const list = member.strikes.map((st, idx) => `${idx + 1}. **"${st.reason}"** (Issued by: @${st.issuedBy} on ${new Date(st.date).toLocaleDateString()})`).join('\n');
+              await interaction.reply({
+                content: `🚨 **Your Active Strikes (${member.strikes.length}/3)**:\n\n${list}\n\n*Accumulating 3 strikes will result in automatic blacklist / suspension.*`,
+                ephemeral: true
+              });
+            } catch (err) {
+              console.error('[Bot] Failed to retrieve user strikes:', err.message);
+              await interaction.reply({ content: '⚠️ Failed to check your strikes. Please try again later.', ephemeral: true });
+            }
+          }
+          else if (customId === 'priority_add_top5' || customId === 'priority_add_top10') {
+            const type = customId.includes('top5') ? 'top5' : 'top10';
+            const label = type === 'top5' ? 'Top 5' : 'Top 10';
+            const modal = new ModalBuilder()
+              .setCustomId(`priority_add_modal:${type}`)
+              .setTitle(`Add to ${label} Members`);
+
+            const input = new TextInputBuilder()
+              .setCustomId('priority_member_input')
+              .setLabel('Discord ID or Username')
+              .setPlaceholder('e.g. VitoScaletta or 3572')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(input));
+            await interaction.showModal(modal);
+          }
+          else if (customId === 'priority_remove_top5' || customId === 'priority_remove_top10') {
+            const type = customId.includes('top5') ? 'top5' : 'top10';
+            const label = type === 'top5' ? 'Top 5' : 'Top 10';
+            const modal = new ModalBuilder()
+              .setCustomId(`priority_remove_modal:${type}`)
+              .setTitle(`Remove from ${label} Members`);
+
+            const input = new TextInputBuilder()
+              .setCustomId('priority_member_input')
+              .setLabel('Discord ID or Username')
+              .setPlaceholder('e.g. VitoScaletta or 3572')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(input));
+            await interaction.showModal(modal);
+          }
           else if (customId.startsWith('role_approve:')) {
             const requestId = customId.split(':')[1];
             const reqs = await db.getRoleRequests();
@@ -247,6 +318,58 @@ const botService = {
               await interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
             }
           }
+          else if (customId === 'trigger_bonus_ticket') {
+            const modal = new ModalBuilder()
+              .setCustomId('discord_ticket_bonus_modal')
+              .setTitle('Bonus Problem Ticket');
+
+            const subjectInput = new TextInputBuilder()
+              .setCustomId('ticket_subject')
+              .setLabel('Subject')
+              .setPlaceholder('E.g., Missing bonus for contract')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true);
+
+            const detailsInput = new TextInputBuilder()
+              .setCustomId('ticket_details')
+              .setLabel('Infraction / Bonus Details')
+              .setPlaceholder('Provide full details about the bonus problem...')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true);
+
+            modal.addComponents(
+              new ActionRowBuilder().addComponents(subjectInput),
+              new ActionRowBuilder().addComponents(detailsInput)
+            );
+
+            await interaction.showModal(modal);
+          }
+          else if (customId === 'trigger_support_ticket') {
+            const modal = new ModalBuilder()
+              .setCustomId('discord_ticket_support_modal')
+              .setTitle('Support Problem Ticket');
+
+            const subjectInput = new TextInputBuilder()
+              .setCustomId('ticket_subject')
+              .setLabel('Subject')
+              .setPlaceholder('E.g., Conflict with another member')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true);
+
+            const detailsInput = new TextInputBuilder()
+              .setCustomId('ticket_details')
+              .setLabel('Complaint / Support Details')
+              .setPlaceholder('Provide full details about the support issue...')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true);
+
+            modal.addComponents(
+              new ActionRowBuilder().addComponents(subjectInput),
+              new ActionRowBuilder().addComponents(detailsInput)
+            );
+
+            await interaction.showModal(modal);
+          }
         }
 
         // 2. Modal submissions
@@ -275,6 +398,116 @@ const botService = {
             await interaction.reply({ content: '✅ Your role request form was submitted successfully and is under review.', ephemeral: true });
 
             botService.broadcastSocket('role_requests_update', await db.getRoleRequests());
+          }
+          else if (interaction.customId === 'discord_ticket_bonus_modal' || interaction.customId === 'discord_ticket_support_modal') {
+            const type = interaction.customId === 'discord_ticket_bonus_modal' ? 'bonus' : 'support';
+            const subject = interaction.fields.getTextInputValue('ticket_subject');
+            const description = interaction.fields.getTextInputValue('ticket_details');
+
+            const ticket = await db.createTicket({
+              memberId: interaction.user.id,
+              username: interaction.user.username,
+              type,
+              subject,
+              description
+            });
+
+            const embed = {
+              title: `🎫 NEW SUPPORT TICKET RAISED [${ticket.id}]`,
+              description: `Ticket raised by **${interaction.user.username}** via Discord.`,
+              color: type === 'bonus' ? 0x3a86ff : 0xffaa00,
+              fields: [
+                { name: 'Type', value: type.toUpperCase(), inline: true },
+                { name: 'Subject', value: subject, inline: true },
+                { name: 'Description', value: description }
+              ]
+            };
+
+            await botService.sendWebhook('tickets', embed);
+            botService.logSimulated(`Support ticket ${ticket.id} (${type}) raised by @${interaction.user.username} via Discord.`);
+
+            botService.broadcastSocket('tickets_update', await db.getTickets());
+            if (ioInstance) {
+              ioInstance.emit('system_notification', {
+                title: `New Discord Ticket [${ticket.id}]`,
+                message: `@${interaction.user.username} submitted a ${type} ticket: "${subject}"`,
+                type: 'info'
+              });
+            }
+
+            await interaction.reply({ content: `✅ Your ticket **[${ticket.id}]** has been submitted and is under review.`, ephemeral: true });
+          }
+          else if (interaction.customId.startsWith('priority_add_modal:')) {
+            const type = interaction.customId.split(':')[1];
+            const value = interaction.fields.getTextInputValue('priority_member_input').trim();
+
+            const members = await db.getMembers();
+            const found = members.find(m => 
+              m.discordId === value || 
+              m.username.toLowerCase() === value.toLowerCase() ||
+              m.nickname.toLowerCase().includes(value.toLowerCase())
+            );
+
+            if (!found) {
+              return interaction.reply({ content: `❌ Member "${value}" not found in database.`, ephemeral: true });
+            }
+
+            const list = await db.getPriorityList();
+            if (type === 'top5') {
+              if (!list.top5) list.top5 = [];
+              if (list.top5.includes(found.discordId)) {
+                return interaction.reply({ content: `⚠️ ${found.username} is already in the TOP 5 list.`, ephemeral: true });
+              }
+              list.top5.push(found.discordId);
+            } else {
+              if (!list.top10) list.top10 = [];
+              if (list.top10.includes(found.discordId)) {
+                return interaction.reply({ content: `⚠️ ${found.username} is already in the TOP 10 list.`, ephemeral: true });
+              }
+              list.top10.push(found.discordId);
+            }
+
+            await db.savePriorityList(list);
+            await botService.syncPriorityListMessage();
+            const resolved = await botService.getResolvedPriorityList();
+            botService.broadcastSocket('priority_list_update', resolved);
+
+            await interaction.reply({ content: `✅ Added **${found.username}** to Priority ${type === 'top5' ? 'TOP 5' : 'TOP 10'}!`, ephemeral: true });
+          }
+          else if (interaction.customId.startsWith('priority_remove_modal:')) {
+            const type = interaction.customId.split(':')[1];
+            const value = interaction.fields.getTextInputValue('priority_member_input').trim();
+
+            const members = await db.getMembers();
+            const found = members.find(m => 
+              m.discordId === value || 
+              m.username.toLowerCase() === value.toLowerCase() ||
+              m.nickname.toLowerCase().includes(value.toLowerCase())
+            );
+
+            if (!found) {
+              return interaction.reply({ content: `❌ Member "${value}" not found in database.`, ephemeral: true });
+            }
+
+            const list = await db.getPriorityList();
+            if (type === 'top5') {
+              if (!list.top5 || !list.top5.includes(found.discordId)) {
+                return interaction.reply({ content: `⚠️ ${found.username} is not in the TOP 5 list.`, ephemeral: true });
+              }
+              list.top5 = list.top5.filter(id => id !== found.discordId);
+            } else {
+              if (!list.top10 || !list.top10.includes(found.discordId)) {
+                return interaction.reply({ content: `⚠️ ${found.username} is not in the TOP 10 list.`, ephemeral: true });
+              }
+              list.top10 = list.top10.filter(id => id !== found.discordId);
+            }
+
+            await db.savePriorityList(list);
+            await botService.syncPriorityListMessage();
+            const resolved = await botService.getResolvedPriorityList();
+            botService.broadcastSocket('priority_list_update', resolved);
+
+            await interaction.reply({ content: `✅ Removed **${found.username}** from Priority ${type === 'top5' ? 'TOP 5' : 'TOP 10'}.`, ephemeral: true });
           }
         }
 
@@ -720,6 +953,757 @@ const botService = {
     // Mock mode / fallback log
     botService.logSimulated('[Mock Panel] Deployed Submit Role Request Button in #role-request channel.');
     return true;
+  },
+
+  buildStatsEmbed: async (stats) => {
+    const updatedTime = stats.updatedAt ? new Date(stats.updatedAt).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }) : '9:25 PM';
+
+    return new EmbedBuilder()
+      .setTitle('White Pigeons #TOP1 Family Stats!')
+      .setDescription('**White Pigeons #TOP1 On Top!**')
+      .addFields(
+        { name: '👥 Total Family Members', value: `${stats.totalMembers || 0}`, inline: true },
+        { name: '🎁 Total Giveaways', value: `${stats.totalGiveaways || 0}`, inline: true },
+        { name: '💰 Total Bonuses', value: `$${Number(stats.totalBonuses || 0).toLocaleString()}`, inline: true },
+        { name: '✅ HC Work Done', value: `${stats.hcWorkDone || 0}`, inline: true },
+        { name: '⚠️ Total Strikes', value: `${stats.totalStrikes || 0}`, inline: true },
+        { name: '🚫 Total Blacklisted', value: `${stats.totalBlacklisted || 0}`, inline: true },
+        { name: '🏆 RP Won', value: `${stats.rpWon || 0}`, inline: true },
+        { name: '🎮 Events Won', value: `${stats.eventsWon || 0}`, inline: true },
+        { name: '⭐ Family Ranking Points', value: `${stats.familyRankingPoints || 0}`, inline: true },
+        { name: '📊 Family Rank', value: `${stats.familyRank || '#1'}`, inline: true }
+      )
+      .setColor(0x8f00ff)
+      .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+      .setFooter({ text: `White Pigeons #TOP1 • Updated • Today at ${updatedTime}` });
+  },
+
+  sendStatsBroadcast: async (channelKey, stats) => {
+    botService.logSimulated(`Firing stats broadcast to channel ${channelKey}...`);
+    const config = await db.getConfig();
+    
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        
+        let channel = guild.channels.cache.get(channelKey);
+        if (!channel) {
+          channel = guild.channels.cache.find(c => 
+            c.name.includes(channelKey) || 
+            c.id === channelKey ||
+            c.name.includes('announcement') ||
+            c.name.includes('general')
+          );
+        }
+        
+        if (channel) {
+          const embed = await botService.buildStatsEmbed(stats);
+          
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('refresh_stats')
+              .setLabel('🔄 Refresh Stats')
+              .setStyle(ButtonStyle.Secondary)
+          );
+          
+          await channel.send({ embeds: [embed], components: [row] });
+          botService.logSimulated(`Successfully broadcast stats embed to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to send live stats embed to Discord:', err.message);
+      }
+    }
+    
+    botService.logSimulated(`[Mock Broadcast] Sent Stats Embed to Discord channel key "${channelKey}":\n` + JSON.stringify(stats));
+    return true;
+  },
+
+  deployStrikeSystemPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Strike System panel to Discord channel...');
+    const config = await db.getConfig();
+    const members = await db.getMembers();
+    
+    // Build the list of active strikes
+    const strikers = members.filter(m => m.strikes && m.strikes.length > 0);
+    let strikeList = strikers.map(m => `• <@${m.discordId}> (${m.strikes.length}/3)`).join('\n');
+    if (!strikeList) {
+      strikeList = '• *No active infractions registered.*';
+    }
+
+    const updatedTime = new Date().toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => c.name.includes('strike') || c.name.includes('infraction') || c.name.includes('discipline'));
+        if (!channel) {
+          channel = guild.channels.cache.find(c => c.name.includes('general') || c.name.includes('announcement'));
+        }
+        
+        if (channel) {
+          const embed = new EmbedBuilder()
+            .setTitle('Strike System')
+            .setDescription(strikeList)
+            .setImage('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800') // purple-red warning vibe neon
+            .setColor(0xff0000)
+            .setFooter({ text: `Strike System • 3 strikes max • Updated • Today at ${updatedTime}` });
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('my_strikes')
+              .setLabel('⚠️ My Strikes')
+              .setStyle(ButtonStyle.Danger)
+          );
+
+          const message = await channel.send({ embeds: [embed], components: [row] });
+          
+          // Save message and channel ID in config for auto-updates when strikes are issued/resolved on website
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.strikeMessageId = message.id;
+          currentWebhooks.strikeChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+          
+          botService.logSimulated(`Successfully deployed Strike System panel to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Strike System panel:', err.message);
+      }
+    }
+
+    botService.logSimulated('[Mock Panel] Deployed Strike System panel in #strikes channel.');
+    return true;
+  },
+
+  syncStrikeSystemMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.strikeMessageId;
+    const channelId = webhooks.strikeChannelId;
+    
+    if (!messageId || !channelId || !client) return;
+    
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const members = await db.getMembers();
+          const strikers = members.filter(m => m.strikes && m.strikes.length > 0);
+          let strikeList = strikers.map(m => `• <@${m.discordId}> (${m.strikes.length}/3)`).join('\n');
+          if (!strikeList) {
+            strikeList = '• *No active infractions registered.*';
+          }
+
+          const updatedTime = new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+
+          const embed = new EmbedBuilder()
+            .setTitle('Strike System')
+            .setDescription(strikeList)
+            .setImage('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800')
+            .setColor(0xff0000)
+            .setFooter({ text: `Strike System • 3 strikes max • Updated • Today at ${updatedTime}` });
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('my_strikes')
+              .setLabel('⚠️ My Strikes')
+              .setStyle(ButtonStyle.Danger)
+          );
+
+          await message.edit({ embeds: [embed], components: [row] });
+          botService.logSimulated('Successfully updated active Discord Strike System message.');
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync Strike System message:', err.message);
+    }
+  },
+
+  deployTicketsPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Ticket System panel to Discord channel...');
+    const config = await db.getConfig();
+
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => c.name.includes('ticket'));
+        if (!channel) {
+          channel = guild.channels.cache.find(c => c.name.includes('general') || c.name.includes('announcement'));
+        }
+
+        if (channel) {
+          const embed = new EmbedBuilder()
+            .setTitle('White Pigeons Ticket System')
+            .setDescription('If you have any problem about anything like bonus or general,\nopen ticket.\n\nDont DM HC\'s')
+            .setColor(0x3a86ff)
+            .setFooter({ text: 'White Pigeons • Support System' })
+            .setTimestamp();
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('trigger_bonus_ticket')
+              .setLabel('💰 Bonus Problem')
+              .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+              .setCustomId('trigger_support_ticket')
+              .setLabel('⚠️ Support Problem')
+              .setStyle(ButtonStyle.Danger)
+          );
+
+          await channel.send({ embeds: [embed], components: [row] });
+          botService.logSimulated(`Successfully deployed Ticket System panel to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Ticket System panel:', err.message);
+      }
+    }
+
+    botService.logSimulated('[Mock Panel] Deployed Ticket System panel in #tickets channel.');
+    return true;
+  },
+
+  deployBalanceSystemPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Balance System panel to Discord channel...');
+    const config = await db.getConfig();
+
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => c.name.includes('balance') || c.name.includes('check'));
+        if (!channel) {
+          channel = guild.channels.cache.find(c => c.name.includes('general') || c.name.includes('announcement'));
+        }
+
+        if (channel) {
+          const embed = new EmbedBuilder()
+            .setTitle('💰 BONUS SYSTEM White Pigeons 💰')
+            .setDescription('🎯 Bonus Rewards System\n\n🟫 Informal: 70k\n💥 Biz War: 200k\n🎟️ RP Ticket: 1 RP per ticket\n\nClick below to check your balance!')
+            .setColor(0x00ff00)
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setTimestamp();
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('check_my_balance')
+              .setLabel('💰 My Balance')
+              .setStyle(ButtonStyle.Primary)
+          );
+
+          await channel.send({ embeds: [embed], components: [row] });
+          botService.logSimulated(`Successfully deployed Balance System panel to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Balance System panel:', err.message);
+      }
+    }
+
+    botService.logSimulated('[Mock Panel] Deployed Balance System panel in #check-balance channel.');
+    return true;
+  },
+
+  deployWeeklyLeaderboardPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Weekly Event Leaderboard prompt to Discord channel...');
+    const config = await db.getConfig();
+
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => c.name.includes('kill-list') || c.name.includes('leaderboard') || c.name.includes('weekly'));
+        if (!channel) {
+          channel = guild.channels.cache.find(c => c.name.includes('general') || c.name.includes('announcement'));
+        }
+
+        if (channel) {
+          const members = await db.getMembers();
+          
+          // Sort by weeklyPoints descending, limit to top 20
+          const leaderboardList = [...members]
+            .filter(m => m.weeklyPoints !== undefined)
+            .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
+            .slice(0, 20);
+
+          const totalPoints = members.reduce((acc, curr) => acc + (curr.weeklyPoints || 0), 0);
+          const totalPlayers = members.filter(m => (m.weeklyPoints || 0) > 0).length;
+
+          // Format leaderboard entries
+          const entries = leaderboardList.map((m, idx) => {
+            let rankIcon = `**#${idx + 1}**`;
+            let specIcon = '⚔️';
+            
+            if (idx === 0) {
+              rankIcon = '👑 **#1**';
+            } else if (idx === 1) {
+              rankIcon = '⭐ **#2**';
+            } else if (idx === 2) {
+              rankIcon = '⚡ **#3**';
+            }
+            
+            // Spec icon logic: #8 Anvy has 🏆
+            if (m.username.toLowerCase() === 'anvy') {
+              specIcon = '🏆';
+            }
+
+            return `• ${rankIcon} ${specIcon} <@${m.discordId}> 💰 **${m.weeklyPoints}** points`;
+          }).join('\n');
+
+          const embed = new EmbedBuilder()
+            .setTitle('📊 WEEKLY EVENT LEADERBOARD 🎯')
+            .setDescription(`🔥 Top Event Participants This Week 🔥\n\n${entries}\n\n` + 
+              `---------------------------\n` +
+              `📊 Total Points: **${totalPoints}**\n` +
+              `👥 Total Players: **${totalPlayers}**\n` +
+              `🔄 Next Reset: in 4 days\n` +
+              `---------------------------\n\n` +
+              `💰 **Point System:**\n` +
+              `• Harbor: 1 point\n` +
+              `• Weapons Factory: 2 points\n` +
+              `• RP Ticket: 2 points\n` +
+              `• Foundry: 3 points`
+            )
+            .setColor(0xff003c) // Vibrant red-pink or matching screenshot
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setTimestamp();
+
+          const message = await channel.send({ embeds: [embed] });
+          
+          // Save in config webhooks
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.leaderboardMessageId = message.id;
+          currentWebhooks.leaderboardChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+
+          botService.logSimulated(`Successfully deployed Weekly Event Leaderboard panel to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Weekly Event Leaderboard panel:', err.message);
+      }
+    }
+
+    botService.logSimulated('[Mock Panel] Deployed Weekly Event Leaderboard panel in #weekly-kill-list channel.');
+    return true;
+  },
+
+  syncWeeklyLeaderboardMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.leaderboardMessageId;
+    const channelId = webhooks.leaderboardChannelId;
+
+    if (!messageId || !channelId || !client) return;
+
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const members = await db.getMembers();
+          
+          const leaderboardList = [...members]
+            .filter(m => m.weeklyPoints !== undefined)
+            .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
+            .slice(0, 20);
+
+          const totalPoints = members.reduce((acc, curr) => acc + (curr.weeklyPoints || 0), 0);
+          const totalPlayers = members.filter(m => (m.weeklyPoints || 0) > 0).length;
+
+          const entries = leaderboardList.map((m, idx) => {
+            let rankIcon = `**#${idx + 1}**`;
+            let specIcon = '⚔️';
+            
+            if (idx === 0) {
+              rankIcon = '👑 **#1**';
+            } else if (idx === 1) {
+              rankIcon = '⭐ **#2**';
+            } else if (idx === 2) {
+              rankIcon = '⚡ **#3**';
+            }
+            
+            if (m.username.toLowerCase() === 'anvy') {
+              specIcon = '🏆';
+            }
+
+            return `• ${rankIcon} ${specIcon} <@${m.discordId}> 💰 **${m.weeklyPoints}** points`;
+          }).join('\n');
+
+          const embed = new EmbedBuilder()
+            .setTitle('📊 WEEKLY EVENT LEADERBOARD 🎯')
+            .setDescription(`🔥 Top Event Participants This Week 🔥\n\n${entries}\n\n` + 
+              `---------------------------\n` +
+              `📊 Total Points: **${totalPoints}**\n` +
+              `👥 Total Players: **${totalPlayers}**\n` +
+              `🔄 Next Reset: in 4 days\n` +
+              `---------------------------\n\n` +
+              `💰 **Point System:**\n` +
+              `• Harbor: 1 point\n` +
+              `• Weapons Factory: 2 points\n` +
+              `• RP Ticket: 2 points\n` +
+              `• Foundry: 3 points`
+            )
+            .setColor(0xff003c)
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setTimestamp();
+
+          await message.edit({ embeds: [embed] });
+          botService.logSimulated('Successfully updated active Discord Weekly Event Leaderboard message.');
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync Weekly Event Leaderboard message:', err.message);
+    }
+  },
+
+  deployAllTimeKillsPrompt: async () => {
+    botService.logSimulated('Attempting to deploy All Time Kills Leaderboard prompt to Discord channel...');
+    const config = await db.getConfig();
+
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => c.name.includes('long-time-kill') || c.name.includes('all-time') || c.name.includes('kill-list'));
+        if (!channel) {
+          channel = guild.channels.cache.find(c => c.name.includes('general') || c.name.includes('announcement'));
+        }
+
+        if (channel) {
+          const members = await db.getMembers();
+          const sorted = [...members]
+            .sort((a, b) => b.kills - a.kills)
+            .slice(0, 30);
+
+          const entries = sorted.map((m, idx) => {
+            let rankIcon = `#${idx + 1}`;
+            if (idx === 0) rankIcon = '👑 #1';
+            else if (idx === 1) rankIcon = '⭐ #2';
+            else if (idx === 2) rankIcon = '⚡ #3';
+            return `• ${rankIcon} <@${m.discordId}> 💀 **${m.kills}** kills`;
+          }).join('\n');
+
+          const embed = new EmbedBuilder()
+            .setTitle('💀 ALL TIME KILLS LEADERBOARD 💀')
+            .setDescription(`🔥 Elite Marksmen of White Pigeons 🔥\n\n${entries}`)
+            .setColor(0xff0000)
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setTimestamp();
+
+          const message = await channel.send({ embeds: [embed] });
+          
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.allTimeKillsMessageId = message.id;
+          currentWebhooks.allTimeKillsChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+
+          botService.logSimulated(`Successfully deployed All Time Kills Leaderboard to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy All Time Kills Leaderboard:', err.message);
+      }
+    }
+
+    botService.logSimulated('[Mock Panel] Deployed All Time Kills Leaderboard in #long-time-kill-list channel.');
+    return true;
+  },
+
+  syncAllTimeKillsMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.allTimeKillsMessageId;
+    const channelId = webhooks.allTimeKillsChannelId;
+
+    if (!messageId || !channelId || !client) return;
+
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const members = await db.getMembers();
+          const sorted = [...members]
+            .sort((a, b) => b.kills - a.kills)
+            .slice(0, 30);
+
+          const entries = sorted.map((m, idx) => {
+            let rankIcon = `#${idx + 1}`;
+            if (idx === 0) rankIcon = '👑 #1';
+            else if (idx === 1) rankIcon = '⭐ #2';
+            else if (idx === 2) rankIcon = '⚡ #3';
+            return `• ${rankIcon} <@${m.discordId}> 💀 **${m.kills}** kills`;
+          }).join('\n');
+
+          const embed = new EmbedBuilder()
+            .setTitle('💀 ALL TIME KILLS LEADERBOARD 💀')
+            .setDescription(`🔥 Elite Marksmen of White Pigeons 🔥\n\n${entries}`)
+            .setColor(0xff0000)
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setTimestamp();
+
+          await message.edit({ embeds: [embed] });
+          botService.logSimulated('Successfully updated active Discord All Time Kills Leaderboard message.');
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync All Time Kills Leaderboard:', err.message);
+    }
+  },
+
+  deployWeeklyKillsPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Weekly Kills Leaderboard prompt to Discord channel...');
+    const config = await db.getConfig();
+
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => c.name.includes('weekly-kill') || c.name.includes('weekly') || c.name.includes('kill-list'));
+        if (!channel) {
+          channel = guild.channels.cache.find(c => c.name.includes('general') || c.name.includes('announcement'));
+        }
+
+        if (channel) {
+          const members = await db.getMembers();
+          const sorted = [...members]
+            .sort((a, b) => b.weeklyKills - a.weeklyKills)
+            .slice(0, 25);
+
+          const entries = sorted.map((m, idx) => {
+            let rankIcon = `#${idx + 1}`;
+            if (idx === 0) rankIcon = '🥇 #1';
+            else if (idx === 1) rankIcon = '🥈 #2';
+            else if (idx === 2) rankIcon = '🥉 #3';
+            return `• ${rankIcon} - <@${m.discordId}> - 💀 **${m.weeklyKills}** kills`;
+          }).join('\n');
+
+          const embed = new EmbedBuilder()
+            .setTitle('📊 WEEKLY KILLS LEADERBOARD 📊')
+            .setDescription(`🔥 Top Marksmen This Week 🔥\n\n${entries}`)
+            .setColor(0xff003c)
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setTimestamp();
+
+          const message = await channel.send({ embeds: [embed] });
+          
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.weeklyKillsMessageId = message.id;
+          currentWebhooks.weeklyKillsChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+
+          botService.logSimulated(`Successfully deployed Weekly Kills Leaderboard to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Weekly Kills Leaderboard:', err.message);
+      }
+    }
+
+    botService.logSimulated('[Mock Panel] Deployed Weekly Kills Leaderboard in #weekly-kill-list channel.');
+    return true;
+  },
+
+  syncWeeklyKillsMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.weeklyKillsMessageId;
+    const channelId = webhooks.weeklyKillsChannelId;
+
+    if (!messageId || !channelId || !client) return;
+
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const members = await db.getMembers();
+          const sorted = [...members]
+            .sort((a, b) => b.weeklyKills - a.weeklyKills)
+            .slice(0, 25);
+
+          const entries = sorted.map((m, idx) => {
+            let rankIcon = `#${idx + 1}`;
+            if (idx === 0) rankIcon = '🥇 #1';
+            else if (idx === 1) rankIcon = '🥈 #2';
+            else if (idx === 2) rankIcon = '🥉 #3';
+            return `• ${rankIcon} - <@${m.discordId}> - 💀 **${m.weeklyKills}** kills`;
+          }).join('\n');
+
+          const embed = new EmbedBuilder()
+            .setTitle('📊 WEEKLY KILLS LEADERBOARD 📊')
+            .setDescription(`🔥 Top Marksmen This Week 🔥\n\n${entries}`)
+            .setColor(0xff003c)
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setTimestamp();
+
+          await message.edit({ embeds: [embed] });
+          botService.logSimulated('Successfully updated active Discord Weekly Kills Leaderboard message.');
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync Weekly Kills Leaderboard:', err.message);
+    }
+  },
+
+  formatMemberForEmbed: (m) => {
+    if (!m) return 'Unknown';
+    if (m.discordId.includes('mock') || m.discordId === 'admin-local') {
+      return `@${m.username || 'Unknown'}`;
+    }
+    if (m.discordId.length < 15) {
+      let name = m.nickname || m.username || 'Unknown';
+      if (name.startsWith('<@') || name.startsWith('@')) {
+        return name;
+      }
+      return `@${name}`;
+    }
+    return `<@${m.discordId}>`;
+  },
+
+  getResolvedPriorityList: async () => {
+    const list = await db.getPriorityList();
+    const members = await db.getMembers();
+    const memberMap = new Map(members.map(m => [m.discordId, m]));
+
+    const top5Resolved = (list.top5 || []).map(id => memberMap.get(id)).filter(Boolean);
+    const top10Resolved = (list.top10 || []).map(id => memberMap.get(id)).filter(Boolean);
+
+    return {
+      top5: top5Resolved,
+      top10: top10Resolved
+    };
+  },
+
+  deployPriorityListPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Priority Members list to Discord channel...');
+    const config = await db.getConfig();
+
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => c.name.includes('top-10') || c.name.includes('priority') || c.name.includes('roster') || c.name.includes('members'));
+        if (!channel) {
+          channel = guild.channels.cache.find(c => c.name.includes('general') || c.name.includes('announcement'));
+        }
+
+        if (channel) {
+          const resolved = await botService.getResolvedPriorityList();
+          const top5Entries = resolved.top5.map((m, idx) => `${idx + 1}. ${botService.formatMemberForEmbed(m)}`).join('\n') || '*No members*';
+          const top10Entries = resolved.top10.map((m, idx) => `${idx + 1}. ${botService.formatMemberForEmbed(m)}`).join('\n') || '*No members*';
+
+          const embed = new EmbedBuilder()
+            .setTitle('Priority Members')
+            .setColor(0xffd700)
+            .addFields(
+              { name: 'TOP 5 Members', value: top5Entries, inline: true },
+              { name: 'TOP 10 Members', value: top10Entries, inline: true }
+            )
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setFooter({ text: 'White Pigeons #TOP1 • Priority List' });
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('priority_add_top5')
+              .setLabel('+ Add Top 5 Member')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('priority_add_top10')
+              .setLabel('+ Add Top 10 Member')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('priority_remove_top5')
+              .setLabel('X Remove Top 5 Member')
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId('priority_remove_top10')
+              .setLabel('X Remove Top 10 Member')
+              .setStyle(ButtonStyle.Danger)
+          );
+
+          const message = await channel.send({ embeds: [embed], components: [row] });
+          
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.priorityMessageId = message.id;
+          currentWebhooks.priorityChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+
+          botService.logSimulated(`Successfully deployed Priority Members list to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Priority Members list:', err.message);
+      }
+    }
+
+    botService.logSimulated('[Mock Panel] Deployed Priority Members embed in #top-10-list channel.');
+    return true;
+  },
+
+  syncPriorityListMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.priorityMessageId;
+    const channelId = webhooks.priorityChannelId;
+
+    if (!messageId || !channelId || !client) return;
+
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const resolved = await botService.getResolvedPriorityList();
+          const top5Entries = resolved.top5.map((m, idx) => `${idx + 1}. ${botService.formatMemberForEmbed(m)}`).join('\n') || '*No members*';
+          const top10Entries = resolved.top10.map((m, idx) => `${idx + 1}. ${botService.formatMemberForEmbed(m)}`).join('\n') || '*No members*';
+
+          const embed = new EmbedBuilder()
+            .setTitle('Priority Members')
+            .setColor(0xffd700)
+            .addFields(
+              { name: 'TOP 5 Members', value: top5Entries, inline: true },
+              { name: 'TOP 10 Members', value: top10Entries, inline: true }
+            )
+            .setThumbnail('https://whitepigeons-35431.web.app/logo.png')
+            .setFooter({ text: 'White Pigeons #TOP1 • Priority List' });
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('priority_add_top5')
+              .setLabel('+ Add Top 5 Member')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('priority_add_top10')
+              .setLabel('+ Add Top 10 Member')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('priority_remove_top5')
+              .setLabel('X Remove Top 5 Member')
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId('priority_remove_top10')
+              .setLabel('X Remove Top 10 Member')
+              .setStyle(ButtonStyle.Danger)
+          );
+
+          await message.edit({ embeds: [embed], components: [row] });
+          botService.logSimulated('Successfully updated active Discord Priority Members list.');
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync Priority Members list:', err.message);
+    }
   }
 };
 

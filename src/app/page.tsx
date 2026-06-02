@@ -8,7 +8,8 @@ import {
   AlertTriangle, Ticket, TrendingUp, Send, CheckCircle,
   Award, Package, Sliders, CheckSquare, Factory, Play,
   Plus, CheckCircle2, XCircle, UserCheck, Eye, Trash, Star,
-  Megaphone, ShoppingBag, ArrowRight, ClipboardList
+  Megaphone, ShoppingBag, ArrowRight, ClipboardList,
+  Search, ExternalLink, Gift, RefreshCw, Info
 } from 'lucide-react';
 
 interface Strike {
@@ -30,6 +31,7 @@ interface Member {
   points: number;
   isTop10: boolean;
   activityScore: number;
+  weeklyPoints?: number;
 }
 
 interface TicketModel {
@@ -113,6 +115,12 @@ export default function RootDashboard() {
   const [wins, setWins] = useState<WinModel[]>([]);
   const [roleRequests, setRoleRequests] = useState<any[]>([]);
   
+  // Priority Lists
+  const [priorityList, setPriorityList] = useState<{ top5: Member[]; top10: Member[] }>({ top5: [], top10: [] });
+  const [showAddMemberDropdown, setShowAddMemberDropdown] = useState<'top5' | 'top10' | null>(null);
+  const [prioritySearch, setPrioritySearch] = useState('');
+  const [isDeployingPriority, setIsDeployingPriority] = useState(false);
+  
   // Signups
   const [rpSignups, setRpSignups] = useState<SignupModel[]>([]);
   const [informalSignups, setInformalSignups] = useState<SignupModel[]>([]);
@@ -147,6 +155,35 @@ export default function RootDashboard() {
   // General timers
   const [rpCountdown, setRpCountdown] = useState('00:32:10');
   const [loading, setLoading] = useState(true);
+  const [weeklyPointsForm, setWeeklyPointsForm] = useState<Record<string, string>>({});
+  const [killsForm, setKillsForm] = useState<Record<string, string>>({});
+  const [weeklyKillsForm, setWeeklyKillsForm] = useState<Record<string, string>>({});
+  const [roleSearchQuery, setRoleSearchQuery] = useState('');
+  const [familyStats, setFamilyStats] = useState<any>({
+    totalMembers: 403,
+    totalGiveaways: 7,
+    totalBonuses: 118920000,
+    hcWorkDone: 97,
+    totalStrikes: 57,
+    totalBlacklisted: 20,
+    rpWon: 133,
+    eventsWon: 928,
+    familyRankingPoints: 2168,
+    familyRank: '#1',
+    updatedAt: ''
+  });
+  const [statsForm, setStatsForm] = useState<any>({
+    totalMembers: '403',
+    totalGiveaways: '7',
+    totalBonuses: '118920000',
+    hcWorkDone: '97',
+    totalStrikes: '57',
+    totalBlacklisted: '20',
+    rpWon: '133',
+    eventsWon: '928',
+    familyRankingPoints: '2168',
+    familyRank: '#1'
+  });
 
   const isLeaderOrAdmin = user?.roles && (user.roles.includes('Leadership') || user.roles.includes('Admin'));
 
@@ -158,6 +195,9 @@ export default function RootDashboard() {
 
       const winsRes = await fetch(`${API_BASE_URL}/api/wins`);
       if (winsRes.ok) setWins(await winsRes.json());
+
+      const priorityRes = await fetch(`${API_BASE_URL}/api/priority-list`);
+      if (priorityRes.ok) setPriorityList(await priorityRes.json());
 
       if (user) {
         const ticketRes = await fetch(`${API_BASE_URL}/api/tickets`);
@@ -182,19 +222,110 @@ export default function RootDashboard() {
           setShopItems(shopData.items);
           setShopBalance(shopData.pointsBalance);
         }
+
+        const reqsRes = await fetch(`${API_BASE_URL}/api/members/role-requests`);
+        if (reqsRes.ok) setRoleRequests(await reqsRes.json());
+
+        const statsRes = await fetch(`${API_BASE_URL}/api/about/stats`);
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setFamilyStats(statsData);
+          setStatsForm({
+            totalMembers: String(statsData.totalMembers),
+            totalGiveaways: String(statsData.totalGiveaways),
+            totalBonuses: String(statsData.totalBonuses),
+            hcWorkDone: String(statsData.hcWorkDone),
+            totalStrikes: String(statsData.totalStrikes),
+            totalBlacklisted: String(statsData.totalBlacklisted),
+            rpWon: String(statsData.rpWon),
+            eventsWon: String(statsData.eventsWon),
+            familyRankingPoints: String(statsData.familyRankingPoints),
+            familyRank: statsData.familyRank || '#1'
+          });
+        }
       }
 
       if (isLeaderOrAdmin) {
         const orderRes = await fetch(`${API_BASE_URL}/api/shop/orders`);
         if (orderRes.ok) setOrders(await orderRes.json());
-        
-        const reqsRes = await fetch(`${API_BASE_URL}/api/members/role-requests`);
-        if (reqsRes.ok) setRoleRequests(await reqsRes.json());
       }
     } catch (e) {
       console.warn('Failed to load full API datasets.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddMember = async (type: 'top5' | 'top10', discordId: string) => {
+    const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/priority-list/add`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ type, discordId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPriorityList(data.priorityList);
+        setShowAddMemberDropdown(null);
+        setPrioritySearch('');
+        addNotification('Roster Updated', `Member successfully added to TOP ${type === 'top5' ? '5' : '10'} priority roster.`, 'success');
+      } else {
+        const err = await res.json();
+        addNotification('Update Failed', err.error || 'Failed to update roster.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Connection Error', err.message, 'error');
+    }
+  };
+
+  const handleRemoveMember = async (type: 'top5' | 'top10', discordId: string) => {
+    const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/priority-list/remove`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ type, discordId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPriorityList(data.priorityList);
+        addNotification('Roster Updated', `Member successfully removed from TOP ${type === 'top5' ? '5' : '10'} priority roster.`, 'success');
+      } else {
+        const err = await res.json();
+        addNotification('Update Failed', err.error || 'Failed to update roster.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Connection Error', err.message, 'error');
+    }
+  };
+
+  const handleDeployPriorityPrompt = async () => {
+    const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+    setIsDeployingPriority(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/deploy-priority-prompt`, {
+        method: 'POST',
+        headers: {
+          'x-admin-passcode': passcode
+        }
+      });
+      if (res.ok) {
+        addNotification('Deployment Complete', 'Roster list embed was successfully re-deployed to Discord.', 'success');
+      } else {
+        const err = await res.json();
+        addNotification('Deployment Failed', err.error || 'Failed to deploy to Discord.', 'error');
+      }
+    } catch (err: any) {
+      addNotification('Connection Error', err.message, 'error');
+    } finally {
+      setIsDeployingPriority(false);
     }
   };
 
@@ -251,11 +382,42 @@ export default function RootDashboard() {
       }
     };
 
+    const handleTicketsUpdate = (updatedTickets: any[]) => {
+      setTickets(updatedTickets);
+      loadDashboardData();
+    };
+
+    const handleRoleRequestsUpdate = (updatedRequests: any[]) => {
+      setRoleRequests(updatedRequests);
+      loadDashboardData();
+    };
+
+    const handleLeaderboardUpdate = (updatedMembers: any[]) => {
+      setMembers(updatedMembers);
+      loadDashboardData();
+    };
+
+    const handlePriorityListUpdate = (updatedList: any) => {
+      setPriorityList(updatedList);
+    };
+
     socket.on('event_state_change', handleStateChange);
     socket.on('signup_change', handleSignupChange);
+    socket.on('tickets_update', handleTicketsUpdate);
+    socket.on('role_requests_update', handleRoleRequestsUpdate);
+    socket.on('leaderboard_update', handleLeaderboardUpdate);
+    socket.on('kills_update', handleLeaderboardUpdate);
+    socket.on('weekly_kills_update', handleLeaderboardUpdate);
+    socket.on('priority_list_update', handlePriorityListUpdate);
     return () => {
       socket.off('event_state_change', handleStateChange);
       socket.off('signup_change', handleSignupChange);
+      socket.off('tickets_update', handleTicketsUpdate);
+      socket.off('role_requests_update', handleRoleRequestsUpdate);
+      socket.off('leaderboard_update', handleLeaderboardUpdate);
+      socket.off('kills_update', handleLeaderboardUpdate);
+      socket.off('weekly_kills_update', handleLeaderboardUpdate);
+      socket.off('priority_list_update', handlePriorityListUpdate);
     };
   }, [socket]);
 
@@ -300,6 +462,44 @@ export default function RootDashboard() {
     const interval = setInterval(updateRpCountdown, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleStatsUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/about/stats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(statsForm)
+      });
+      if (res.ok) {
+        addNotification('Stats Updated', 'Family stats updated successfully on website.', 'success');
+        loadDashboardData();
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to update stats.');
+      }
+    } catch (err: any) {
+      addNotification('Update Failed', err.message || 'Network error.', 'error');
+    }
+  };
+
+  const handleStatsBroadcast = async (channelKey: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/about/stats/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelKey })
+      });
+      if (res.ok) {
+        addNotification('Embed Dispatched', `Family stats broadcasted to Discord channel "${channelKey}".`, 'success');
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || 'Broadcast failed.');
+      }
+    } catch (err: any) {
+      addNotification('Broadcast Failed', err.message || 'Network error.', 'error');
+    }
+  };
 
   // Form submission: Role Request
   const handleRoleRequest = async (e: React.FormEvent) => {
@@ -441,6 +641,76 @@ export default function RootDashboard() {
       addNotification('Review Failed', err.message || 'Network failure.', 'error');
     }
   };
+
+  const handleUpdateWeeklyPoints = async (memberId: string, pointsStr: string) => {
+    try {
+      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+      const res = await fetch(`${API_BASE_URL}/api/members/${memberId}/weekly-points`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ weeklyPoints: pointsStr })
+      });
+      if (res.ok) {
+        addNotification('Points Updated', 'Weekly event points updated & synced with Discord bot.', 'success');
+        loadDashboardData();
+      } else {
+        const errorData = await res.json();
+        addNotification('Update Failed', errorData.error || 'Server error', 'warning');
+      }
+    } catch (e) {
+      addNotification('Update Failed', 'Network failure.', 'error');
+    }
+  };
+
+  const handleUpdateKills = async (memberId: string, killsStr: string) => {
+    try {
+      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+      const res = await fetch(`${API_BASE_URL}/api/members/${memberId}/kills`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ kills: killsStr })
+      });
+      if (res.ok) {
+        addNotification('Kills Updated', 'All-time kills successfully updated & synced with Discord.', 'success');
+        loadDashboardData();
+      } else {
+        const errorData = await res.json();
+        addNotification('Update Failed', errorData.error || 'Server error', 'warning');
+      }
+    } catch (e) {
+      addNotification('Update Failed', 'Network failure.', 'error');
+    }
+  };
+
+  const handleUpdateWeeklyKills = async (memberId: string, weeklyKillsStr: string) => {
+    try {
+      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+      const res = await fetch(`${API_BASE_URL}/api/members/${memberId}/weekly-kills`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-passcode': passcode
+        },
+        body: JSON.stringify({ weeklyKills: weeklyKillsStr })
+      });
+      if (res.ok) {
+        addNotification('Weekly Kills Updated', 'Weekly kills successfully updated & synced with Discord.', 'success');
+        loadDashboardData();
+      } else {
+        const errorData = await res.json();
+        addNotification('Update Failed', errorData.error || 'Server error', 'warning');
+      }
+    } catch (e) {
+      addNotification('Update Failed', 'Network failure.', 'error');
+    }
+  };
+
 
   // Admin audit: Strike issue
   const handleIssueStrike = async (e: React.FormEvent) => {
@@ -585,9 +855,11 @@ export default function RootDashboard() {
 
   // Shared Denied handler
   const checkAccess = (tier: 'member' | 'admin') => {
-    if (!user) return false;
-    if (tier === 'admin') return isLeaderOrAdmin;
-    return true; // Member tier
+    if (tier === 'admin') {
+      if (!user) return false;
+      return isLeaderOrAdmin;
+    }
+    return true; // Member tier is open to all public visitors
   };
 
   const renderAccessDenied = (requiredRole: string) => (
@@ -930,82 +1202,386 @@ export default function RootDashboard() {
     );
   };
 
-  const renderRoleRequest = () => {
-    if (!checkAccess('member')) return renderAccessDenied('Member access token required');
+  const renderAboutUs = () => {
+    const statsGrid = [
+      { label: 'Total Family Members', value: familyStats.totalMembers, icon: Users, color: 'text-blue-400', bg: 'bg-blue-950/20', border: 'border-blue-900/35' },
+      { label: 'Total Giveaways', value: familyStats.totalGiveaways, icon: Gift, color: 'text-red-400', bg: 'bg-red-950/20', border: 'border-red-900/35' },
+      { label: 'Total Bonuses', value: `$${Number(familyStats.totalBonuses || 0).toLocaleString()}`, icon: Coins, color: 'text-emerald-400', bg: 'bg-emerald-950/20', border: 'border-emerald-900/35' },
+      { label: 'HC Work Done', value: familyStats.hcWorkDone, icon: CheckCircle2, color: 'text-teal-400', bg: 'bg-teal-950/20', border: 'border-teal-900/35' },
+      { label: 'Total Strikes', value: familyStats.totalStrikes, icon: AlertTriangle, color: 'text-amber-500', bg: 'bg-amber-950/20', border: 'border-amber-900/35' },
+      { label: 'Total Blacklisted', value: familyStats.totalBlacklisted, icon: XCircle, color: 'text-rose-500', bg: 'bg-rose-950/20', border: 'border-rose-900/35' },
+      { label: 'RP Won', value: familyStats.rpWon, icon: Trophy, color: 'text-yellow-400', bg: 'bg-yellow-950/20', border: 'border-yellow-900/35' },
+      { label: 'Events Won', value: familyStats.eventsWon, icon: Flame, color: 'text-orange-500', bg: 'bg-orange-950/20', border: 'border-orange-900/35' },
+      { label: 'Family Ranking Points', value: familyStats.familyRankingPoints, icon: Star, color: 'text-purple-400', bg: 'bg-purple-950/20', border: 'border-purple-900/35' },
+      { label: 'Family Rank', value: familyStats.familyRank, icon: TrendingUp, color: 'text-cyan-400', bg: 'bg-cyan-950/20', border: 'border-cyan-900/35' }
+    ];
+
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-2xl mx-auto shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2">
-          📋┃𝐑𝐨𝐥𝐞-𝐑𝐞𝐪𝐮𝐞𝐬𝐭 APPLICATION
-        </h2>
-        <p className="text-xs text-zinc-400 leading-relaxed font-sans">
-          Submit your official server role application. Your request will post to the Discord channel `#Role-Request` via bot, and leadership will update your handle name formats and active guild roles.
-        </p>
-
-        <form onSubmit={handleRoleRequest} className="font-sans text-xs flex flex-col gap-4 mt-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] text-zinc-500 font-bold block mb-1">YOUR NAME (IN-GAME NAME) *</label>
-              <input 
-                type="text"
-                value={roleRequestForm.inGameName}
-                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, inGameName: e.target.value }))}
-                placeholder="Enter your in-game name"
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
-              />
+      <div className="space-y-6 max-w-5xl mx-auto font-sans">
+        {/* Story Intro Card */}
+        <div className="bg-[#121118] border border-[#1e1b29] p-8 rounded-2xl relative overflow-hidden shadow-xl flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/5 rounded-full filter blur-3xl pointer-events-none" />
+          <div className="flex-1 space-y-4 relative z-10 text-left">
+            <div className="flex items-center gap-2">
+              <span className="bg-purple-600/10 border border-purple-500/20 text-purple-400 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">WHO WE ARE</span>
             </div>
-            <div>
-              <label className="text-[10px] text-zinc-500 font-bold block mb-1">YOUR ID *</label>
-              <input 
-                type="text"
-                value={roleRequestForm.characterId}
-                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, characterId: e.target.value }))}
-                placeholder="Enter your character ID"
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
-              />
+            <h1 className="font-title font-black text-2xl md:text-3xl italic text-white text-glow-magenta leading-none uppercase">
+              🕊️┃WHITE PIGEONS FAMILY
+            </h1>
+            <p className="text-zinc-300 text-xs leading-relaxed max-w-2xl">
+              Forged in city conflicts, the **White Pigeons** family rises as the supreme power on the streets. 
+              We operate with loyalty, respect, and clinical efficiency. Through turf dominance, strategic commerce collections, 
+              and synchronized operations, we remain #TOP1. We stand undivided—a true brotherhood on top.
+            </p>
+            <div className="flex items-center gap-4 text-zinc-500 text-[10px] font-bold uppercase tracking-wider font-mono">
+              <span>LOYALTY</span>
+              <span>•</span>
+              <span>RESPECT</span>
+              <span>•</span>
+              <span>POWER</span>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] text-zinc-500 font-bold block mb-1">LEVEL IN CITY *</label>
-              <input 
-                type="text"
-                value={roleRequestForm.level}
-                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, level: e.target.value }))}
-                placeholder="Enter your current level"
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] text-zinc-500 font-bold block mb-1">RANK IN FAMILY *</label>
-              <input 
-                type="text"
-                value={roleRequestForm.rank}
-                onChange={(e) => setRoleRequestForm(prev => ({ ...prev, rank: e.target.value }))}
-                placeholder="Enter your desired rank"
-                className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] text-zinc-500 font-bold block mb-1">FORUM ACCOUNT LINK *</label>
-            <input 
-              type="text"
-              value={roleRequestForm.forumLink}
-              onChange={(e) => setRoleRequestForm(prev => ({ ...prev, forumLink: e.target.value }))}
-              placeholder="Enter your forum account Link"
-              className="w-full bg-[#09080d] border border-[#1e1b29] rounded-xl p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
+          
+          {/* Logo Illustration */}
+          <div className="relative shrink-0 select-none">
+            <div className="absolute inset-0 bg-purple-600/15 rounded-full filter blur-xl animate-pulse" />
+            <img 
+              src="/logo.png" 
+              alt="White Pigeons Original Logo" 
+              className="w-32 h-32 object-contain relative z-10 hover:scale-105 transition-smooth drop-shadow-[0_0_20px_rgba(168,85,247,0.3)]"
             />
           </div>
+        </div>
 
-          <button 
-            type="submit"
-            className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
+        {/* Live Metrics Embed Replica Dashboard */}
+        <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 shadow-xl">
+          <div className="flex justify-between items-center border-b border-[#1c1a24] pb-3 select-none">
+            <div>
+              <h2 className="font-title font-black text-base italic text-purple-400 text-glow-magenta uppercase tracking-wide">
+                📊┃𝐖𝐡𝐢𝐭𝐞 𝐏𝐢𝐠𝐞𝐨𝐧𝐬 #𝐓𝐎𝐏𝟏 𝐅𝐚𝐦𝐢𝐥𝐲 𝐒𝐭𝐚𝐭𝐬!
+              </h2>
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">White Pigeons #TOP1 On Top!</p>
+            </div>
+            <div className="text-[9px] text-zinc-500 font-mono">
+              Last Synced: {familyStats.updatedAt ? new Date(familyStats.updatedAt).toLocaleTimeString() : '9:25 PM'}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {statsGrid.map((stat, idx) => {
+              const Icon = stat.icon;
+              return (
+                <div 
+                  key={idx} 
+                  className="bg-[#09080d]/85 border border-[#1e1b29] hover:border-purple-500/25 p-4 rounded-xl flex flex-col justify-between h-24 hover:-translate-y-0.5 transition-smooth relative group overflow-hidden shadow-inner select-none"
+                >
+                  <div className="flex justify-between items-start">
+                    <span className="text-[8px] font-sans font-black text-zinc-500 uppercase tracking-widest leading-none pr-2">
+                      {stat.label}
+                    </span>
+                    <div className={`p-1.5 rounded-lg ${stat.bg} ${stat.color} border border-transparent group-hover:border-purple-500/10`}>
+                      <Icon className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                  <div className="mt-2 text-left">
+                    <span className="text-lg font-title font-black italic text-zinc-100 group-hover:text-purple-400 transition-smooth">
+                      {stat.value || 0}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-start items-center gap-2 pt-2 border-t border-[#1c1a24]/30 select-none">
+            <button
+              onClick={loadDashboardData}
+              className="bg-[#181622]/40 hover:bg-[#181622] text-zinc-400 hover:text-white font-sans text-[10px] font-bold py-1.5 px-3 rounded-lg border border-[#1e1b29] hover:border-purple-600/30 flex items-center gap-1.5 transition-smooth cursor-pointer"
+            >
+              <RefreshCw className="w-3 h-3 animate-spin-slow" />
+              <span>Refresh Stats</span>
+            </button>
+            {isLeaderOrAdmin && (
+              <span className="text-[9px] text-zinc-650 italic">Admin settings enabled below. Edit stats in the panel controller to broadcast values.</span>
+            )}
+          </div>
+        </div>
+
+        {/* Admin Stats Control Panel */}
+        {isLeaderOrAdmin && (
+          <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 shadow-xl">
+            <h3 className="font-title font-black text-sm italic text-purple-500 border-b border-[#1c1a24] pb-2 uppercase tracking-wide">
+              ⚙️┃𝐅𝐚𝐦𝐢𝐥𝐲 𝐒𝐭𝐚𝐭𝐬 𝐂𝐨𝐧𝐭𝐫𝐨𝐥𝐥𝐞𝐫
+            </h3>
+            
+            <form onSubmit={handleStatsUpdate} className="space-y-4 font-sans text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Members</label>
+                  <input
+                    type="text"
+                    value={statsForm.totalMembers}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalMembers: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Giveaways</label>
+                  <input
+                    type="text"
+                    value={statsForm.totalGiveaways}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalGiveaways: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Bonuses ($)</label>
+                  <input
+                    type="text"
+                    value={statsForm.totalBonuses}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalBonuses: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">HC Work Done</label>
+                  <input
+                    type="text"
+                    value={statsForm.hcWorkDone}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, hcWorkDone: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Strikes</label>
+                  <input
+                    type="text"
+                    value={statsForm.totalStrikes}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalStrikes: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Total Blacklisted</label>
+                  <input
+                    type="text"
+                    value={statsForm.totalBlacklisted}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, totalBlacklisted: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">RP Won</label>
+                  <input
+                    type="text"
+                    value={statsForm.rpWon}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, rpWon: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Events Won</label>
+                  <input
+                    type="text"
+                    value={statsForm.eventsWon}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, eventsWon: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Rank Points</label>
+                  <input
+                    type="text"
+                    value={statsForm.familyRankingPoints}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, familyRankingPoints: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-zinc-500 font-bold block mb-1 uppercase">Family Rank</label>
+                  <input
+                    type="text"
+                    value={statsForm.familyRank}
+                    onChange={(e) => setStatsForm((p: any) => ({ ...p, familyRank: e.target.value }))}
+                    className="w-full bg-[#09080d] border border-[#1e1b29] rounded-lg p-2 text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[10px] font-black italic tracking-wide py-2.5 px-6 rounded-lg border border-purple-500 glow-magenta transition-smooth cursor-pointer"
+                >
+                  SAVE & UPDATE WEBSITE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStatsBroadcast('announcements')}
+                  className="bg-indigo-600 hover:bg-indigo-750 text-white font-title text-[10px] font-black italic tracking-wide py-2.5 px-6 rounded-lg border border-indigo-500 glow-indigo transition-smooth cursor-pointer"
+                >
+                  📢 SEND EMBED TO #ANNOUNCEMENTS
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderRoleRequest = () => {
+    if (!checkAccess('member')) return renderAccessDenied('Member access token required');
+    
+    // Filter to only approved roles
+    const approvedReqs = roleRequests.filter(r => {
+      if (r.status !== 'approved') return false;
+      if (!roleSearchQuery) return true;
+      const query = roleSearchQuery.toLowerCase();
+      return (
+        (r.inGameName && r.inGameName.toLowerCase().includes(query)) ||
+        (r.username && r.username.toLowerCase().includes(query)) ||
+        (r.characterId && r.characterId.toLowerCase().includes(query)) ||
+        (r.roleToGrant && r.roleToGrant.toLowerCase().includes(query))
+      );
+    });
+
+    return (
+      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-6 max-w-5xl mx-auto shadow-xl">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-[#1c1a24] pb-4 gap-4">
+          <div className="space-y-1">
+            <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
+              📋┃𝐑𝐎𝐋𝐄 𝐑𝐄𝐐𝐔𝐄𝐒𝐓 𝐀𝐑𝐂𝐇𝐈𝐕𝐄
+            </h2>
+            <p className="text-xs text-zinc-400 max-w-xl leading-relaxed font-sans">
+              This registry displays the synchronized active logs of members who requested and received roles. 
+              Submissions are strictly processed via our Discord server interaction system.
+            </p>
+          </div>
+          
+          {/* Discord CTA Button */}
+          <a
+            href="https://discord.gg/Y4x7Kexq"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-title text-xs font-black italic px-5 py-2.5 rounded-xl border border-purple-500/50 glow-magenta transition-smooth select-none cursor-pointer shrink-0"
           >
-            SUBMIT ROLE REQUEST
-          </button>
-        </form>
+            <span>JOIN & APPLY ON DISCORD</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+
+        {/* Search & Stats Row */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-[#09080d] p-4 rounded-xl border border-[#1e1b29]">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search by name, ID, or role..."
+              value={roleSearchQuery}
+              onChange={(e) => setRoleSearchQuery(e.target.value)}
+              className="w-full bg-[#121118] border border-[#1e1b29] rounded-xl pl-9 pr-4 py-2 text-xs text-zinc-300 placeholder-zinc-650 focus:border-purple-600/50 outline-none font-sans"
+            />
+          </div>
+          <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex gap-4 shrink-0 font-sans">
+            <span>Total Approved: <strong className="text-purple-400 font-mono">{approvedReqs.length}</strong></span>
+          </div>
+        </div>
+
+        {/* Logs List */}
+        <div className="overflow-x-auto rounded-xl border border-[#1e1b29]">
+          {approvedReqs.length === 0 ? (
+            <div className="text-center py-16 text-zinc-500 italic font-sans text-xs bg-[#0c0b11]">
+              {roleSearchQuery ? 'NO MATCHING ROLE REQUEST LOGS FOUND.' : 'NO APPROVED ROLE REQUESTS REGISTERED IN DATABASE.'}
+            </div>
+          ) : (
+            <table className="w-full text-left font-sans text-xs border-collapse bg-[#0c0b11]/20">
+              <thead>
+                <tr className="bg-[#09080d]/60 border-b border-[#1e1b29] text-zinc-500 uppercase tracking-widest text-[9px] font-black select-none">
+                  <th className="p-4">DISCORD MEMBER</th>
+                  <th className="p-4">IN-GAME DETAILS</th>
+                  <th className="p-4">FORUM LINK</th>
+                  <th className="p-4">GRANTED ROLES</th>
+                  <th className="p-4">APPROVED BY</th>
+                  <th className="p-4">TIMESTAMP</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#181622]/40">
+                {approvedReqs.map((req) => (
+                  <tr key={req.id} className="hover:bg-[#181622]/20 transition-smooth">
+                    <td className="p-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-purple-950/20 border border-purple-900/30 flex items-center justify-center text-purple-400 font-mono text-[10px] font-bold">
+                          {req.username ? req.username.slice(0,2).toUpperCase() : 'WP'}
+                        </div>
+                        <div>
+                          <div className="font-bold text-zinc-200">@{req.username || 'unknown'}</div>
+                          <div className="text-[9px] text-zinc-500 font-mono">{req.discordId || 'N/A'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4 whitespace-nowrap">
+                      <div className="space-y-1">
+                        <div className="font-black text-zinc-300">WP | {req.inGameName || 'N/A'}</div>
+                        <div className="flex flex-wrap gap-1 text-[8px] font-mono">
+                          <span className="bg-[#121118] border border-[#1e1b29] text-zinc-400 px-1 rounded">ID: {req.characterId || 'N/A'}</span>
+                          <span className="bg-purple-950/30 border border-purple-900/20 text-purple-400 px-1 rounded">LVL: {req.level || 'N/A'}</span>
+                          <span className="bg-amber-950/30 border border-amber-900/20 text-amber-500 px-1 rounded">{req.rank || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4 whitespace-nowrap">
+                      {req.forumLink && req.forumLink.startsWith('http') ? (
+                        <a
+                          href={req.forumLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-purple-400 hover:text-purple-300 font-mono font-bold hover:underline inline-flex items-center gap-1"
+                        >
+                          <span>Forum Link</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      ) : (
+                        <span className="text-zinc-650 font-mono italic">Not Provided</span>
+                      )}
+                    </td>
+                    <td className="p-4 whitespace-nowrap">
+                      <div className="flex flex-wrap gap-1">
+                        {(req.roleToGrant || req.selectedRoles?.join(', ') || 'Family Member').split(',').map((role: string, idx: number) => (
+                          <span 
+                            key={idx} 
+                            className="bg-emerald-950/40 border border-emerald-900/30 text-emerald-400 font-bold px-2 py-0.5 rounded text-[9px] uppercase font-sans tracking-wide"
+                          >
+                            {role.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="p-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 text-zinc-300">
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
+                        <span className="font-bold">@{req.reviewer || 'system'}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 whitespace-nowrap text-zinc-550 font-mono text-[10px]">
+                      {req.requestedAt ? new Date(req.requestedAt).toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : 'N/A'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     );
   };
@@ -1348,13 +1924,47 @@ export default function RootDashboard() {
   };
 
   const renderLeaderboard = () => {
-    const activeMembers = [...members].sort((a, b) => b.activityScore - a.activityScore);
+    // Sort by weeklyPoints descending, falling back to activityScore
+    const leaderboardMembers = [...members].sort((a, b) => {
+      const aPoints = a.weeklyPoints !== undefined ? a.weeklyPoints : 0;
+      const bPoints = b.weeklyPoints !== undefined ? b.weeklyPoints : 0;
+      if (bPoints !== aPoints) return bPoints - aPoints;
+      return b.activityScore - a.activityScore;
+    });
+
+    const isAuditor = checkAccess('admin');
 
     return (
       <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2 flex items-center gap-2">
-          💪 SYNDICATE ACTIVITY LEADERBOARD
-        </h2>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#1c1a24] pb-3 gap-3">
+          <div>
+            <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2 uppercase">
+              📊┃𝐖𝐞𝐞𝐤𝐥𝐲 𝐄𝐯𝐞𝐧𝐭 𝐋𝐞𝐚𝐝𝐞𝐫𝐛𝐨𝐚𝐫𝐝
+            </h2>
+            <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mt-0.5">
+              Live event points leaderboard matching our Discord feed
+            </p>
+          </div>
+          {isAuditor && (
+            <button
+              onClick={async () => {
+                if (confirm('Are you sure you want to deploy/sync the Weekly Event Leaderboard Embed in Discord?')) {
+                  try {
+                    const res = await fetch(`${API_BASE_URL}/api/admin/deploy-leaderboard-prompt`, { method: 'POST' });
+                    if (res.ok) {
+                      addNotification('Embed Deployed', 'Leaderboard feed successfully pushed to Discord!', 'success');
+                    } else {
+                      addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
+                    }
+                  } catch (e) {}
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-title font-black italic tracking-wide py-1.5 px-3 rounded-lg border border-purple-500 hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
+            >
+              DEPLOY LEADERBOARD TO DISCORD
+            </button>
+          )}
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans">
@@ -1364,19 +1974,44 @@ export default function RootDashboard() {
                 <th className="py-2.5 px-3">Player Name</th>
                 <th className="py-2.5 px-3">Sync Handle</th>
                 <th className="py-2.5 px-3">Assigned Roles</th>
-                <th className="py-2.5 px-3 text-right">Activity Score</th>
+                <th className="py-2.5 px-3 text-right">Event Points</th>
               </tr>
             </thead>
             <tbody>
-              {activeMembers.map((m, idx) => (
-                <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
-                  <td className="py-3 px-3 font-bold text-zinc-500 italic">#{idx + 1}</td>
-                  <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
-                  <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
-                  <td className="py-3 px-3 text-zinc-500">{m.roles.join(', ')}</td>
-                  <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">{m.activityScore || 0}%</td>
-                </tr>
-              ))}
+              {leaderboardMembers.map((m, idx) => {
+                const pointsVal = weeklyPointsForm[m.discordId] !== undefined 
+                  ? weeklyPointsForm[m.discordId] 
+                  : String(m.weeklyPoints || 0);
+
+                return (
+                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
+                    <td className="py-3 px-3 font-bold text-zinc-500 italic">#{idx + 1}</td>
+                    <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
+                    <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
+                    <td className="py-3 px-3 text-zinc-500">{m.roles.join(', ')}</td>
+                    <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">
+                      {isAuditor ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <input
+                            type="text"
+                            value={pointsVal}
+                            onChange={(e) => setWeeklyPointsForm(prev => ({ ...prev, [m.discordId]: e.target.value }))}
+                            className="w-16 bg-[#09080d] border border-[#1e1b29] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
+                          />
+                          <button
+                            onClick={() => handleUpdateWeeklyPoints(m.discordId, pointsVal)}
+                            className="bg-purple-950/20 hover:bg-purple-950/40 border border-purple-800/35 hover:border-purple-600/60 text-purple-400 hover:text-white px-2 py-1 rounded text-[9px] font-sans font-bold transition-smooth cursor-pointer"
+                          >
+                            Set
+                          </button>
+                        </div>
+                      ) : (
+                        <span>{(m.weeklyPoints || 0).toFixed(1).replace(/\.0$/, '')} pts</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1386,12 +2021,41 @@ export default function RootDashboard() {
 
   const renderLongTimeKillList = () => {
     const list = [...members].sort((a, b) => b.kills - a.kills);
+    const isAuditor = checkAccess('admin');
 
     return (
       <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2 flex items-center gap-2">
-          🔻┃𝐋𝐨𝐧𝐠-𝐓𝐢𝐦𝐞-𝐊𝐢𝐥𝐥-𝐋𝐢𝐬𝐭 SYNDICATE ARCHIVES
-        </h2>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#1c1a24] pb-2 gap-3">
+          <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
+            💀 ALL TIME KILLS LEADERBOARD
+          </h2>
+          {isAuditor && (
+            <button
+              onClick={async () => {
+                if (confirm('Are you sure you want to deploy the interactive All Time Kills Leaderboard Embed in Discord?')) {
+                  try {
+                    const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+                    const res = await fetch(`${API_BASE_URL}/api/admin/deploy-alltime-kills-prompt`, {
+                      method: 'POST',
+                      headers: { 
+                        'Content-Type': 'application/json',
+                        'x-admin-passcode': passcode
+                      }
+                    });
+                    if (res.ok) {
+                      addNotification('Embed Deployed', 'All-time kills leaderboard feed pushed to Discord!', 'success');
+                    } else {
+                      addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
+                    }
+                  } catch (e) {}
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-title font-black italic tracking-wide py-1.5 px-3 rounded-lg border border-purple-500 hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
+            >
+              DEPLOY ALL-TIME KILLS TO DISCORD
+            </button>
+          )}
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans">
@@ -1405,15 +2069,45 @@ export default function RootDashboard() {
               </tr>
             </thead>
             <tbody>
-              {list.map((m, idx) => (
-                <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
-                  <td className="py-3 px-3 font-bold text-zinc-500 italic">#{idx + 1}</td>
-                  <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
-                  <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
-                  <td className="py-3 px-3 text-zinc-500">{m.isTop10 ? 'Elite Shooter' : 'Operative'}</td>
-                  <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">{m.kills || 0} kills</td>
-                </tr>
-              ))}
+              {list.map((m, idx) => {
+                const killsVal = killsForm[m.discordId] !== undefined 
+                  ? killsForm[m.discordId] 
+                  : String(m.kills || 0);
+
+                let rankIcon = `#${idx + 1}`;
+                if (idx === 0) rankIcon = '👑 #1';
+                else if (idx === 1) rankIcon = '⭐ #2';
+                else if (idx === 2) rankIcon = '⚡ #3';
+
+                return (
+                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
+                    <td className="py-3 px-3 font-bold text-zinc-500 italic">{rankIcon}</td>
+                    <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
+                    <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
+                    <td className="py-3 px-3 text-zinc-500">{m.isTop10 ? 'Elite Shooter' : 'Operative'}</td>
+                    <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">
+                      {isAuditor ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <input
+                            type="text"
+                            value={killsVal}
+                            onChange={(e) => setKillsForm(prev => ({ ...prev, [m.discordId]: e.target.value }))}
+                            className="w-16 bg-[#09080d] border border-[#1e1b29] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
+                          />
+                          <button
+                            onClick={() => handleUpdateKills(m.discordId, killsVal)}
+                            className="bg-purple-950/20 hover:bg-purple-950/40 border border-purple-800/35 hover:border-purple-600/60 text-purple-400 hover:text-white px-2 py-1 rounded text-[9px] font-sans font-bold transition-smooth cursor-pointer"
+                          >
+                            Set
+                          </button>
+                        </div>
+                      ) : (
+                        <span>💀 {m.kills || 0} kills</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1423,16 +2117,74 @@ export default function RootDashboard() {
 
   const renderWeeklyKillList = () => {
     const list = [...members].sort((a, b) => b.weeklyKills - a.weeklyKills);
+    const isAuditor = checkAccess('admin');
 
     return (
       <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#1c1a24] pb-2">
-          <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
-            🔻┃weekly-𝐊𝐢𝐥𝐥-𝐋𝐢𝐬𝐭
-          </h2>
-          <div className="bg-[#09080d] border border-[#1e1b29] px-3.5 py-1 rounded-xl text-[10px] text-zinc-500 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-purple-400" /> RESETS IN: <span className="font-bold text-purple-400 font-sans text-xs">4d 12h 32m</span>
+          <div>
+            <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
+              📊 WEEKLY KILLS LEADERBOARD
+            </h2>
+            <div className="bg-[#09080d] border border-[#1e1b29] px-3.5 py-1 rounded-xl text-[10px] text-zinc-500 flex items-center gap-1.5 w-fit mt-1">
+              <Clock className="w-3.5 h-3.5 text-purple-400" /> RESETS IN: <span className="font-bold text-purple-400 font-sans text-xs">4d 12h 32m</span>
+            </div>
           </div>
+
+          {isAuditor && (
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to deploy the interactive Weekly Kills Leaderboard Embed in Discord?')) {
+                    try {
+                      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+                      const res = await fetch(`${API_BASE_URL}/api/admin/deploy-weekly-kills-prompt`, {
+                        method: 'POST',
+                        headers: { 
+                          'Content-Type': 'application/json',
+                          'x-admin-passcode': passcode
+                        }
+                      });
+                      if (res.ok) {
+                        addNotification('Embed Deployed', 'Weekly kills leaderboard feed pushed to Discord!', 'success');
+                      } else {
+                        addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
+                      }
+                    } catch (e) {}
+                  }
+                }}
+                className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-title font-black italic tracking-wide py-1.5 px-3 rounded-lg border border-purple-500 hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer"
+              >
+                DEPLOY TO DISCORD
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to reset all members\' Weekly Kills to 0? This will sync to Discord instantly.')) {
+                    try {
+                      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+                      const res = await fetch(`${API_BASE_URL}/api/admin/reset-weekly-kills`, {
+                        method: 'POST',
+                        headers: { 
+                          'Content-Type': 'application/json',
+                          'x-admin-passcode': passcode
+                        }
+                      });
+                      if (res.ok) {
+                        addNotification('Leaderboard Reset', 'All weekly kills successfully reset to 0.', 'success');
+                        loadDashboardData();
+                      } else {
+                        addNotification('Reset Failed', 'Error resetting weekly leaderboard.', 'warning');
+                      }
+                    } catch (e) {}
+                  }
+                }}
+                className="bg-red-950/20 hover:bg-red-950/40 border border-red-900/35 hover:border-red-650 text-red-400 text-[10px] font-title font-black italic tracking-wide py-1.5 px-3 rounded-lg transition-smooth cursor-pointer"
+              >
+                RESET WEEKLY KILLS
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -1447,15 +2199,45 @@ export default function RootDashboard() {
               </tr>
             </thead>
             <tbody>
-              {list.map((m, idx) => (
-                <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
-                  <td className="py-3 px-3 font-bold text-zinc-500 italic">#{idx + 1}</td>
-                  <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
-                  <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
-                  <td className="py-3 px-3 text-zinc-500">{m.isTop10 ? 'TOP 10 Shooters' : 'Operatives'}</td>
-                  <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">{m.weeklyKills || 0} kills</td>
-                </tr>
-              ))}
+              {list.map((m, idx) => {
+                const weeklyKillsVal = weeklyKillsForm[m.discordId] !== undefined 
+                  ? weeklyKillsForm[m.discordId] 
+                  : String(m.weeklyKills || 0);
+
+                let rankIcon = `#${idx + 1}`;
+                if (idx === 0) rankIcon = '🥇 #1';
+                else if (idx === 1) rankIcon = '🥈 #2';
+                else if (idx === 2) rankIcon = '🥉 #3';
+
+                return (
+                  <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#181622]/20">
+                    <td className="py-3 px-3 font-bold text-zinc-500 italic">{rankIcon}</td>
+                    <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
+                    <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
+                    <td className="py-3 px-3 text-zinc-500">{m.isTop10 ? 'TOP 10 Shooters' : 'Operatives'}</td>
+                    <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">
+                      {isAuditor ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <input
+                            type="text"
+                            value={weeklyKillsVal}
+                            onChange={(e) => setWeeklyKillsForm(prev => ({ ...prev, [m.discordId]: e.target.value }))}
+                            className="w-16 bg-[#09080d] border border-[#1e1b29] rounded p-1 text-center text-zinc-300 font-mono text-[11px] outline-none focus:border-purple-600/40"
+                          />
+                          <button
+                            onClick={() => handleUpdateWeeklyKills(m.discordId, weeklyKillsVal)}
+                            className="bg-purple-950/20 hover:bg-purple-950/40 border border-purple-800/35 hover:border-purple-600/60 text-purple-400 hover:text-white px-2 py-1 rounded text-[9px] font-sans font-bold transition-smooth cursor-pointer"
+                          >
+                            Set
+                          </button>
+                        </div>
+                      ) : (
+                        <span>💀 {m.weeklyKills || 0} kills</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2509,36 +3291,257 @@ export default function RootDashboard() {
   };
 
   const renderTop10List = () => {
-    const topShooters = members.filter(m => m.isTop10);
+    const isAdmin = user && (user.admin_authenticated || user.roles.includes('Admin'));
+
+    const renderAddDropdown = (type: 'top5' | 'top10') => {
+      const currentIds = type === 'top5'
+        ? (priorityList.top5 || []).map(m => m.discordId)
+        : (priorityList.top10 || []).map(m => m.discordId);
+
+      const availableMembers = members.filter(m => !currentIds.includes(m.discordId));
+      const filtered = availableMembers.filter(m => 
+        m.username.toLowerCase().includes(prioritySearch.toLowerCase()) ||
+        m.nickname.toLowerCase().includes(prioritySearch.toLowerCase()) ||
+        m.discordId.includes(prioritySearch)
+      ).slice(0, 6);
+
+      return (
+        <div className="absolute left-0 mt-1 w-64 bg-[#1e1f22] border border-[#232428] rounded-md shadow-2xl z-50 p-2 space-y-2">
+          <input
+            type="text"
+            placeholder="Search member..."
+            value={prioritySearch}
+            onChange={(e) => setPrioritySearch(e.target.value)}
+            className="w-full bg-[#313338] border border-[#232428] text-xs rounded p-1.5 text-white focus:outline-none focus:border-[#5865f2] font-sans"
+            autoFocus
+          />
+          <div className="max-h-40 overflow-y-auto space-y-0.5">
+            {filtered.length === 0 ? (
+              <div className="text-zinc-500 text-[10px] p-1 text-center font-sans">No members found</div>
+            ) : (
+              filtered.map(m => (
+                <button
+                  key={m.discordId}
+                  onClick={() => handleAddMember(type, m.discordId)}
+                  className="w-full text-left text-xs hover:bg-[#5865f2] hover:text-white text-zinc-300 p-1.5 rounded transition-smooth truncate flex items-center justify-between font-sans"
+                >
+                  <span>@{m.nickname || m.username}</span>
+                  <span className="text-[9px] text-zinc-500 font-mono">ID: {m.discordId}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      );
+    };
 
     return (
-      <div className="bg-[#121118] border border-[#1e1b29] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a24] pb-2 flex items-center gap-2">
-          🎖️╭𝐓𝐨𝐩-𝟏0-𝐋𝐢𝐬𝐭 ELITE SHOOTERS WALL
-        </h2>
-        <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-          These are the priority sharpshooters of the White Pigeon family. Selected based on lifetime combat results, they possess priority signup slot displacement privileges in RP and Informal rosters.
-        </p>
+      <div className="space-y-6 max-w-4xl mx-auto">
+        {/* Page title and deployment block */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#121118] border border-[#1e1b29] p-4 rounded-2xl shadow-lg">
+          <div>
+            <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta flex items-center gap-2">
+              🎖️ 𝐏𝐫𝐢𝐨𝐫𝐢𝐭𝐲 𝐌𝐞𝐦𝐛𝐞𝐫𝐬
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mt-1 font-sans">
+              Manage and view the Priority Members list synced directly to the Discord server roster embed.
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {topShooters.map((m, idx) => (
-            <div key={m.discordId} className="bg-[#181622]/40 border border-[#1e1b29] p-4 rounded-xl flex items-center gap-4 hover:border-purple-600/35 transition-smooth shadow-sm">
-              <div className="w-10 h-10 bg-purple-950/40 text-purple-400 border border-purple-800/25 rounded-full flex items-center justify-center font-title font-black italic text-lg shadow-[inset_0_0_8px_rgba(168,85,247,0.15)] shrink-0">
-                #{idx + 1}
+          {isAdmin && (
+            <button
+              onClick={handleDeployPriorityPrompt}
+              disabled={isDeployingPriority}
+              className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800/50 text-white text-[10px] font-title font-black italic tracking-wide py-2 px-4 rounded-lg border border-purple-500 hover:scale-[1.02] active:scale-[0.98] transition-smooth cursor-pointer shrink-0"
+            >
+              {isDeployingPriority ? 'DEPLOYING...' : 'DEPLOY TO DISCORD'}
+            </button>
+          )}
+        </div>
+
+        {/* Discord Chat Simulator */}
+        <div className="bg-[#313338] border border-[#232428] rounded-xl p-4 md:p-6 shadow-xl font-sans text-left">
+          {/* Channel Header Mockup */}
+          <div className="flex items-center gap-2 border-b border-[#232428] pb-3 mb-4 text-[#dbdee1]">
+            <Radio className="w-4 h-4 text-[#80848e]" />
+            <span className="font-bold text-sm text-[#f2f3f5]">top-10-list</span>
+            <span className="text-xs text-[#80848e] border-l border-[#4e5058] pl-2 font-normal hidden sm:inline">
+              Roster for the family's top priority shooters
+            </span>
+          </div>
+
+          {/* Discord Bot Message */}
+          <div className="flex gap-4">
+            <div className="w-10 h-10 rounded-full bg-[#121118] border border-purple-600/35 flex items-center justify-center font-title font-black text-[#a855f7] italic shrink-0 text-xs shadow-sm">
+              WP
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-sm text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                <span className="bg-[#5865f2] text-white text-[9px] font-bold px-1 py-0.5 rounded-sm select-none leading-none">APP</span>
+                <span className="text-[10px] text-[#949ba4]">5/13/2026 5:16 PM</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-title font-black text-sm italic text-zinc-200 truncate">@{m.username}</h4>
-                  <span className="bg-purple-600 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shrink-0">Priority</span>
+
+              {/* Discord Embed */}
+              <div className="mt-2 max-w-xl bg-[#2b2d31] border-l-4 border-[#f1c40f] rounded-r p-4 relative text-[#dbdee1] flex justify-between gap-4">
+                <div className="flex-1 space-y-3 min-w-0">
+                  <h4 className="font-bold text-base text-white">Priority Members</h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* TOP 5 Column */}
+                    <div className="min-w-0">
+                      <div className="text-[#949ba4] text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+                        TOP 5 Members
+                      </div>
+                      <div className="space-y-1.5">
+                        {(!priorityList.top5 || priorityList.top5.length === 0) ? (
+                          <div className="text-[#949ba4] text-xs italic">*No members listed*</div>
+                        ) : (
+                          priorityList.top5.map((m, idx) => (
+                            <div key={m.discordId} className="flex items-center justify-between group py-0.5 text-xs">
+                              <span className="truncate">
+                                {idx + 1}. <span className="text-[#5865f2] hover:underline cursor-pointer font-medium">@{m.nickname || m.username}</span>
+                              </span>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleRemoveMember('top5', m.discordId)}
+                                  className="text-[#da373c] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  title="Remove"
+                                >
+                                  <Trash size={11} />
+                                </button>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Add Member inline selector for TOP 5 */}
+                      {isAdmin && (
+                        <div className="mt-2.5 relative">
+                          <button
+                            onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top5' ? null : 'top5')}
+                            className="flex items-center gap-1 text-[10px] text-[#248046] hover:text-[#1a6535] font-bold bg-[#248046]/10 hover:bg-[#248046]/20 px-2 py-0.5 rounded transition-smooth cursor-pointer"
+                          >
+                            <Plus className="w-2.5 h-2.5" /> Add Member
+                          </button>
+                          {showAddMemberDropdown === 'top5' && renderAddDropdown('top5')}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* TOP 10 Column */}
+                    <div className="min-w-0">
+                      <div className="text-[#949ba4] text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+                        TOP 10 Members
+                      </div>
+                      <div className="space-y-1.5">
+                        {(!priorityList.top10 || priorityList.top10.length === 0) ? (
+                          <div className="text-[#949ba4] text-xs italic">*No members listed*</div>
+                        ) : (
+                          priorityList.top10.map((m, idx) => (
+                            <div key={m.discordId} className="flex items-center justify-between group py-0.5 text-xs">
+                              <span className="truncate">
+                                {idx + 1}. <span className="text-[#5865f2] hover:underline cursor-pointer font-medium">@{m.nickname || m.username}</span>
+                              </span>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleRemoveMember('top10', m.discordId)}
+                                  className="text-[#da373c] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  title="Remove"
+                                >
+                                  <Trash size={11} />
+                                </button>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Add Member inline selector for TOP 10 */}
+                      {isAdmin && (
+                        <div className="mt-2.5 relative">
+                          <button
+                            onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top10' ? null : 'top10')}
+                            className="flex items-center gap-1 text-[10px] text-[#248046] hover:text-[#1a6535] font-bold bg-[#248046]/10 hover:bg-[#248046]/20 px-2 py-0.5 rounded transition-smooth cursor-pointer"
+                          >
+                            <Plus className="w-2.5 h-2.5" /> Add Member
+                          </button>
+                          {showAddMemberDropdown === 'top10' && renderAddDropdown('top10')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <p className="text-[10px] text-zinc-550 font-mono mt-0.5 truncate">{m.nickname}</p>
+
+                {/* Thumbnail */}
+                <div className="hidden sm:block shrink-0">
+                  <img
+                    src="https://whitepigeons-35431.web.app/logo.png"
+                    alt="Logo"
+                    className="w-12 h-12 object-contain font-sans"
+                  />
+                </div>
               </div>
-              <div className="text-right shrink-0">
-                <span className="text-xs font-bold text-zinc-300 font-sans">{m.kills || 0} Kills</span>
-                <span className="block text-[8px] text-zinc-500">Activity: {m.activityScore || 0}%</span>
+
+              {/* Embed Footer */}
+              <div className="mt-1 ml-14 text-[10px] text-[#949ba4] font-medium font-sans">
+                White Pigeons #TOP1 • Priority List
+              </div>
+
+              {/* Discord Interactive Buttons Mockup */}
+              <div className="flex flex-wrap gap-2 mt-4 ml-14 select-none font-sans">
+                <button 
+                  onClick={() => {
+                    if (isAdmin) {
+                      setShowAddMemberDropdown('top5');
+                    } else {
+                      addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                    }
+                  }}
+                  className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-white bg-[#248046] hover:bg-[#1a6535] rounded font-medium transition-smooth cursor-pointer active:scale-95"
+                >
+                  + Add Top 5 Member
+                </button>
+                <button 
+                  onClick={() => {
+                    if (isAdmin) {
+                      setShowAddMemberDropdown('top10');
+                    } else {
+                      addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                    }
+                  }}
+                  className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-white bg-[#248046] hover:bg-[#1a6535] rounded font-medium transition-smooth cursor-pointer active:scale-95"
+                >
+                  + Add Top 10 Member
+                </button>
+                <button 
+                  onClick={() => {
+                    if (isAdmin) {
+                      addNotification('Roster Management', 'To remove members, use the inline red trash (X) icons next to their names in the list columns above.', 'info');
+                    } else {
+                      addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                    }
+                  }}
+                  className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-white bg-[#da373c] hover:bg-[#a92b2f] rounded font-medium transition-smooth cursor-pointer active:scale-95"
+                >
+                  X Remove Top 5 Member
+                </button>
+                <button 
+                  onClick={() => {
+                    if (isAdmin) {
+                      addNotification('Roster Management', 'To remove members, use the inline red trash (X) icons next to their names in the list columns above.', 'info');
+                    } else {
+                      addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                    }
+                  }}
+                  className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-white bg-[#da373c] hover:bg-[#a92b2f] rounded font-medium transition-smooth cursor-pointer active:scale-95"
+                >
+                  X Remove Top 10 Member
+                </button>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     );
@@ -2546,8 +3549,8 @@ export default function RootDashboard() {
 
   // Switch render blocks dynamically based on state
   switch (activeTab) {
-    case 'home':
-      return renderHome();
+    case 'about-us':
+      return renderAboutUs();
     case 'role-request':
       return renderRoleRequest();
     case 'rolereq-review':
@@ -2595,6 +3598,6 @@ export default function RootDashboard() {
     case 'top-10-list':
       return renderTop10List();
     default:
-      return renderHome();
+      return renderAboutUs();
   }
 }

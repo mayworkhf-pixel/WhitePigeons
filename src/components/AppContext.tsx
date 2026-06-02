@@ -84,13 +84,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [notifications, setNotifications] = useState<WebhookNotification[]>([]);
   const [timers, setTimers] = useState({ nextInformalCountdown: 0 });
-  const [activeTab, setActiveTabState] = useState('home');
+  const [activeTab, setActiveTabState] = useState('about-us');
 
   // Synchronize activeTab state with URL query parameters
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab') || 'home';
+      const tab = params.get('tab') || 'about-us';
       setActiveTabState(tab);
     }
   }, []);
