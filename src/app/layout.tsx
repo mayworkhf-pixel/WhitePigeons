@@ -37,6 +37,41 @@ export default function RootLayout({
       lang="en"
       className={`${montserrat.variable} ${spaceGrotesk.variable} ${inter.className} h-full antialiased`}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                var apiBaseUrl = "${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}";
+                var originalFetch = window.fetch;
+                window.fetch = function(input, init) {
+                  var url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
+                  if (url.startsWith(apiBaseUrl) || url.startsWith('http://localhost:5000') || url.startsWith('/api')) {
+                    init = init || {};
+                    init.credentials = 'include';
+                    var token = localStorage.getItem('wp_session_token');
+                    if (token) {
+                      var headers = init.headers || {};
+                      if (headers instanceof Headers) {
+                        headers.set('Authorization', 'Bearer ' + token);
+                      } else if (Array.isArray(headers)) {
+                        var exists = headers.some(function(pair) { return pair[0].toLowerCase() === 'authorization'; });
+                        if (!exists) {
+                          headers.push(['Authorization', 'Bearer ' + token]);
+                        }
+                      } else {
+                        headers['Authorization'] = 'Bearer ' + token;
+                      }
+                      init.headers = headers;
+                    }
+                  }
+                  return originalFetch(input, init);
+                };
+              })();
+            `
+          }}
+        />
+      </head>
       <body className="min-h-full bg-background text-foreground flex flex-col relative select-none">
         <AppProvider>
           {/* Navigation and layout wrapper */}
