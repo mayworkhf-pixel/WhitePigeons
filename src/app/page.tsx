@@ -182,8 +182,8 @@ export default function RootDashboard() {
   const [ticketResolveForm, setTicketResolveForm] = useState<Record<string, string>>({});
   const [bonusApprovalForm, setBonusApprovalForm] = useState<Record<string, { finalAmount: string; comment: string }>>({});
   
-  // Event controls (Admin)
-  const [eventTriggerForm, setEventTriggerForm] = useState({ title: '', description: '' });
+  const [rpTriggerDesc, setRpTriggerDesc] = useState('');
+  const [infTriggerDesc, setInfTriggerDesc] = useState('');
 
   // Shop state
   const [shopItems, setShopItems] = useState<any[]>([]);
@@ -380,14 +380,20 @@ export default function RootDashboard() {
           if (data) {
             setRpState(data.state || 'closed');
             if (data.title) setRpTitle(data.title);
-            if (data.description) setRpDescription(data.description);
+            if (data.description) {
+              setRpDescription(data.description);
+              setRpTriggerDesc(data.description);
+            }
           }
         }),
         fetch(`${API_BASE_URL}/api/events/state/informal-signup`).then(r => r.ok ? r.json() : null).then(data => {
           if (data) {
             setInformalState(data.state || 'closed');
             if (data.title) setInformalTitle(data.title);
-            if (data.description) setInformalDescription(data.description);
+            if (data.description) {
+              setInformalDescription(data.description);
+              setInfTriggerDesc(data.description);
+            }
           }
         })
       ]);
@@ -488,12 +494,18 @@ export default function RootDashboard() {
       if (data.eventId === 'rp-signup') {
         setRpState(data.state);
         if (data.title) setRpTitle(data.title);
-        if (data.description) setRpDescription(data.description);
+        if (data.description) {
+          setRpDescription(data.description);
+          setRpTriggerDesc(data.description);
+        }
         loadSignups();
       } else if (data.eventId === 'informal-signup') {
         setInformalState(data.state);
         if (data.title) setInformalTitle(data.title);
-        if (data.description) setInformalDescription(data.description);
+        if (data.description) {
+          setInformalDescription(data.description);
+          setInfTriggerDesc(data.description);
+        }
         loadSignups();
       }
     };
@@ -1005,9 +1017,14 @@ export default function RootDashboard() {
   // Open active signup channel
   const handleTriggerSignupWindow = async (eventId: string, title: string, desc: string) => {
     try {
+      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
       const res = await fetch(`${API_BASE_URL}/api/events/trigger`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${passcode}`,
+          'x-admin-passcode': passcode
+        },
         body: JSON.stringify({ eventId, title, description: desc })
       });
       if (res.ok) {
@@ -1021,7 +1038,14 @@ export default function RootDashboard() {
   const handleClearSignupRoster = async (eventId: string) => {
     if (!confirm('Are you sure you want to flush the signed up player roster?')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/events/clear/${eventId}`, { method: 'POST' });
+      const passcode = typeof window !== 'undefined' ? localStorage.getItem('wp_admin_passcode') || '' : '';
+      const res = await fetch(`${API_BASE_URL}/api/events/clear/${eventId}`, { 
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${passcode}`,
+          'x-admin-passcode': passcode
+        }
+      });
       if (res.ok) {
         addNotification('Roster Cleared', 'Roster lists reset successfully.', 'info');
         loadSignups();
@@ -3542,70 +3566,44 @@ export default function RootDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto font-sans shadow-xl">
         {/* Directive details */}
         <div className="lg:col-span-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-5 h-fit">
-          <div className="space-y-1.5">
+          <div className="flex justify-between items-center pb-2 border-b border-[#1c1a2a]/60">
+            <span className="text-xs font-bold text-zinc-300">ADMIN CONTROL HUB</span>
             {rpState === 'closed' ? (
-              <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">REGISTRATION CLOSED</span>
+              <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">CLOSED</span>
             ) : (
-              <span className="bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">SIGNUP ROSTER OPEN</span>
+              <span className="bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">ACTIVE</span>
             )}
-            <h2 className="font-title font-black text-xl italic text-zinc-200">{rpTitle}</h2>
-            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#0a0a14] p-3 border border-[#1c1a2a] rounded-xl italic font-sans font-medium">
-              &quot;{rpDescription}&quot;
-            </p>
           </div>
-
-          <button 
-            onClick={() => handleEventSignup('rp-signup')}
-            disabled={rpState === 'closed'}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-900 disabled:border-transparent disabled:text-zinc-500 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta disabled:shadow-none transition-smooth cursor-pointer"
-          >
-            {rpState === 'closed' ? 'REGISTRATION CLOSED' : 'CLAIM CONFIRMED SLOT'}
-          </button>
-
-          {rpSignups.some(s => s.memberId === user?.discordId) && (
-            <button 
-              onClick={() => handleLeaveSignup('rp-signup')}
-              className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-red-500 transition-smooth cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.25)] hover:scale-[1.02]"
-            >
-              LEAVE ROSTER
-            </button>
-          )}
 
           {isAuditor && (
             <div className="bg-[#0a0a14] p-4 border border-[#1c1a2a] rounded-xl space-y-3">
-              <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">ADMIN CONTROLS</span>
-              
-              <input 
-                type="text"
-                value={eventTriggerForm.title}
-                onChange={(e) => setEventTriggerForm(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Roster Event Title..." 
-                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none"
-              />
-              <textarea 
-                rows={2}
-                value={eventTriggerForm.description}
-                onChange={(e) => setEventTriggerForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Roster Event Directives..." 
-                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none resize-none"
-              />
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">EVENT DIRECTIVES</span>
+                <textarea 
+                  rows={4}
+                  value={rpTriggerDesc}
+                  onChange={(e) => setRpTriggerDesc(e.target.value)}
+                  placeholder="Type event directives to broadcast in Discord..." 
+                  className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none resize-none font-sans"
+                />
+              </div>
               
               <div className="grid grid-cols-3 gap-2">
                 <button 
-                  onClick={() => handleTriggerSignupWindow('rp-signup', eventTriggerForm.title || 'Roster control', eventTriggerForm.description || rpDescription)} 
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                  onClick={() => handleTriggerSignupWindow('rp-signup', 'RP Ticket', rpTriggerDesc || rpDescription)} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold"
                 >
                   OPEN
                 </button>
                 <button 
                   onClick={() => handleCloseEventSignup('rp-signup')} 
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold"
                 >
                   CLOSE
                 </button>
                 <button 
-                  onClick={() => handleScheduleTrigger('rp-signup', eventTriggerForm.title || 'Roster control', eventTriggerForm.description || rpDescription, '10', 'seconds')} 
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                  onClick={() => handleScheduleTrigger('rp-signup', 'RP Ticket', rpTriggerDesc || rpDescription, '10', 'seconds')} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold"
                 >
                   10s
                 </button>
@@ -3663,8 +3661,8 @@ export default function RootDashboard() {
                   </select>
                   
                   <button 
-                    onClick={() => handleSaveSchedule('rp-signup', rpSchedule)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-1.5 px-3 rounded-lg cursor-pointer transition-smooth"
+                    onClick={() => handleSaveSchedule('rp-signup', { ...rpSchedule, title: 'RP Ticket', description: rpTriggerDesc || rpDescription })}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-1.5 px-3 rounded-lg cursor-pointer transition-smooth font-bold"
                   >
                     APPLY
                   </button>
@@ -3902,70 +3900,44 @@ export default function RootDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto font-sans shadow-xl">
         {/* directives */}
         <div className="lg:col-span-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-5 h-fit">
-          <div className="space-y-1.5">
+          <div className="flex justify-between items-center pb-2 border-b border-[#1c1a2a]/60">
+            <span className="text-xs font-bold text-zinc-300">ADMIN CONTROL HUB</span>
             {informalState === 'closed' ? (
-              <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">REGISTRATION CLOSED</span>
+              <span className="bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider">CLOSED</span>
             ) : (
-              <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">INFORMAL BATTLE QUEUE OPEN</span>
+              <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-2 py-0.5 rounded text-[9px] font-sans font-bold tracking-wider animate-pulse">ACTIVE</span>
             )}
-            <h2 className="font-title font-black text-xl italic text-zinc-200">{informalTitle}</h2>
-            <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-[#0a0a14] p-3 border border-[#1c1a2a] rounded-xl italic font-sans font-medium">
-              &quot;{informalDescription}&quot;
-            </p>
           </div>
-
-          <button 
-            onClick={() => handleEventSignup('informal-signup')}
-            disabled={informalState === 'closed'}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-900 disabled:border-transparent disabled:text-zinc-500 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta disabled:shadow-none transition-smooth cursor-pointer"
-          >
-            {informalState === 'closed' ? 'REGISTRATION CLOSED' : 'CLAIM CONFIRMED SLOT'}
-          </button>
-
-          {informalSignups.some(s => s.memberId === user?.discordId) && (
-            <button 
-              onClick={() => handleLeaveSignup('informal-signup')}
-              className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-red-500 transition-smooth cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.25)] hover:scale-[1.02]"
-            >
-              LEAVE ROSTER
-            </button>
-          )}
 
           {isAuditor && (
             <div className="bg-[#0a0a14] p-4 border border-[#1c1a2a] rounded-xl space-y-3">
-              <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">ADMIN CONTROLS</span>
-              
-              <input 
-                type="text"
-                value={eventTriggerForm.title}
-                onChange={(e) => setEventTriggerForm(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Roster Event Title..." 
-                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none"
-              />
-              <textarea 
-                rows={2}
-                value={eventTriggerForm.description}
-                onChange={(e) => setEventTriggerForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Roster Event Directives..." 
-                className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none resize-none"
-              />
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">EVENT DIRECTIVES</span>
+                <textarea 
+                  rows={4}
+                  value={infTriggerDesc}
+                  onChange={(e) => setInfTriggerDesc(e.target.value)}
+                  placeholder="Type event directives to broadcast in Discord..." 
+                  className="w-full bg-[#111118] border border-[#1c1a2a] rounded-lg p-2 text-xs text-zinc-300 outline-none resize-none font-sans"
+                />
+              </div>
               
               <div className="grid grid-cols-3 gap-2">
                 <button 
-                  onClick={() => handleTriggerSignupWindow('informal-signup', eventTriggerForm.title || 'Roster control', eventTriggerForm.description || informalDescription)} 
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                  onClick={() => handleTriggerSignupWindow('informal-signup', 'Rooster control', infTriggerDesc || informalDescription)} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold"
                 >
                   OPEN
                 </button>
                 <button 
                   onClick={() => handleCloseEventSignup('informal-signup')} 
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-title text-[9px] font-black italic py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold"
                 >
                   CLOSE
                 </button>
                 <button 
-                  onClick={() => handleScheduleTrigger('informal-signup', eventTriggerForm.title || 'Roster control', eventTriggerForm.description || informalDescription, '10', 'seconds')} 
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center"
+                  onClick={() => handleScheduleTrigger('informal-signup', 'Rooster control', infTriggerDesc || informalDescription, '10', 'seconds')} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-bold py-2 rounded-lg cursor-pointer transition-smooth flex items-center justify-center font-bold"
                 >
                   10s
                 </button>
@@ -4023,8 +3995,8 @@ export default function RootDashboard() {
                   </select>
                   
                   <button 
-                    onClick={() => handleSaveSchedule('informal-signup', infSchedule)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-1.5 px-3 rounded-lg cursor-pointer transition-smooth"
+                    onClick={() => handleSaveSchedule('informal-signup', { ...infSchedule, title: 'Rooster control', description: infTriggerDesc || informalDescription })}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[9px] font-black italic py-1.5 px-3 rounded-lg cursor-pointer transition-smooth font-bold"
                   >
                     APPLY
                   </button>
