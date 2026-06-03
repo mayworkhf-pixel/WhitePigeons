@@ -650,7 +650,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick Panel Deployment Card */}
-            {['role-request', 'strikes', 'tickets', 'check-balance', 'weekly-kill-list'].includes(broadcastForm.channelKey) && (
+            {['role-request', 'strikes', 'tickets', 'check-balance', 'weekly-kill-list', 'announcements'].includes(broadcastForm.channelKey) && (
               <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col gap-4 shadow-xl animate-fade-in">
                 <div className="border-b border-[#201d2d]/60 pb-2 flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-amber-900/10">
@@ -770,6 +770,32 @@ export default function AdminDashboard() {
                     </button>
                   )}
 
+                  {broadcastForm.channelKey === 'announcements' && (
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to deploy the interactive Family Stats / About Us panel in the announcements channel?')) return;
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/deploy-aboutus-prompt`, {
+                            method: 'POST',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Panel Deployed', 'Family Stats / About Us panel deployed in Discord.', 'success');
+                          } else {
+                            throw new Error('Failed to deploy panel.');
+                          }
+                        } catch (err: any) {
+                          addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                        }
+                      }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-amber-500 glow-amber transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY ABOUT US PANEL
+                    </button>
+                  )}
+
                   {broadcastForm.channelKey === 'weekly-kill-list' && (
                     <div className="flex flex-col gap-2">
                       <button 
@@ -798,6 +824,56 @@ export default function AdminDashboard() {
 
                       <button 
                         onClick={async () => {
+                          if (!confirm('Are you sure you want to deploy the interactive Weekly Kills Leaderboard Embed in the channel?')) return;
+                          try {
+                            const res = await fetch(`${API_BASE_URL}/api/admin/deploy-weekly-kills-prompt`, {
+                              method: 'POST',
+                              headers: { 
+                                'Content-Type': 'application/json',
+                              }
+                            });
+                            if (res.ok) {
+                              addNotification('Panel Deployed', 'Weekly Kills Leaderboard panel deployed in Discord.', 'success');
+                            } else {
+                              throw new Error('Failed to deploy panel.');
+                            }
+                          } catch (err: any) {
+                            addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                          }
+                        }}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-purple-500 glow-magenta transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY WEEKLY KILLS LEADERBOARD
+                      </button>
+
+                      <button 
+                        onClick={async () => {
+                          if (!confirm('Are you sure you want to deploy the interactive All Time Kills Leaderboard Embed in the channel?')) return;
+                          try {
+                            const res = await fetch(`${API_BASE_URL}/api/admin/deploy-alltime-kills-prompt`, {
+                              method: 'POST',
+                              headers: { 
+                                'Content-Type': 'application/json',
+                              }
+                            });
+                            if (res.ok) {
+                              addNotification('Panel Deployed', 'All Time Kills Leaderboard panel deployed in Discord.', 'success');
+                            } else {
+                              throw new Error('Failed to deploy panel.');
+                            }
+                          } catch (err: any) {
+                            addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                          }
+                        }}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-purple-500 glow-magenta transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY ALL TIME KILLS LEADERBOARD
+                      </button>
+
+                      <div className="h-[1px] bg-[#201d2d]/60 my-1" />
+
+                      <button 
+                        onClick={async () => {
                           if (!confirm('Are you sure you want to reset all members\' Weekly Event Points to 0? This will sync to Discord instantly.')) return;
                           try {
                             const res = await fetch(`${API_BASE_URL}/api/admin/reset-weekly-leaderboard`, {
@@ -818,6 +894,30 @@ export default function AdminDashboard() {
                         className="bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 hover:border-red-700/50 text-red-400 font-title text-xs font-black italic py-2.5 rounded-xl transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> RESET WEEKLY EVENT POINTS
+                      </button>
+
+                      <button 
+                        onClick={async () => {
+                          if (!confirm('Are you sure you want to reset all members\' Weekly Kills to 0? This will sync to Discord instantly.')) return;
+                          try {
+                            const res = await fetch(`${API_BASE_URL}/api/admin/reset-weekly-kills`, {
+                              method: 'POST',
+                              headers: { 
+                                'Content-Type': 'application/json',
+                              }
+                            });
+                            if (res.ok) {
+                              addNotification('Weekly Kills Reset', 'All weekly kills successfully reset to 0.', 'success');
+                            } else {
+                              throw new Error('Failed to reset weekly kills.');
+                            }
+                          } catch (err: any) {
+                            addNotification('Reset Failed', err.message || 'Error resetting weekly kills.', 'error');
+                          }
+                        }}
+                        className="bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 hover:border-red-700/50 text-red-400 font-title text-xs font-black italic py-2.5 rounded-xl transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> RESET WEEKLY KILLS
                       </button>
                     </div>
                   )}

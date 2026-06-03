@@ -1586,6 +1586,76 @@ const botService = {
     return true;
   },
 
+  deployAboutUsPrompt: async () => {
+    botService.logSimulated('Attempting to deploy About Us / Family Stats panel to Discord channel...');
+    const config = await db.getConfig();
+    
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = await findChannel(guild, c => cleanName(c.name).includes('about') || cleanName(c.name).includes('announcement') || cleanName(c.name).includes('general'));
+        if (channel) {
+          const stats = await db.getFamilyStats();
+          const embed = await botService.buildStatsEmbed(stats);
+          
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('refresh_stats')
+              .setLabel('🔄 Refresh Stats')
+              .setStyle(ButtonStyle.Secondary)
+          );
+          
+          const message = await channel.send({ embeds: [embed], components: [row] });
+          
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.aboutUsMessageId = message.id;
+          currentWebhooks.aboutUsChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+          
+          botService.logSimulated(`Successfully deployed Family Stats / About Us panel to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Family Stats / About Us panel:', err.message);
+      }
+    }
+    
+    botService.logSimulated('[Mock Panel] Deployed Family Stats / About Us panel in #announcements channel.');
+    return true;
+  },
+
+  syncFamilyStatsMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.aboutUsMessageId;
+    const channelId = webhooks.aboutUsChannelId;
+
+    if (!messageId || !channelId || !client) return;
+
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const stats = await db.getFamilyStats();
+          const embed = await botService.buildStatsEmbed(stats);
+          
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('refresh_stats')
+              .setLabel('🔄 Refresh Stats')
+              .setStyle(ButtonStyle.Secondary)
+          );
+          
+          await message.edit({ embeds: [embed], components: [row] });
+          botService.logSimulated('Successfully updated active Discord Family Stats / About Us message.');
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync Family Stats / About Us message:', err.message);
+    }
+  },
+
   deployStrikeSystemPrompt: async () => {
     botService.logSimulated('Attempting to deploy Strike System panel to Discord channel...');
     const config = await db.getConfig();

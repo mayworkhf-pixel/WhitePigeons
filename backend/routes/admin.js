@@ -295,6 +295,20 @@ router.post('/broadcast', requireAdmin, async (req, res) => {
   return res.json({ success: true, message: 'Announcement broadcasted.' });
 });
 
+// POST deploy interactive family stats / about us prompt in Discord channel
+router.post('/deploy-aboutus-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployAboutUsPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Family Stats / About Us panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the announcements/about channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST deploy interactive role request button prompt in Discord channel
 router.post('/deploy-role-request-prompt', requireAdmin, async (req, res) => {
   try {

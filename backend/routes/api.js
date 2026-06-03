@@ -1911,6 +1911,14 @@ router.post('/about/stats', requireAdmin, async (req, res) => {
     };
 
     const saved = await db.saveFamilyStats(numericStats);
+    
+    // Auto sync stats to Discord message if deployed
+    try {
+      await botService.syncFamilyStatsMessage();
+    } catch (err) {
+      console.error('[Bot] Failed to auto-sync family stats on save:', err.message);
+    }
+    
     res.json(saved);
   } catch {
     res.status(500).json({ error: 'Failed to save family statistics.' });
