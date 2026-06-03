@@ -1533,8 +1533,16 @@ router.post('/events/trigger', requireAdmin, async (req, res) => {
   await db.setEventState(eventId, 'open', cleanTitle, cleanDescription); // Set registration state to open
   await botService.triggerEventSignup(eventId, cleanTitle, cleanDescription);
   
+  const eventState = await db.getEventState(eventId);
+  
   // Broadcast live change via WebSocket
-  botService.broadcastSocket('event_state_change', { eventId, state: 'open', title: cleanTitle, description: cleanDescription });
+  botService.broadcastSocket('event_state_change', { 
+    eventId, 
+    state: 'open', 
+    title: cleanTitle, 
+    description: cleanDescription,
+    openedAt: eventState ? eventState.openedAt : Date.now()
+  });
 
   return res.json({ success: true, message: 'Signup window opened and broadcasted to Discord.' });
 });

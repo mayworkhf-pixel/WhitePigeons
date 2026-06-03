@@ -134,6 +134,22 @@ export default function RootDashboard() {
   const [rpTriggerCountdown, setRpTriggerCountdown] = useState<number | null>(null);
   const [infTriggerCountdown, setInfTriggerCountdown] = useState<number | null>(null);
   const [signupEventTriggerCountdown, setSignupEventTriggerCountdown] = useState<number | null>(null);
+  const [rpOpenedAt, setRpOpenedAt] = useState<number | null>(null);
+  const [informalOpenedAt, setInformalOpenedAt] = useState<number | null>(null);
+  const [signupEventOpenedAt, setSignupEventOpenedAt] = useState<number | null>(null);
+  const [nowTime, setNowTime] = useState<number>(Date.now());
+  
+  const formatRemainingTime = (openedAt: number | null) => {
+    if (!openedAt) return '15:00';
+    const totalDuration = 15 * 60 * 1000; // 15 mins
+    const elapsed = nowTime - openedAt;
+    const remaining = totalDuration - elapsed;
+    if (remaining <= 0) return '00:00';
+    
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
   
   // Schedule states for both events
   const [rpSchedule, setRpSchedule] = useState<{ times: string[]; mode: 'once' | 'day' | 'ever'; enabled: boolean; title: string; description: string }>({
@@ -449,6 +465,7 @@ export default function RootDashboard() {
         fetch(`${API_BASE_URL}/api/events/state/rp-signup`).then(r => r.ok ? r.json() : null).then(data => {
           if (data) {
             setRpState(data.state || 'closed');
+            setRpOpenedAt(data.openedAt || null);
             if (data.description) {
               setRpDescription(data.description);
               setRpTriggerDesc(data.description);
@@ -458,6 +475,7 @@ export default function RootDashboard() {
         fetch(`${API_BASE_URL}/api/events/state/signup-event`).then(r => r.ok ? r.json() : null).then(data => {
           if (data) {
             setSignupEventState(data.state || 'closed');
+            setSignupEventOpenedAt(data.openedAt || null);
             if (data.description) {
               setSignupEventDescription(data.description);
               setSignupEventTriggerDesc(data.description);
@@ -467,6 +485,7 @@ export default function RootDashboard() {
         fetch(`${API_BASE_URL}/api/events/state/informal-signup`).then(r => r.ok ? r.json() : null).then(data => {
           if (data) {
             setInformalState(data.state || 'closed');
+            setInformalOpenedAt(data.openedAt || null);
             if (data.description) {
               setInformalDescription(data.description);
               setInfTriggerDesc(data.description);
@@ -589,9 +608,10 @@ export default function RootDashboard() {
   useEffect(() => {
     if (!socket) return;
     
-    const handleStateChange = (data: { eventId: string; state: 'open' | 'closed'; title?: string; description?: string }) => {
+    const handleStateChange = (data: { eventId: string; state: 'open' | 'closed'; title?: string; description?: string; openedAt?: number }) => {
       if (data.eventId === 'rp-signup') {
         setRpState(data.state);
+        setRpOpenedAt(data.openedAt || null);
         if (data.description) {
           setRpDescription(data.description);
           setRpTriggerDesc(data.description);
@@ -599,6 +619,7 @@ export default function RootDashboard() {
         loadSignups();
       } else if (data.eventId === 'signup-event') {
         setSignupEventState(data.state);
+        setSignupEventOpenedAt(data.openedAt || null);
         if (data.description) {
           setSignupEventDescription(data.description);
           setSignupEventTriggerDesc(data.description);
@@ -606,6 +627,7 @@ export default function RootDashboard() {
         loadSignups();
       } else if (data.eventId === 'informal-signup') {
         setInformalState(data.state);
+        setInformalOpenedAt(data.openedAt || null);
         if (data.description) {
           setInformalDescription(data.description);
           setInfTriggerDesc(data.description);
@@ -715,6 +737,7 @@ export default function RootDashboard() {
   // RP collection countdown top-of-hour
   useEffect(() => {
     const updateRpCountdown = () => {
+      setNowTime(Date.now());
       const now = new Date();
       const nextHour = new Date();
       nextHour.setHours(now.getHours() + 1, 0, 0, 0);
@@ -5720,6 +5743,12 @@ export default function RootDashboard() {
                 </span>
               )}
 
+              {rpState === 'open' && rpOpenedAt && (
+                <span className="text-[10px] text-purple-400 font-bold block animate-pulse mt-1">
+                  ⏱️ Auto-closes in: {formatRemainingTime(rpOpenedAt)}
+                </span>
+              )}
+
               {/* IST Scheduler section */}
               <div className="border-t border-[#1c1a2a]/60 pt-3 mt-2 space-y-3">
                 <div className="flex justify-between items-center">
@@ -6054,6 +6083,12 @@ export default function RootDashboard() {
                 </span>
               )}
 
+              {informalState === 'open' && informalOpenedAt && (
+                <span className="text-[10px] text-purple-400 font-bold block animate-pulse mt-1">
+                  ⏱️ Auto-closes in: {formatRemainingTime(informalOpenedAt)}
+                </span>
+              )}
+
               {/* IST Scheduler section */}
               <div className="border-t border-[#1c1a2a]/60 pt-3 mt-2 space-y-3">
                 <div className="flex justify-between items-center">
@@ -6385,6 +6420,12 @@ export default function RootDashboard() {
               {signupEventTriggerCountdown !== null && signupEventTriggerCountdown >= 0 && (
                 <span className="text-[10px] text-green-400 font-bold block animate-pulse mt-1">
                   ⏱️ Triggering in {signupEventTriggerCountdown}s
+                </span>
+              )}
+
+              {signupEventState === 'open' && signupEventOpenedAt && (
+                <span className="text-[10px] text-purple-400 font-bold block animate-pulse mt-1">
+                  ⏱️ Auto-closes in: {formatRemainingTime(signupEventOpenedAt)}
                 </span>
               )}
 

@@ -20,30 +20,64 @@ const findChannel = async (guild, filterFn) => {
 const findSignupChannel = async (guild, eventId) => {
   const eventClean = (eventId || '').toLowerCase();
   
-  if (eventClean.includes('rp')) {
-    // Look for a channel containing both 'rp' and 'signup'
+  if (eventClean === 'rp-signup') {
+    // 1. Try to find precise channel containing both 'rp' and either 'ticket', 'signup', or 'roster'
     let ch = await findChannel(guild, c => {
       const name = cleanName(c.name);
-      return name.includes('rp') && name.includes('signup');
+      return name.includes('rp') && (name.includes('ticket') || name.includes('signup') || name.includes('roster'));
     });
     if (ch) return ch;
-  } else if (eventClean.includes('event')) {
-    // Look for a channel containing both 'event' and 'signup'
+
+    // 2. Try to find any channel containing both 'rp' and not containing 'collect', 'log', 'shop'
+    ch = await findChannel(guild, c => {
+      const name = cleanName(c.name);
+      return name.includes('rp') && !name.includes('collect') && !name.includes('log') && !name.includes('shop');
+    });
+    if (ch) return ch;
+  } 
+  
+  else if (eventClean === 'signup-event') {
+    // 1. Try to find precise channel containing both 'event' and 'signup'
     let ch = await findChannel(guild, c => {
       const name = cleanName(c.name);
       return name.includes('event') && name.includes('signup');
     });
     if (ch) return ch;
-  } else if (eventClean.includes('informal')) {
-    // Look for a channel containing both 'informal' and 'signup'
+
+    // 2. Try to find any channel containing 'event' but not containing 'rp' or 'informal'
+    ch = await findChannel(guild, c => {
+      const name = cleanName(c.name);
+      return name.includes('event') && !name.includes('rp') && !name.includes('informal');
+    });
+    if (ch) return ch;
+  } 
+  
+  else if (eventClean === 'informal-signup') {
+    // 1. Try to find precise channel containing both 'informal' and either 'signup', 'roster', or 'gunfight'
     let ch = await findChannel(guild, c => {
       const name = cleanName(c.name);
-      return name.includes('informal') && name.includes('signup');
+      return name.includes('informal') && (name.includes('signup') || name.includes('roster') || name.includes('gunfight'));
+    });
+    if (ch) return ch;
+
+    // 2. Try to find any channel containing 'informal'
+    ch = await findChannel(guild, c => {
+      const name = cleanName(c.name);
+      return name.includes('informal') && !name.includes('log');
     });
     if (ch) return ch;
   }
   
-  // Overall fallback to any channel containing 'signup'
+  // Overall fallback if still not found: search by matching the exact key in names
+  let fallbackKey = 'signup';
+  if (eventClean === 'rp-signup') fallbackKey = 'rp';
+  else if (eventClean === 'informal-signup') fallbackKey = 'informal';
+  else if (eventClean === 'signup-event') fallbackKey = 'event';
+
+  let chFallback = await findChannel(guild, c => cleanName(c.name).includes(fallbackKey));
+  if (chFallback) return chFallback;
+
+  // Final emergency fallback to any channel containing 'signup'
   return await findChannel(guild, c => cleanName(c.name).includes('signup'));
 };
 

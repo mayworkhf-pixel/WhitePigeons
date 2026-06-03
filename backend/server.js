@@ -161,9 +161,16 @@ setInterval(async () => {
         // Clear previous signups and open registration
         await database.clearSignups(eventId);
         await database.setEventState(eventId, 'open', title, description);
+        const eventState = await database.getEventState(eventId);
         
         // Emit socket updates to web clients
-        io.emit('event_state_change', { eventId, state: 'open', title, description });
+        io.emit('event_state_change', { 
+          eventId, 
+          state: 'open', 
+          title, 
+          description,
+          openedAt: eventState ? eventState.openedAt : Date.now()
+        });
         io.emit('signup_change', { eventId, signups: [] });
         io.emit('system_notification', {
           title: 'Roster Opened',
