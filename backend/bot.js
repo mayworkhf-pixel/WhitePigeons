@@ -266,6 +266,7 @@ const botService = {
         const isWinChannel = message.channel.id === winChannelId || chanName.includes('win-log') || chanName.includes('winlog');
         const isInformalChannel = message.channel.id === informalChannelId || chanName.includes('informal-log') || chanName.includes('informallog');
         const isBizwarChannel = chanName.includes('bizwar') && (chanName.includes('collect') || chanName.includes('log') || chanName.includes('profit'));
+        const isRpChannel = chanName.includes('rp') && (chanName.includes('collect') || chanName.includes('log') || chanName.includes('ticket'));
 
         if (isBizwarChannel && message.attachments.size > 0) {
           try {
@@ -296,6 +297,54 @@ const botService = {
             }
           } catch (err) {
             console.error('Error handling bizwar screenshot upload:', err.message);
+          }
+          return;
+        }
+
+        if (isRpChannel && message.attachments.size > 0) {
+          try {
+            const attachment = message.attachments.first();
+            if (attachment && attachment.contentType && attachment.contentType.startsWith('image/')) {
+              // Find last RP ticket log for this member created in the last 15 minutes
+              const logs = await db.getRpTicketLogs();
+              const userLogs = logs.filter(l => l.memberId === message.author.id);
+              if (userLogs.length > 0) {
+                const lastLog = userLogs[0];
+                const diffMs = Date.now() - new Date(lastLog.timeCollected || lastLog.createdAt).getTime();
+                if (diffMs < 15 * 60 * 1000) { // 15 mins window
+                  // Update log with proofUrl
+                  await db.updateRpTicketLog(lastLog.id, { proofUrl: attachment.url });
+                  
+                  // Also update rpCollectionState if it is in the collectionsList
+                  const state = await db.getRpCollectionState();
+                  let stateUpdated = false;
+                  if (state.collectionsList) {
+                    const idx = state.collectionsList.findIndex(c => c.logId === lastLog.id);
+                    if (idx !== -1) {
+                      state.collectionsList[idx].proofUrl = attachment.url;
+                      stateUpdated = true;
+                    }
+                  }
+                  if (stateUpdated) {
+                    await db.saveRpCollectionState(state);
+                  }
+                  
+                  botService.logSimulated(`Linked pasted screenshot to RP ticket collection log ${lastLog.id} for @${message.author.username}`);
+                  
+                  // Sync the Discord embed message
+                  await botService.syncRpCollectionMessage();
+                  
+                  // React to confirm
+                  await message.react('✅');
+                  
+                  // Also notify the socket clients
+                  botService.broadcastSocket('leaderboard_update', await db.getMembers());
+                  botService.broadcastSocket('rp_update', await db.getRpTicketLogs());
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error handling RP ticket screenshot upload:', err.message);
           }
           return;
         }
@@ -605,7 +654,7 @@ const botService = {
                 .setLabel('Proofs (screenshot link)')
                 .setPlaceholder('Paste a Discord image link, Imgur link, etc.')
                 .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true);
+                .setRequired(false);
 
               modal.addComponents(
                 new ActionRowBuilder().addComponents(amtInput),
@@ -1452,8 +1501,12 @@ const botService = {
               await botService.sendWebhook('bizwar-collect', embed);
               botService.broadcastSocket('leaderboard_update', await db.getMembers());
 
+              const replyText = proofsUrl 
+                ? `✅ Successfully collected **$${numericAmount.toLocaleString()}** with proof screenshot!`
+                : `✅ Successfully collected **$${numericAmount.toLocaleString()}**! Please paste/upload your proof screenshot in this channel now to automatically link it to your collection log.`;
+
               await interaction.reply({
-                content: `✅ Successfully collected **$${numericAmount.toLocaleString()}** with proof screenshot!`,
+                content: replyText,
                 flags: [MessageFlags.Ephemeral]
               });
             } catch (err) {
@@ -2931,6 +2984,10 @@ const botService = {
       .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
       .setTimestamp();
 
+    if (lastLog && lastLog.proofUrl && lastLog.proofUrl.startsWith('http')) {
+      embed.setImage(lastLog.proofUrl);
+    }
+
     return embed;
   },
 
@@ -3022,7 +3079,8 @@ const botService = {
         const timeFormatted = c.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
         const charIdText = c.characterId ? ` \`(ID: ${c.characterId})\`` : '';
         const numText = `[ ${(idx + 1).toString().padStart(2, '0')} ]`;
-        return `\`${numText}\` 🎫 **x${c.ticketsCollected || 5}** tickets by <@${c.discordId}>${charIdText} at \`${timeFormatted}\``;
+        const proofText = c.proofUrl ? ` ➔ 🖼️ [View Proof](${c.proofUrl})` : '';
+        return `\`${numText}\` 🎫 **x${c.ticketsCollected || 5}** tickets by <@${c.discordId}>${charIdText} at \`${timeFormatted}\`${proofText}`;
       }).join('\n');
     }
 
@@ -3039,6 +3097,11 @@ const botService = {
       .setColor(0x00f0ff)
       .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
       .setTimestamp();
+
+    const latestProof = state.collectionsList && state.collectionsList.slice().reverse().find(c => c.proofUrl && c.proofUrl.startsWith('http'));
+    if (latestProof) {
+      embed.setImage(latestProof.proofUrl);
+    }
 
     return embed;
   },

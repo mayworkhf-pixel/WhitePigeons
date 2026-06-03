@@ -1836,6 +1836,30 @@ const db = {
     return newLog;
   },
 
+  updateRpTicketLog: async (id, updateData) => {
+    if (firebaseDb) {
+      try {
+        const docRef = firebaseDb.collection('rpTicketLogs').doc(id);
+        const doc = await docRef.get();
+        if (doc.exists) {
+          const finalData = { ...doc.data(), ...updateData };
+          await docRef.set(finalData);
+          return finalData;
+        }
+      } catch (err) {
+        console.error('Firestore updateRpTicketLog failed:', err.message);
+      }
+    }
+    const data = readDb();
+    const idx = data.rpTicketLogs.findIndex(l => l.id === id);
+    if (idx !== -1) {
+      data.rpTicketLogs[idx] = { ...data.rpTicketLogs[idx], ...updateData };
+      writeDb(data);
+      return data.rpTicketLogs[idx];
+    }
+    return null;
+  },
+
   deleteRpTicketLog: async (id) => {
     if (firebaseDb) {
       try {
