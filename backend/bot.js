@@ -600,8 +600,16 @@ const botService = {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
+              const proofsInput = new TextInputBuilder()
+                .setCustomId('bizwar_proofs')
+                .setLabel('Proofs (screenshot link)')
+                .setPlaceholder('Paste a Discord image link, Imgur link, etc.')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
               modal.addComponents(
-                new ActionRowBuilder().addComponents(amtInput)
+                new ActionRowBuilder().addComponents(amtInput),
+                new ActionRowBuilder().addComponents(proofsInput)
               );
 
               await interaction.showModal(modal);
@@ -1402,8 +1410,8 @@ const botService = {
           if (interaction.customId === 'bizwar_collect_modal') {
             try {
               const amountStr = interaction.fields.getTextInputValue('bizwar_amount');
+              const proofsUrl = interaction.fields.getTextInputValue('bizwar_proofs') || '';
               const businessName = 'BizWar Collection';
-              const proofUrl = '';
 
               const numericAmount = parseFloat(amountStr);
               if (isNaN(numericAmount) || numericAmount <= 0) {
@@ -1416,6 +1424,7 @@ const botService = {
                 username: interaction.user.username,
                 businessName,
                 amount: numericAmount,
+                proofUrl: proofsUrl,
                 timeCollected: new Date().toISOString()
               });
 
@@ -1437,11 +1446,14 @@ const botService = {
                   { name: 'Collected Amount', value: `$${numericAmount.toLocaleString()}`, inline: true }
                 ]
               };
+              if (proofsUrl && proofsUrl.startsWith('http')) {
+                embed.image = { url: proofsUrl };
+              }
               await botService.sendWebhook('bizwar-collect', embed);
               botService.broadcastSocket('leaderboard_update', await db.getMembers());
 
               await interaction.reply({
-                content: `✅ Successfully collected **$${numericAmount.toLocaleString()}**.\n💡 Please paste (\`Ctrl+V\`) or upload your proof screenshot in this channel!`,
+                content: `✅ Successfully collected **$${numericAmount.toLocaleString()}** with proof screenshot!`,
                 flags: [MessageFlags.Ephemeral]
               });
             } catch (err) {

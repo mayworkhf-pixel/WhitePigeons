@@ -6139,7 +6139,7 @@ export default function RootDashboard() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Proof Screenshot *</label>
+                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Proofs *</label>
                   {bizwarDiscordForm.proofUrl ? (
                     <div className="relative bg-[#1e1f22] border border-purple-600/30 rounded-lg p-2.5 flex items-center justify-between">
                       <div className="flex items-center gap-2.5 overflow-hidden">
