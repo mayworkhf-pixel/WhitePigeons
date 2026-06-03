@@ -45,6 +45,7 @@ let ordersCache = null;
 let ordersCacheTime = 0;
 let activityTypesCache = null;
 let activityTypesCacheTime = 0;
+const cachedEventStates = {};
 
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
@@ -2116,39 +2117,59 @@ const db = {
   },
 
   getEventState: async (eventId) => {
+    const now = Date.now();
+    const cached = cachedEventStates[eventId];
+    if (cached && now - cached.timestamp < 30 * 1000) {
+      return cached.data;
+    }
+
+    let result = { state: 'closed', title: '', description: '', openedAt: null };
     if (firebaseDb) {
       try {
         const doc = await firebaseDb.collection('event_states').doc(eventId).get();
         if (doc.exists) {
           const d = doc.data();
-          return {
+          result = {
             state: d.state || 'closed',
             title: d.title || '',
-            description: d.description || ''
+            description: d.description || '',
+            openedAt: d.openedAt || null
           };
         }
-        return { state: 'closed', title: '', description: '' };
       } catch (err) {
         console.error('Firestore getEventState failed:', err.message);
       }
+    } else {
+      const data = readDb();
+      if (!data.eventStates) {
+        data.eventStates = {};
+      }
+      const val = data.eventStates[eventId];
+      if (typeof val === 'string') {
+        result = { state: val, title: '', description: '', openedAt: null };
+      } else {
+        result = val || { state: 'closed', title: '', description: '', openedAt: null };
+      }
     }
-    const data = readDb();
-    if (!data.eventStates) {
-      data.eventStates = {};
-    }
-    const val = data.eventStates[eventId];
-    if (typeof val === 'string') {
-      return { state: val, title: '', description: '' };
-    }
-    return val || { state: 'closed', title: '', description: '' };
+
+    cachedEventStates[eventId] = {
+      timestamp: now,
+      data: result
+    };
+    return result;
   },
 
   setEventState: async (eventId, state, title = null, description = null) => {
+    delete cachedEventStates[eventId];
+
     if (firebaseDb) {
       try {
         const updateObj = { state };
         if (title !== null) updateObj.title = title;
         if (description !== null) updateObj.description = description;
+        if (state === 'open') {
+          updateObj.openedAt = Date.now();
+        }
         await firebaseDb.collection('event_states').doc(eventId).set(updateObj, { merge: true });
         return true;
       } catch (err) {
@@ -2166,7 +2187,8 @@ const db = {
       ...existingObj,
       state,
       ...(title !== null && { title }),
-      ...(description !== null && { description })
+      ...(description !== null && { description }),
+      ...(state === 'open' && { openedAt: Date.now() })
     };
     writeDb(data);
     return true;

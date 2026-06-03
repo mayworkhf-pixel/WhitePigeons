@@ -17,6 +17,36 @@ const findChannel = async (guild, filterFn) => {
   });
 };
 
+const findSignupChannel = async (guild, eventId) => {
+  const eventClean = (eventId || '').toLowerCase();
+  
+  if (eventClean.includes('rp')) {
+    // Look for a channel containing both 'rp' and 'signup'
+    let ch = await findChannel(guild, c => {
+      const name = cleanName(c.name);
+      return name.includes('rp') && name.includes('signup');
+    });
+    if (ch) return ch;
+  } else if (eventClean.includes('event')) {
+    // Look for a channel containing both 'event' and 'signup'
+    let ch = await findChannel(guild, c => {
+      const name = cleanName(c.name);
+      return name.includes('event') && name.includes('signup');
+    });
+    if (ch) return ch;
+  } else if (eventClean.includes('informal')) {
+    // Look for a channel containing both 'informal' and 'signup'
+    let ch = await findChannel(guild, c => {
+      const name = cleanName(c.name);
+      return name.includes('informal') && name.includes('signup');
+    });
+    if (ch) return ch;
+  }
+  
+  // Overall fallback to any channel containing 'signup'
+  return await findChannel(guild, c => cleanName(c.name).includes('signup'));
+};
+
 let client = null;
 let ioInstance = null; // Socket.io reference to broadcast simulated logs
 
@@ -45,7 +75,7 @@ const botService = {
         const config = await db.getConfig();
         const guild = await client.guilds.fetch(config.guildId).catch(() => null);
         if (guild) {
-          const channel = await findChannel(guild, c => cleanName(c.name).includes('signup'));
+          const channel = await findSignupChannel(guild, eventId);
           if (channel) {
             if (promotedMember) {
               await channel.send(`👋 **[Roster Update]** @${leavingUsername} has left the queue. Reserve player <@${promotedMember.memberId}> has been promoted to the Main Roster!`);
@@ -1054,7 +1084,7 @@ const botService = {
       const config = await db.getConfig();
       const guild = await client.guilds.fetch(config.guildId).catch(() => null);
       if (!guild) return;
-      const channel = await findChannel(guild, c => cleanName(c.name).includes('signup'));
+      const channel = await findSignupChannel(guild, eventId);
       if (channel) {
         const messages = await channel.messages.fetch({ limit: 15 });
         const signupMessage = messages.find(m => {
@@ -1174,7 +1204,7 @@ const botService = {
     try {
       const config = await db.getConfig();
       const guild = await client.guilds.fetch(config.guildId);
-      const channel = await findChannel(guild, c => cleanName(c.name).includes('signup'));
+      const channel = await findSignupChannel(guild, eventId);
       if (channel) {
         // Fetch last 15 messages in the channel to locate the active roster embed
         const messages = await channel.messages.fetch({ limit: 15 });
@@ -1219,7 +1249,7 @@ const botService = {
     if (client && config.guildId) {
       try {
         const guild = await client.guilds.fetch(config.guildId);
-        const channel = await findChannel(guild, c => cleanName(c.name).includes('signup'));
+        const channel = await findSignupChannel(guild, eventId);
         if (channel) {
           const embedBuilder = await botService.buildSignupEmbed(eventId, title, description, false);
 
@@ -1245,6 +1275,78 @@ const botService = {
 
     await botService.sendWebhook(channelKey, fallbackEmbed);
     return true;
+  },
+
+  closeEvent: async (eventId) => {
+    try {
+      // 1. Set state to closed in DB
+      await db.setEventState(eventId, 'closed');
+
+      // 2. Fetch all signups and sort them
+      const signups = await db.getSignups(eventId);
+      const confirmedQueue = signups.filter(s => s.status === 'confirmed');
+      const reserveQueue = signups.filter(s => s.status === 'reserve' || s.status === 'displaced');
+
+      // 3. Compile lines for embed formatting
+      const mainRosterLines = confirmedQueue.map((s, idx) => {
+        const icon = s.isTop10 ? '👑' : '⚔️';
+        return `${idx + 1}. ${icon} <@${s.memberId}> ✅`;
+      });
+
+      const subsListLines = reserveQueue.map((s, idx) => {
+        const icon = s.isTop10 ? '👑' : '⚔️';
+        return `${idx + 1}. ${icon} <@${s.memberId}>`;
+      });
+
+      const bannerImage = eventId === 'rp-signup'
+        ? 'https://whitepigeonslive.web.app/rp_ticket_banner.webp'
+        : eventId === 'signup-event'
+        ? 'https://whitepigeonslive.web.app/signup_event_banner.webp'
+        : 'https://whitepigeonslive.web.app/informal_fight_banner.webp';
+
+      const embedDescription = [
+        `🔴 **Registration is closed!**\n`,
+        `**Participants:** ${confirmedQueue.length}/25\n`,
+        `**Main Roster:**`,
+        mainRosterLines.length > 0 ? mainRosterLines.join('\n') : '*No confirmed players.*',
+        `\n**Subs List:**`,
+        subsListLines.length > 0 ? subsListLines.join('\n') : '*No substitutes.*',
+        `\nHave fun! 🎉`
+      ].join('\n');
+
+      const embed = {
+        title: `🚀 ${eventId === 'rp-signup' ? 'RP Ticket' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal Fight'} - CLOSED ✅`,
+        description: embedDescription,
+        color: 0xff003c, // Vibrant red-pink
+        image: bannerImage
+      };
+
+      const channelKey = eventId === 'rp-signup' ? 'rp-signup' : eventId === 'signup-event' ? 'signup-event' : 'informal-signup';
+      await botService.closeSignupMessage(eventId);
+      await botService.sendWebhook(channelKey, embed);
+
+      // 4. Emit live status change to connected browser clients via WebSocket
+      botService.broadcastSocket('event_state_change', { eventId, state: 'closed' });
+      botService.broadcastSocket('system_notification', {
+        title: 'Registration Closed',
+        message: `${eventId === 'rp-signup' ? 'RP' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal'} Registration is now CLOSED. Final roster has been posted to Discord.`,
+        type: 'warning'
+      });
+
+      botService.logSimulated(`Closed registration for ${eventId}. Posted final roster to Discord.`);
+      return { 
+        success: true,
+        stats: {
+          totalSignedUp: signups.length,
+          topPriorityConfirmed: confirmedQueue.filter(s => s.isTop10).length,
+          normalConfirmed: confirmedQueue.filter(s => !s.isTop10).length,
+          substitutesCount: reserveQueue.length
+        }
+      };
+    } catch (err) {
+      console.error(`[Bot] Failed to close event ${eventId}:`, err.message);
+      return { success: false, error: err.message };
+    }
   },
 
   // Build interactive role review embed matching screenshot format

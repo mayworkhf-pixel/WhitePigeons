@@ -113,6 +113,22 @@ setInterval(async () => {
 
     const eventIds = ['rp-signup', 'informal-signup', 'signup-event'];
     
+    // Auto-close open events that have been active for more than 15 minutes
+    for (const eventId of eventIds) {
+      try {
+        const stateObj = await database.getEventState(eventId);
+        if (stateObj && stateObj.state === 'open' && stateObj.openedAt) {
+          const elapsedMs = Date.now() - stateObj.openedAt;
+          if (elapsedMs >= 15 * 60 * 1000) {
+            console.log(`[Scheduler] Automatically closing ${eventId} (open for ${Math.round(elapsedMs / 1000 / 60)} minutes)`);
+            await botService.closeEvent(eventId);
+          }
+        }
+      } catch (err) {
+        console.error(`[Scheduler] Error checking auto-close for ${eventId}:`, err.message);
+      }
+    }
+    
     for (const eventId of eventIds) {
       const schedule = await database.getEventSchedule(eventId);
       if (!schedule || !schedule.enabled || !schedule.times || schedule.times.length === 0) {
