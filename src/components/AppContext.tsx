@@ -64,7 +64,26 @@ interface AppContextType {
   API_BASE_URL: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : '');
+const getApiBaseUrl = () => {
+  if (typeof window === 'undefined') {
+    return process.env.NEXT_PUBLIC_API_URL || 'https://whitepigeons.onrender.com';
+  }
+  const hostname = window.location.hostname;
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname.startsWith('192.168.');
+  
+  if (isLocal) {
+    return 'http://localhost:5000';
+  }
+  
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl;
+  }
+  
+  return 'https://whitepigeons.onrender.com';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 function getLocalPreviewUser(): User | null {
   if (typeof window === 'undefined') return null;
