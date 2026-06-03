@@ -475,6 +475,20 @@ router.post('/deploy-activity-prompt', requireAdmin, async (req, res) => {
   }
 });
 
+// POST deploy interactive bonus admin panel in Discord
+router.post('/deploy-bonus-admin-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployBonusAdminPanelPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Bonus Admin panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST approve or reject a registration request
 router.post('/approve-member', requireAdmin, async (req, res) => {
   const { discordId, action } = req.body;

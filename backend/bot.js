@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, MessageFlags, Partials } = require('discord.js');
 const db = require('./database');
 const axios = require('axios');
 const { isDiscordWebhookUrl, sanitizeString } = require('./security');
@@ -102,6 +102,18 @@ const findSignupChannel = async (guild, eventId) => {
   return await findChannel(guild, c => cleanName(c.name).includes('signup'));
 };
 
+const isAuthorizedAdmin = (member) => {
+  if (!member) return false;
+  if (member.permissions && (member.permissions.has('Administrator') || member.permissions.has('ManageMessages'))) return true;
+  if (member.roles && member.roles.cache) {
+    return member.roles.cache.some(r => {
+      const name = cleanName(r.name);
+      return name.includes('leadership') || name.includes('admin') || name.includes('leader') || name.includes('underboss') || name.includes('deputy') || name.includes('manager') || name.includes('high command') || name.includes('moderator');
+    });
+  }
+  return false;
+};
+
 let client = null;
 let ioInstance = null; // Socket.io reference to broadcast simulated logs
 
@@ -179,8 +191,10 @@ const botService = {
           GatewayIntentBits.GuildMembers,
           GatewayIntentBits.GuildMessages,
           GatewayIntentBits.MessageContent,
-          GatewayIntentBits.GuildVoiceStates
-        ]
+          GatewayIntentBits.GuildVoiceStates,
+          GatewayIntentBits.GuildMessageReactions
+        ],
+        partials: [Partials.Message, Partials.Channel, Partials.Reaction]
       });
 
       client.once('ready', () => {
@@ -201,8 +215,9 @@ const botService = {
         const winChannelId = config.publicWinLogChannelId;
         const informalChannelId = config.publicInformalLogChannelId;
 
-        const isWinChannel = message.channel.id === winChannelId || message.channel.name === 'public-winlog';
-        const isInformalChannel = message.channel.id === informalChannelId || message.channel.name === 'public-informallog';
+        const chanName = cleanName(message.channel?.name || '');
+        const isWinChannel = message.channel.id === winChannelId || chanName.includes('win-log') || chanName.includes('winlog');
+        const isInformalChannel = message.channel.id === informalChannelId || chanName.includes('informal-log') || chanName.includes('informallog');
 
         if (isWinChannel || isInformalChannel) {
           try {
@@ -213,6 +228,7 @@ const botService = {
             let eventName = isWinChannel ? 'Weapons Factory' : 'Informal';
             let baseAmount = isWinChannel ? 200000 : 70000;
             let dateTimeStr = new Date().toISOString().split('T')[0];
+            let timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
             let participants = [];
 
             if (lines.length > 0 && lines[0].includes('|')) {
@@ -227,7 +243,19 @@ const botService = {
                 const parsedVal = parseFloat(rawPrice) * multiplier;
                 if (!isNaN(parsedVal)) baseAmount = parsedVal;
               }
-              if (headerParts[2]) dateTimeStr = headerParts[2];
+              if (headerParts[2]) {
+                const dtPart = headerParts[2];
+                if (dtPart.includes(' ')) {
+                  const splitted = dtPart.split(/\s+/);
+                  dateTimeStr = splitted[0];
+                  timeStr = splitted[1];
+                } else {
+                  dateTimeStr = dtPart;
+                }
+              }
+              if (headerParts[3]) {
+                timeStr = headerParts[3];
+              }
             }
 
             for (let i = 1; i < lines.length; i++) {
@@ -269,6 +297,8 @@ const botService = {
             const submission = await db.createWinSubmission({
               source: 'discord',
               discordMessageId: message.id,
+              guildId: message.guild ? message.guild.id : null,
+              channelId: message.channel ? message.channel.id : null,
               submitterId: message.author.id,
               submitterName: message.author.username,
               type,
@@ -278,6 +308,7 @@ const botService = {
               baseAmount,
               eventName,
               dateTimeStr,
+              timeStr,
               rawContent: message.content
             });
 
@@ -299,6 +330,80 @@ const botService = {
           } catch (err) {
             console.error('[Bot] Win log ingestion failed:', err.message);
           }
+        }
+      });
+
+      client.on('messageReactionAdd', async (reaction, user) => {
+        if (reaction.partial) {
+          try {
+            await reaction.fetch();
+          } catch (err) {
+            console.error('[Bot] Failed to fetch partial reaction:', err.message);
+            return;
+          }
+        }
+
+        if (user.bot) return;
+        if (reaction.emoji.name !== '✅') return;
+
+        const { message } = reaction;
+        if (!message.guild) return;
+
+        const config = await db.getConfig();
+        const winChannelId = config.publicWinLogChannelId;
+        const informalChannelId = config.publicInformalLogChannelId;
+
+        const chanName = cleanName(message.channel?.name || '');
+        const isWinChannel = message.channel.id === winChannelId || chanName.includes('win-log') || chanName.includes('winlog');
+        const isInformalChannel = message.channel.id === informalChannelId || chanName.includes('informal-log') || chanName.includes('informallog');
+
+        if (!isWinChannel && !isInformalChannel) return;
+
+        const member = await message.guild.members.fetch(user.id).catch(() => null);
+        if (!isAuthorizedAdmin(member)) {
+          try {
+            await reaction.users.remove(user.id);
+          } catch {}
+          return;
+        }
+
+        const winSubmissions = await db.getWinSubmissions();
+        const submission = winSubmissions.find(s => s.discordMessageId === message.id);
+        if (!submission) {
+          botService.logSimulated(`No win submission found in database for message ID ${message.id}`);
+          return;
+        }
+
+        if (submission.status !== 'pending' && submission.status !== 'reviewing') {
+          return;
+        }
+
+        const approvalChannel = message.guild.channels.cache.find(c => {
+          const name = cleanName(c.name);
+          return name.includes('bonus-approval') || name.includes('bonus-approve');
+        });
+
+        if (!approvalChannel) {
+          botService.logSimulated('[Bot Error] Could not find #bonus-approval channel.');
+          return;
+        }
+
+        await db.updateWinSubmission(submission.id, {
+          status: 'reviewing',
+          reviewedBy: user.username,
+          reviewedAt: new Date().toISOString()
+        });
+
+        try {
+          await botService.sendBonusApprovalInteractiveEmbed(approvalChannel, submission);
+          
+          try {
+            const reviewingReact = message.reactions.cache.get('⏳');
+            if (reviewingReact) await reviewingReact.users.remove(client.user.id);
+            await message.react('✅');
+          } catch {}
+        } catch (err) {
+          console.error('[Bot] Failed to send bonus approval details:', err.message);
         }
       });
 
@@ -761,6 +866,165 @@ const botService = {
               await interaction.reply({ content: '⚠️ Failed to refresh panel.', flags: [MessageFlags.Ephemeral] });
             }
           }
+          else if (customId.startsWith('bonus_confirm:')) {
+            const submissionId = customId.split(':')[1];
+            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+            if (!isAuthorizedAdmin(member)) {
+              return interaction.reply({ content: '❌ You do not have permission to disburse bonuses.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            const winSubmissions = await db.getWinSubmissions();
+            const submission = winSubmissions.find(s => s.id === submissionId);
+            if (!submission) {
+              return interaction.reply({ content: '❌ Win submission not found in database.', flags: [MessageFlags.Ephemeral] });
+            }
+            if (submission.status !== 'pending' && submission.status !== 'reviewing') {
+              return interaction.reply({ content: `❌ This bonus request has already been processed (Status: ${submission.status}).`, flags: [MessageFlags.Ephemeral] });
+            }
+
+            const baseAmount = submission.baseAmount || 200000;
+            const finalParticipants = submission.participants || [];
+            const details = [];
+
+            for (const pIdentifier of finalParticipants) {
+              const members = await db.getMembers();
+              let username = pIdentifier;
+              let kills = 1;
+              if (pIdentifier.includes('|')) {
+                const parts = pIdentifier.split('|');
+                username = parts[0].trim();
+                kills = parseInt(parts[1], 10) || 1;
+              }
+
+              let mem = members.find(m => 
+                m.username.toLowerCase() === username.toLowerCase() || 
+                m.nickname.toLowerCase().includes(username.toLowerCase())
+              );
+
+              if (mem) {
+                const strikesCount = mem.strikes ? mem.strikes.length : 0;
+                let cutPercent = 0;
+                if (strikesCount === 1) cutPercent = 25;
+                else if (strikesCount === 2) cutPercent = 50;
+                else if (strikesCount >= 3) cutPercent = 100;
+
+                const rawBonus = kills * baseAmount;
+                const cutAmount = (rawBonus * cutPercent) / 100;
+                const netAmount = rawBonus - cutAmount;
+
+                const currentBonus = mem.weeklyBonus || 0;
+                await db.updateMember(mem.discordId, {
+                  weeklyBonus: currentBonus + netAmount
+                });
+
+                details.push({
+                  discordId: mem.discordId,
+                  username: mem.username,
+                  strikes: strikesCount,
+                  cutPercent,
+                  cutAmount,
+                  netAmount
+                });
+              } else {
+                details.push({
+                  username,
+                  strikes: 'N/A',
+                  cutPercent: 0,
+                  cutAmount: 0,
+                  netAmount: kills * baseAmount,
+                  warning: 'Not in database'
+                });
+              }
+            }
+
+            const updatedSub = await db.updateWinSubmission(submission.id, {
+              status: 'approved',
+              approvedBy: interaction.user.username,
+              approvedAt: new Date().toISOString()
+            });
+
+            // Log in bonus-admin-panel
+            const participantsListStr = details.map(d => {
+              const mention = d.discordId ? `<@${d.discordId}>` : d.username;
+              const warnSuffix = d.warning ? ` ⚠️ (${d.warning})` : '';
+              return `${mention}: **$${d.netAmount.toLocaleString()}** (Strikes: ${d.strikes}, Cut: ${d.cutPercent}%)${warnSuffix}`;
+            }).join('\n');
+
+            const disbursedEmbed = new EmbedBuilder()
+              .setTitle('🏆 EVENT WIN BONUS DISBURSED')
+              .setDescription(`**Event:** ${updatedSub.eventName || updatedSub.title}\n**Base Amount:** $${baseAmount.toLocaleString()}\n**Approved By Admin:** ${interaction.user.username}\n\n**Weekly Payout Breakdown:**\n${participantsListStr}`)
+              .setColor(0x34d399)
+              .setTimestamp()
+              .setFooter({ text: 'White Pigeon Bonus System' });
+
+            if (updatedSub.mediaUrl) {
+              disbursedEmbed.setImage(updatedSub.mediaUrl);
+            }
+
+            await botService.sendWebhook('bonus-admin-panel', disbursedEmbed);
+            await botService.syncBonusAdminPanelMessage();
+
+            const approvedEmbed = await botService.buildBonusApprovalEmbed(updatedSub);
+            approvedEmbed.setColor(0x23a55a);
+            approvedEmbed.setTitle('✅ Bonus Request Approved & Disbursed');
+
+            await interaction.update({ embeds: [approvedEmbed], components: [] });
+            
+            // Broadcast socket update
+            botService.broadcastSocket('win_submissions_update', await db.getWinSubmissions());
+            botService.broadcastSocket('leaderboard_update', await db.getMembers());
+          }
+          else if (customId.startsWith('bonus_cancel:')) {
+            const submissionId = customId.split(':')[1];
+            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+            if (!isAuthorizedAdmin(member)) {
+              return interaction.reply({ content: '❌ You do not have permission to discard bonus requests.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            const winSubmissions = await db.getWinSubmissions();
+            const submission = winSubmissions.find(s => s.id === submissionId);
+            if (!submission) {
+              return interaction.reply({ content: '❌ Win submission not found.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            await db.updateWinSubmission(submission.id, {
+              status: 'rejected',
+              reviewedBy: interaction.user.username,
+              reviewedAt: new Date().toISOString()
+            });
+
+            await interaction.update({ content: '❌ Bonus request cancelled/discarded.', embeds: [], components: [] });
+            
+            // Broadcast socket update
+            botService.broadcastSocket('win_submissions_update', await db.getWinSubmissions());
+          }
+          else if (customId === 'refresh_bonus_admin') {
+            await interaction.deferUpdate();
+            await botService.syncBonusAdminPanelMessage();
+          }
+          else if (customId === 'export_bonus_admin') {
+            const members = await db.getMembers();
+            const activeMembers = [...members]
+              .filter(m => (m.weeklyBonus || 0) > 0)
+              .sort((a, b) => b.weeklyBonus - a.weeklyBonus);
+
+            if (activeMembers.length === 0) {
+              return interaction.reply({ content: '❌ No active bonuses to export.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            const csvContent = 'Discord ID,Username,Character ID,Weekly Bonus\n' + 
+              activeMembers.map(m => `${m.discordId},"${m.username}",${m.characterId || 'N/A'},${m.weeklyBonus}`).join('\n');
+
+            const buffer = Buffer.from(csvContent, 'utf-8');
+            const { AttachmentBuilder } = require('discord.js');
+            const attachment = new AttachmentBuilder(buffer, { name: 'weekly-bonuses-export.csv' });
+
+            await interaction.reply({ 
+              content: `📊 **Weekly Bonus Export**\nTotal Members: **${activeMembers.length}**\nTotal Disbursed: **$${activeMembers.reduce((a, b) => a + b.weeklyBonus, 0).toLocaleString()}**`,
+              files: [attachment],
+              flags: [MessageFlags.Ephemeral]
+            });
+          }
         }
 
         // 2. Modal submissions
@@ -854,6 +1118,37 @@ const botService = {
             await interaction.reply({ content: '✅ Your role request form was submitted successfully and is under review.', flags: [MessageFlags.Ephemeral] });
 
             botService.broadcastSocket('role_requests_update', await db.getRoleRequests());
+          }
+          else if (interaction.customId.startsWith('bonus_edit_kills_modal:')) {
+            const submissionId = interaction.customId.split(':')[1];
+            const username = interaction.customId.split(':')[2];
+            const newKills = parseInt(interaction.fields.getTextInputValue('kills_input'), 10);
+
+            if (isNaN(newKills) || newKills < 0) {
+              return interaction.reply({ content: '❌ Invalid kills number. Please enter a positive integer.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            const winSubmissions = await db.getWinSubmissions();
+            const submission = winSubmissions.find(s => s.id === submissionId);
+            if (submission) {
+              const updatedParticipants = submission.participants.map(p => {
+                let pName = p;
+                if (p.includes('|')) {
+                  pName = p.split('|')[0].trim();
+                }
+                if (pName.toLowerCase() === username.toLowerCase()) {
+                  return `${pName}|${newKills}`;
+                }
+                return p;
+              });
+
+              const updated = await db.updateWinSubmission(submissionId, { participants: updatedParticipants });
+              const embed = await botService.buildBonusApprovalEmbed(updated);
+              const components = await botService.buildBonusApprovalComponents(updated);
+              await interaction.update({ embeds: [embed], components });
+            } else {
+              await interaction.reply({ content: '❌ Win submission not found.', flags: [MessageFlags.Ephemeral] });
+            }
           }
           else if (interaction.customId === 'discord_ticket_bonus_modal' || interaction.customId === 'discord_ticket_support_modal') {
             const type = interaction.customId === 'discord_ticket_bonus_modal' ? 'bonus' : 'support';
@@ -977,6 +1272,99 @@ const botService = {
 
             const updatedEmbed = await botService.buildRoleReviewEmbed(requestId);
             await interaction.update({ embeds: [updatedEmbed] });
+          }
+          else if (interaction.customId.startsWith('bonus_select_event:')) {
+            const submissionId = interaction.customId.split(':')[1];
+            const eventName = interaction.values[0];
+            
+            let baseAmount = 200000;
+            if (eventName === 'Informal') baseAmount = 70000;
+            else if (eventName === 'Harbor') baseAmount = 50000;
+            else if (eventName === 'Weapons') baseAmount = 40000;
+            else if (eventName === 'Bizwar') baseAmount = 200000;
+            else if (eventName === 'Foundry') baseAmount = 40000;
+
+            const winSubmissions = await db.getWinSubmissions();
+            const submission = winSubmissions.find(s => s.id === submissionId);
+            if (submission) {
+              const updated = await db.updateWinSubmission(submissionId, { eventName, baseAmount });
+              const embed = await botService.buildBonusApprovalEmbed(updated);
+              const components = await botService.buildBonusApprovalComponents(updated);
+              await interaction.update({ embeds: [embed], components });
+            } else {
+              await interaction.reply({ content: '❌ Win submission not found.', flags: [MessageFlags.Ephemeral] });
+            }
+          }
+          else if (interaction.customId.startsWith('bonus_select_date:')) {
+            const submissionId = interaction.customId.split(':')[1];
+            const relativeDate = interaction.values[0];
+
+            let dateObj = new Date();
+            if (relativeDate === 'Tomorrow') {
+              dateObj.setDate(dateObj.getDate() + 1);
+            } else if (relativeDate === 'Yesterday') {
+              dateObj.setDate(dateObj.getDate() - 1);
+            } else if (relativeDate === 'Before Yesterday') {
+              dateObj.setDate(dateObj.getDate() - 2);
+            }
+            const dateTimeStr = dateObj.toISOString().split('T')[0];
+
+            const winSubmissions = await db.getWinSubmissions();
+            const submission = winSubmissions.find(s => s.id === submissionId);
+            if (submission) {
+              const updated = await db.updateWinSubmission(submissionId, { dateTimeStr });
+              const embed = await botService.buildBonusApprovalEmbed(updated);
+              const components = await botService.buildBonusApprovalComponents(updated);
+              await interaction.update({ embeds: [embed], components });
+            } else {
+              await interaction.reply({ content: '❌ Win submission not found.', flags: [MessageFlags.Ephemeral] });
+            }
+          }
+          else if (interaction.customId.startsWith('bonus_select_time:')) {
+            const submissionId = interaction.customId.split(':')[1];
+            const timeStr = interaction.values[0];
+
+            const winSubmissions = await db.getWinSubmissions();
+            const submission = winSubmissions.find(s => s.id === submissionId);
+            if (submission) {
+              const updated = await db.updateWinSubmission(submissionId, { timeStr });
+              const embed = await botService.buildBonusApprovalEmbed(updated);
+              const components = await botService.buildBonusApprovalComponents(updated);
+              await interaction.update({ embeds: [embed], components });
+            } else {
+              await interaction.reply({ content: '❌ Win submission not found.', flags: [MessageFlags.Ephemeral] });
+            }
+          }
+          else if (interaction.customId.startsWith('bonus_select_user:')) {
+            const submissionId = interaction.customId.split(':')[1];
+            const username = interaction.values[0];
+
+            const winSubmissions = await db.getWinSubmissions();
+            const submission = winSubmissions.find(s => s.id === submissionId);
+            if (submission) {
+              let currentKills = 1;
+              const pItem = submission.participants.find(p => p.startsWith(username + '|') || p === username);
+              if (pItem && pItem.includes('|')) {
+                currentKills = parseInt(pItem.split('|')[1], 10) || 1;
+              }
+
+              const modal = new ModalBuilder()
+                .setCustomId(`bonus_edit_kills_modal:${submissionId}:${username}`)
+                .setTitle(`Edit Kills for ${username}`);
+
+              const killsInput = new TextInputBuilder()
+                .setCustomId('kills_input')
+                .setLabel('Number of Kills')
+                .setPlaceholder('Enter kills amount')
+                .setValue(String(currentKills))
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+              modal.addComponents(new ActionRowBuilder().addComponents(killsInput));
+              await interaction.showModal(modal);
+            } else {
+              await interaction.reply({ content: '❌ Win submission not found.', flags: [MessageFlags.Ephemeral] });
+            }
           }
           else if (interaction.customId.startsWith('admin_kick_select:')) {
             const eventId = interaction.customId.split(':')[1];
@@ -1110,8 +1498,10 @@ const botService = {
     const config = await db.getConfig();
     const webhookUrl = config.webhooks ? config.webhooks[channelKey] : null;
 
+    const data = (embedData && typeof embedData.toJSON === 'function') ? embedData.toJSON() : embedData;
+
     if (!webhookUrl) {
-      botService.logSimulated(`[Webhook MOCK] Channel #${channelKey} (Webhook URL empty). Embed: "${embedData.title || ''} - ${embedData.description || ''}"`);
+      botService.logSimulated(`[Webhook MOCK] Channel #${channelKey} (Webhook URL empty). Embed: "${data.title || ''} - ${data.description || ''}"`);
       return false;
     }
     if (!isDiscordWebhookUrl(webhookUrl)) {
@@ -1120,15 +1510,16 @@ const botService = {
     }
 
     try {
+      const imgUrl = data.image ? (typeof data.image === 'string' ? data.image : data.image.url) : null;
       await axios.post(webhookUrl, {
         embeds: [{
-          title: sanitizeString(embedData.title, 256),
-          description: sanitizeString(embedData.description, 4000),
-          color: embedData.color || 0xff007f,
-          fields: embedData.fields || [],
-          image: embedData.image ? { url: sanitizeString(embedData.image, 500) } : null,
-          footer: { text: 'White Pigeon Command Hub' },
-          timestamp: new Date().toISOString()
+          title: sanitizeString(data.title, 256),
+          description: sanitizeString(data.description, 4000),
+          color: data.color || 0xff007f,
+          fields: data.fields || [],
+          image: imgUrl ? { url: sanitizeString(imgUrl, 500) } : null,
+          footer: data.footer ? { text: sanitizeString(data.footer.text, 2048) } : { text: 'White Pigeon Command Hub' },
+          timestamp: data.timestamp || new Date().toISOString()
         }]
       });
       botService.logSimulated(`Successfully fired webhook to #${channelKey} Discord channel.`);
@@ -2688,6 +3079,277 @@ const botService = {
     } catch (err) {
       console.error('[Bot] Failed to sync Activity Point System prompt:', err.message);
     }
+  },
+
+  buildBonusApprovalEmbed: async (submission) => {
+    const baseAmount = submission.baseAmount || 200000;
+    const participants = submission.participants || [];
+    const members = await db.getMembers();
+
+    let totalKills = 0;
+    const details = [];
+
+    for (const p of participants) {
+      let username = p;
+      let kills = 1;
+      if (p.includes('|')) {
+        const parts = p.split('|');
+        username = parts[0].trim();
+        kills = parseInt(parts[1], 10) || 1;
+      }
+      totalKills += kills;
+
+      const member = members.find(m => 
+        m.username.toLowerCase() === username.toLowerCase() || 
+        m.nickname.toLowerCase().includes(username.toLowerCase())
+      );
+
+      const netAmount = kills * baseAmount;
+      const mention = member ? `<@${member.discordId}>` : `Not in DB`;
+      details.push(`**${username}** ➔ ${mention} | 💀 **${kills}** kills | 💰 **$${netAmount.toLocaleString()}**`);
+    }
+
+    const totalBonus = totalKills * baseAmount;
+
+    const embed = new EmbedBuilder()
+      .setTitle('📋 Bonus Request - Select Details')
+      .addFields(
+        { name: '🎯 Event', value: submission.eventName || 'Bizwar', inline: true },
+        { name: '💰 Price', value: `$${baseAmount.toLocaleString()}/kill`, inline: true },
+        { name: '📊 Total Kills', value: String(totalKills), inline: true },
+        { name: '💵 Total Bonus', value: `$${totalBonus.toLocaleString()}`, inline: true },
+        { name: '📅 Date', value: submission.dateTimeStr || 'N/A', inline: true },
+        { name: '⏰ Time', value: submission.timeStr || 'N/A', inline: true },
+        { name: '👥 Participants:', value: details.length > 0 ? details.join('\n') : 'None', inline: false }
+      )
+      .setColor(0xffaa00)
+      .setTimestamp(new Date(submission.createdAt));
+
+    if (submission.guildId && submission.channelId && submission.discordMessageId) {
+      embed.addFields({ name: '🔗 Source', value: `[Click Here](https://discord.com/channels/${submission.guildId}/${submission.channelId}/${submission.discordMessageId})`, inline: false });
+    }
+
+    if (submission.mediaUrl) {
+      embed.setImage(submission.mediaUrl);
+    }
+
+    return embed;
+  },
+
+  buildBonusApprovalComponents: async (submission) => {
+    const eventSelect = new StringSelectMenuBuilder()
+      .setCustomId(`bonus_select_event:${submission.id}`)
+      .setPlaceholder('🎯 Select Event / Bonus Type')
+      .addOptions([
+        { label: 'Informal - $70,000/kill', value: 'Informal' },
+        { label: 'Harbor - $50,000/kill', value: 'Harbor' },
+        { label: 'Weapons - $40,000/kill', value: 'Weapons' },
+        { label: 'Bizwar - $200,000/kill', value: 'Bizwar' },
+        { label: 'Foundry - $40,000/kill', value: 'Foundry' }
+      ]);
+
+    const currentEvent = submission.eventName || 'Bizwar';
+    const matchedOpt = eventSelect.options.find(o => o.data.value.toLowerCase() === currentEvent.toLowerCase());
+    if (matchedOpt) {
+      matchedOpt.setDefault(true);
+    }
+
+    const dateSelect = new StringSelectMenuBuilder()
+      .setCustomId(`bonus_select_date:${submission.id}`)
+      .setPlaceholder('📅 Select Date')
+      .addOptions([
+        { label: 'Today', value: 'Today' },
+        { label: 'Tomorrow', value: 'Tomorrow' },
+        { label: 'Yesterday', value: 'Yesterday' },
+        { label: 'Before Yesterday', value: 'Before Yesterday' }
+      ]);
+
+    const timeSelect = new StringSelectMenuBuilder()
+      .setCustomId(`bonus_select_time:${submission.id}`)
+      .setPlaceholder('⏰ Select Time')
+      .addOptions([
+        { label: '15:00', value: '15:00' },
+        { label: '16:00', value: '16:00' },
+        { label: '17:00', value: '17:00' },
+        { label: '18:00', value: '18:00' },
+        { label: '19:00', value: '19:00' },
+        { label: '19:05', value: '19:05' },
+        { label: '20:00', value: '20:00' },
+        { label: '21:00', value: '21:00' },
+        { label: '22:00', value: '22:00' },
+        { label: '23:00', value: '23:00' }
+      ]);
+
+    const currentTime = submission.timeStr || '19:05';
+    const matchedTime = timeSelect.options.find(o => o.data.value === currentTime);
+    if (matchedTime) {
+      matchedTime.setDefault(true);
+    }
+
+    const userSelect = new StringSelectMenuBuilder()
+      .setCustomId(`bonus_select_user:${submission.id}`)
+      .setPlaceholder('👥 Select participant to edit kills')
+      .addOptions(
+        submission.participants.map(p => {
+          let username = p;
+          let kills = 1;
+          if (p.includes('|')) {
+            const parts = p.split('|');
+            username = parts[0].trim();
+            kills = parseInt(parts[1], 10) || 1;
+          }
+          return {
+            label: `${username} (Kills: ${kills})`,
+            value: username
+          };
+        }).slice(0, 25)
+      );
+
+    const row1 = new ActionRowBuilder().addComponents(eventSelect);
+    const row2 = new ActionRowBuilder().addComponents(dateSelect);
+    const row3 = new ActionRowBuilder().addComponents(timeSelect);
+    const row4 = new ActionRowBuilder().addComponents(userSelect);
+
+    const cancelBtn = new ButtonBuilder()
+      .setCustomId(`bonus_cancel:${submission.id}`)
+      .setLabel('Cancel')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('🔙');
+
+    const confirmBtn = new ButtonBuilder()
+      .setCustomId(`bonus_confirm:${submission.id}`)
+      .setLabel('Confirm')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('✅');
+
+    const row5 = new ActionRowBuilder().addComponents(cancelBtn, confirmBtn);
+
+    return [row1, row2, row3, row4, row5];
+  },
+
+  sendBonusApprovalInteractiveEmbed: async (channel, submission) => {
+    const embed = await botService.buildBonusApprovalEmbed(submission);
+    const components = await botService.buildBonusApprovalComponents(submission);
+    await channel.send({ embeds: [embed], components });
+  },
+
+  deployBonusAdminPanelPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Bonus System Admin Panel to Discord channel...');
+    const config = await db.getConfig();
+
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => {
+          const name = cleanName(c.name);
+          return name.includes('bonus-admin-panel') || name.includes('bonus-admin');
+        });
+        if (!channel) {
+          channel = guild.channels.cache.find(c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
+        }
+
+        if (channel) {
+          const embed = await botService.buildBonusAdminPanelEmbed();
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('refresh_bonus_admin')
+              .setLabel('Refresh')
+              .setStyle(ButtonStyle.Primary)
+              .setEmoji('🔄'),
+            new ButtonBuilder()
+              .setCustomId('export_bonus_admin')
+              .setLabel('Export')
+              .setStyle(ButtonStyle.Secondary)
+              .setEmoji('📂')
+          );
+
+          const message = await channel.send({ embeds: [embed], components: [row] });
+
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.bonusAdminMessageId = message.id;
+          currentWebhooks.bonusAdminChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+
+          botService.logSimulated(`Successfully deployed Bonus System Admin Panel to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Bonus System Admin Panel:', err.message);
+      }
+    }
+    return false;
+  },
+
+  syncBonusAdminPanelMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.bonusAdminMessageId;
+    const channelId = webhooks.bonusAdminChannelId;
+
+    if (!messageId || !channelId || !client) return;
+
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const embed = await botService.buildBonusAdminPanelEmbed();
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('refresh_bonus_admin')
+              .setLabel('Refresh')
+              .setStyle(ButtonStyle.Primary)
+              .setEmoji('🔄'),
+            new ButtonBuilder()
+              .setCustomId('export_bonus_admin')
+              .setLabel('Export')
+              .setStyle(ButtonStyle.Secondary)
+              .setEmoji('📂')
+          );
+          await message.edit({ embeds: [embed], components: [row] });
+          botService.logSimulated('Successfully updated active Discord Bonus System Admin Panel message.');
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync Bonus System Admin Panel:', err.message);
+    }
+  },
+
+  buildBonusAdminPanelEmbed: async () => {
+    const members = await db.getMembers();
+    const activeMembers = [...members]
+      .filter(m => (m.weeklyBonus || 0) > 0)
+      .sort((a, b) => b.weeklyBonus - a.weeklyBonus);
+
+    const totalBonus = activeMembers.reduce((acc, curr) => acc + (curr.weeklyBonus || 0), 0);
+    const totalMembers = activeMembers.length;
+
+    const top50 = activeMembers.slice(0, 50);
+    const entries = top50.map((m, idx) => {
+      return `${idx + 1}. <@${m.discordId}> | ${m.characterId || 'N/A'} - **$${m.weeklyBonus.toLocaleString()}**`;
+    });
+
+    let desc = entries.join('\n');
+    if (activeMembers.length > 50) {
+      desc += `\n\n... and ${activeMembers.length - 50} more`;
+    }
+    if (!desc) {
+      desc = '*No active bonuses accumulated for this week yet.*';
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('💰 BONUS SYSTEM - ADMIN VIEW 💰')
+      .setDescription(desc)
+      .addFields(
+        { name: '💰 Total:', value: `$${totalBonus.toLocaleString()}`, inline: true },
+        { name: '👥 Members:', value: String(totalMembers), inline: true }
+      )
+      .setColor(0x00ff00)
+      .setImage('https://images.unsplash.com/photo-1554672408-730436b60dde?w=500')
+      .setTimestamp();
+
+    return embed;
   }
 };
 

@@ -657,7 +657,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick Panel Deployment Card */}
-            {['role-request', 'strikes', 'tickets', 'check-balance', 'weekly-kill-list', 'announcements', 'submit-activity', 'top-10-list', 'long-time-kill-list'].includes(broadcastForm.channelKey) && (
+            {['role-request', 'strikes', 'tickets', 'check-balance', 'weekly-kill-list', 'announcements', 'submit-activity', 'top-10-list', 'long-time-kill-list', 'bonus-admin-panel'].includes(broadcastForm.channelKey) && (
               <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col gap-4 shadow-xl animate-fade-in">
                 <div className="border-b border-[#201d2d]/60 pb-2 flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-amber-900/10">
@@ -1004,6 +1004,32 @@ export default function AdminDashboard() {
                       className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-purple-500 glow-magenta transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY ALL TIME KILLS LEADERBOARD
+                    </button>
+                  )}
+
+                  {broadcastForm.channelKey === 'bonus-admin-panel' && (
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to deploy the interactive Bonus Admin Panel in the channel?')) return;
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/deploy-bonus-admin-prompt`, {
+                            method: 'POST',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Panel Deployed', 'Bonus Admin Panel deployed in Discord.', 'success');
+                          } else {
+                            throw new Error('Failed to deploy panel.');
+                          }
+                        } catch (err: any) {
+                          addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                        }
+                      }}
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-purple-500 glow-magenta transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY BONUS ADMIN PANEL
                     </button>
                   )}
                 </div>

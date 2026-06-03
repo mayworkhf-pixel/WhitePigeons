@@ -793,6 +793,11 @@ router.post('/economy/win-submissions/admin-approve/:id', requireAdmin, async (r
     };
 
     await botService.sendWebhook('bonus-approval', embed);
+    try {
+      await botService.syncBonusAdminPanelMessage();
+    } catch (syncErr) {
+      console.error('[Bot Sync Error] Failed to sync bonus admin panel message:', syncErr.message);
+    }
 
     if (req.app.get('socketio')) {
       req.app.get('socketio').emit('win_submissions_update', await db.getWinSubmissions());
@@ -887,6 +892,11 @@ router.post('/economy/weekly-ledger/close', requireAdmin, async (req, res) => {
       footer: { text: 'White Pigeon Weekly Reset Protocol' }
     };
     await botService.sendWebhook('bonus-admin-panel', embed);
+    try {
+      await botService.syncBonusAdminPanelMessage();
+    } catch (syncErr) {
+      console.error('[Bot Sync Error] Failed to sync bonus admin panel message:', syncErr.message);
+    }
 
     if (req.app.get('socketio')) {
       req.app.get('socketio').emit('leaderboard_update', await db.getMembers());
