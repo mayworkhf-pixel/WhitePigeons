@@ -5808,116 +5808,199 @@ export default function RootDashboard() {
   };
 
   const renderPublicWinlog = () => {
+    const allWins = wins.filter(w => w.type !== 'informal');
+    const folders = [
+      { id: 'all', label: '📁 All Records', icon: '📂' },
+      { id: 'event', label: '📁 Events / Raids', icon: '⚔️' },
+      { id: 'bizwar', label: '📁 BizWar Battles', icon: '💰' },
+    ];
+    const filteredWins = allWins
+      .filter(w => activeWinLogFolder === 'all' || w.type === activeWinLogFolder)
+      .filter(w => !winLogSearchQuery || w.title.toLowerCase().includes(winLogSearchQuery.toLowerCase()) || w.description.toLowerCase().includes(winLogSearchQuery.toLowerCase()) || w.participants.toLowerCase().includes(winLogSearchQuery.toLowerCase()));
+    const selectedWin = selectedWinLogId ? allWins.find(w => w.id === selectedWinLogId) : null;
+
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
-        {/* Win logging Form (Admin) */}
-        {isLeaderOrAdmin && (
-          <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit">
-            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
-              🏆 LOG NEW SYNDICATE WIN
-            </h3>
-
-            <form onSubmit={handleLogWin} className="font-sans text-xs flex flex-col gap-4">
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">EVENT TYPE</label>
-                <select 
-                  value={winForm.type}
-                  onChange={(e) => setWinForm(prev => ({ ...prev, type: e.target.value }))}
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 outline-none font-sans"
-                >
-                  <option value="event">Major Syndicate Event / Raid</option>
-                  <option value="bizwar">BizWar Profit Battle</option>
-                  <option value="informal">Informal Gunfight Battle</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">EVENT TITLE</label>
-                <input 
-                  type="text"
-                  value={winForm.title}
-                  onChange={(e) => setWinForm(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="e.g. Captured central hotel factory..."
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">direct DETAILS</label>
-                <textarea 
-                  rows={3}
-                  value={winForm.description}
-                  onChange={(e) => setWinForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Detail operations details..."
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">COMBATANTS PARTICIPATED</label>
-                <input 
-                  type="text"
-                  value={winForm.participants}
-                  onChange={(e) => setWinForm(prev => ({ ...prev, participants: e.target.value }))}
-                  placeholder="Vito, Tony, Phantom..."
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">VICTORY SCREENSHOT URL</label>
-                <input 
-                  type="text"
-                  value={winForm.mediaUrl}
-                  onChange={(e) => setWinForm(prev => ({ ...prev, mediaUrl: e.target.value }))}
-                  placeholder="Provide image link..."
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono"
-                />
-              </div>
-
-              <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta cursor-pointer">
-                PUBLISH RECORD
-              </button>
-            </form>
+      <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl overflow-hidden font-sans shadow-2xl max-w-6xl mx-auto">
+        {/* Explorer Toolbar */}
+        <div className="bg-[#0c0c14] border-b border-[#1c1a2a] px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-lg">🏆</span>
+            <h2 className="font-title font-black text-sm italic text-zinc-200 tracking-wide uppercase">PUBLIC WIN LOG</h2>
+            <span className="text-[9px] bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded-full font-mono font-bold border border-purple-500/20">{filteredWins.length} RECORDS</span>
           </div>
-        )}
-
-        {/* Win records list */}
-        <div className={`${isLeaderOrAdmin ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4`}>
-          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
-            🏆 PUBLIC SYNDICATE WINNING LOGS
-          </h2>
-
-          <div className="space-y-6">
-            {wins.filter(w => w.type !== 'informal').length === 0 ? (
-              <div className="text-center py-12 text-zinc-500 italic">
-                NO WINS RECORDED IN HISTORY LOG.
-              </div>
-            ) : (
-              wins.filter(w => w.type !== 'informal').map((w) => (
-                <div key={w.id} className="bg-[#13121d]/40 border border-[#1c1a2a] rounded-2xl p-4 flex flex-col md:flex-row gap-6 hover:border-purple-500/30 transition-smooth">
-                  {w.mediaUrl && (
-                    <img 
-                      src={w.mediaUrl} 
-                      alt={w.title} 
-                      className="w-full md:w-48 h-32 object-cover rounded-xl border border-[#1c1a2a] shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-title font-black text-base italic text-zinc-200">{w.title}</h3>
-                      <span className="text-[9px] bg-[#0a0a14] text-zinc-400 px-1.5 py-0.5 rounded uppercase font-mono">{w.type}</span>
-                    </div>
-                    <p className="text-zinc-400 text-xs leading-relaxed font-sans">{w.description}</p>
-                    <div className="text-[10px] text-zinc-500">
-                      <span className="font-bold text-zinc-400 font-sans">Squad combatants:</span> {w.participants}
-                    </div>
-                  </div>
-                </div>
-              ))
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-initial">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">🔍</span>
+              <input
+                type="text"
+                value={winLogSearchQuery}
+                onChange={(e) => setWinLogSearchQuery(e.target.value)}
+                placeholder="Search records..."
+                className="w-full sm:w-56 bg-[#0a0a14] border border-[#1c1a2a] rounded-lg pl-8 pr-3 py-2 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans placeholder:text-zinc-600"
+              />
+            </div>
+            {isLeaderOrAdmin && (
+              <button
+                onClick={() => setIsNewWinLogModalOpen(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-title text-[10px] font-black italic tracking-wide py-2 px-3 rounded-lg border border-purple-500/50 cursor-pointer flex items-center gap-1.5 shrink-0 transition-colors"
+              >
+                <span>＋</span> NEW ENTRY
+              </button>
             )}
           </div>
         </div>
+
+        <div className="flex flex-col lg:flex-row min-h-[500px]">
+          {/* Folder Sidebar */}
+          <div className="lg:w-52 bg-[#0a0a14] border-r border-[#1c1a2a] p-3 space-y-1 shrink-0">
+            <div className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider px-2 py-1 mb-1">Folders</div>
+            {folders.map(f => (
+              <button
+                key={f.id}
+                onClick={() => { setActiveWinLogFolder(f.id); setSelectedWinLogId(null); }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-sans flex items-center gap-2 transition-all cursor-pointer ${
+                  activeWinLogFolder === f.id
+                    ? 'bg-purple-600/15 text-purple-300 border border-purple-500/20 font-bold'
+                    : 'text-zinc-400 hover:bg-[#111118] hover:text-zinc-300 border border-transparent'
+                }`}
+              >
+                <span>{f.icon}</span>
+                <span className="truncate">{f.label}</span>
+                <span className="ml-auto text-[9px] text-zinc-600 font-mono">
+                  {f.id === 'all' ? allWins.length : allWins.filter(w => w.type === f.id).length}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Main File List */}
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* Column Headers */}
+            <div className="bg-[#0c0c14]/60 border-b border-[#1c1a2a] px-4 py-2 grid grid-cols-12 gap-2 text-[9px] text-zinc-500 font-bold uppercase tracking-wider select-none">
+              <div className="col-span-1">🖼️</div>
+              <div className="col-span-4">File Name</div>
+              <div className="col-span-2">Type</div>
+              <div className="col-span-3">Combatants</div>
+              <div className="col-span-2">Date</div>
+            </div>
+
+            {/* File Rows */}
+            <div className="flex-1 overflow-y-auto max-h-[480px] divide-y divide-[#1c1a2a]/30">
+              {filteredWins.length === 0 ? (
+                <div className="text-center py-16 text-zinc-600 italic text-xs">
+                  <div className="text-3xl mb-3 opacity-30">📂</div>
+                  NO RECORDS FOUND IN THIS FOLDER
+                </div>
+              ) : (
+                filteredWins.map((w) => (
+                  <div
+                    key={w.id}
+                    onClick={() => setSelectedWinLogId(selectedWinLogId === w.id ? null : w.id)}
+                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center text-xs cursor-pointer transition-all group ${
+                      selectedWinLogId === w.id
+                        ? 'bg-purple-600/10 border-l-2 border-l-purple-500'
+                        : 'hover:bg-[#13121d]/60 border-l-2 border-l-transparent'
+                    }`}
+                  >
+                    <div className="col-span-1">
+                      {w.mediaUrl ? (
+                        <img src={w.mediaUrl} alt="" className="w-8 h-8 rounded object-cover border border-[#1c1a2a]" />
+                      ) : (
+                        <div className="w-8 h-8 rounded bg-[#0a0a14] border border-[#1c1a2a] flex items-center justify-center text-zinc-600 text-sm">📄</div>
+                      )}
+                    </div>
+                    <div className="col-span-4 truncate">
+                      <span className="text-zinc-200 font-bold group-hover:text-purple-300 transition-colors">{w.title}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
+                        w.type === 'event' ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+                      }`}>{w.type}</span>
+                    </div>
+                    <div className="col-span-3 text-zinc-500 truncate font-sans">{w.participants || '—'}</div>
+                    <div className="col-span-2 text-zinc-600 font-mono text-[10px]">{w.createdAt ? new Date(w.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Detail Panel */}
+          {selectedWin && (
+            <div className="lg:w-80 bg-[#0a0a14] border-l border-[#1c1a2a] p-5 space-y-4 shrink-0 overflow-y-auto max-h-[540px]">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">File Details</span>
+                <button onClick={() => setSelectedWinLogId(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer">✕</button>
+              </div>
+              {selectedWin.mediaUrl && (
+                <img src={selectedWin.mediaUrl} alt={selectedWin.title} className="w-full h-40 object-cover rounded-xl border border-[#1c1a2a]" />
+              )}
+              <h3 className="font-title font-black text-base italic text-zinc-200">{selectedWin.title}</h3>
+              <div className="space-y-3">
+                <div>
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block mb-1">Type</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase ${
+                    selectedWin.type === 'event' ? 'bg-red-500/15 text-red-400' : 'bg-amber-500/15 text-amber-400'
+                  }`}>{selectedWin.type === 'event' ? 'Event / Raid' : 'BizWar Battle'}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block mb-1">Description</span>
+                  <p className="text-zinc-400 text-xs leading-relaxed font-sans">{selectedWin.description}</p>
+                </div>
+                <div>
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block mb-1">Squad Combatants</span>
+                  <p className="text-zinc-400 text-xs font-sans">{selectedWin.participants || 'None listed'}</p>
+                </div>
+                <div>
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block mb-1">Date Recorded</span>
+                  <p className="text-zinc-500 text-[10px] font-mono">{selectedWin.createdAt ? new Date(selectedWin.createdAt).toLocaleString() : '—'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* New Entry Modal */}
+        {isNewWinLogModalOpen && isLeaderOrAdmin && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsNewWinLogModalOpen(false)}>
+            <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b border-[#1c1a2a]/50 pb-3">
+                <h3 className="font-title font-bold text-sm text-zinc-200 italic">🏆 LOG NEW SYNDICATE WIN</h3>
+                <button onClick={() => setIsNewWinLogModalOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-sm cursor-pointer">✕</button>
+              </div>
+              <form onSubmit={(e) => { handleLogWin(e); setIsNewWinLogModalOpen(false); }} className="font-sans text-xs flex flex-col gap-4">
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold block mb-1">EVENT TYPE</label>
+                  <select 
+                    value={winForm.type}
+                    onChange={(e) => setWinForm(prev => ({ ...prev, type: e.target.value }))}
+                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 outline-none font-sans"
+                  >
+                    <option value="event">Major Syndicate Event / Raid</option>
+                    <option value="bizwar">BizWar Profit Battle</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold block mb-1">EVENT TITLE</label>
+                  <input type="text" value={winForm.title} onChange={(e) => setWinForm(prev => ({ ...prev, title: e.target.value }))} placeholder="e.g. Captured central hotel factory..." className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold block mb-1">DETAILS</label>
+                  <textarea rows={3} value={winForm.description} onChange={(e) => setWinForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Detail operations details..." className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold block mb-1">COMBATANTS</label>
+                  <input type="text" value={winForm.participants} onChange={(e) => setWinForm(prev => ({ ...prev, participants: e.target.value }))} placeholder="Vito, Tony, Phantom..." className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold block mb-1">SCREENSHOT URL</label>
+                  <input type="text" value={winForm.mediaUrl} onChange={(e) => setWinForm(prev => ({ ...prev, mediaUrl: e.target.value }))} placeholder="Provide image link..." className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-mono" />
+                </div>
+                <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta cursor-pointer">PUBLISH RECORD</button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -6039,8 +6122,29 @@ export default function RootDashboard() {
                 </div>
 
                 {/* Banner Image */}
-                <div className="rounded-lg overflow-hidden border border-[#3f4248]/30 max-h-48 select-none">
+                <div className="rounded-lg overflow-hidden border border-[#3f4248]/30 max-h-48 select-none relative group/banner">
                   <img src={bannerImage} alt="Event Banner" className="w-full h-full object-cover" />
+                  {isLeaderOrAdmin && (
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/banner:opacity-100 transition-opacity flex items-center justify-center">
+                      <button
+                        onClick={() => {
+                          const newUrl = prompt('Enter new banner image URL:', bannerImage);
+                          if (newUrl && newUrl.trim()) {
+                            const updated = { ...banners, [eventId]: newUrl.trim() };
+                            setBanners(updated);
+                            fetch(`${API_BASE_URL}/admin/discord-config`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ banners: updated })
+                            }).then(r => r.ok ? addNotification('Banner Updated', 'Image changed successfully.', 'success') : addNotification('Error', 'Failed to save banner.', 'error')).catch(() => {});
+                          }
+                        }}
+                        className="bg-[#5865f2] hover:bg-[#4752c4] text-white text-[10px] font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer transition-colors shadow-lg"
+                      >
+                        📷 CHANGE IMAGE
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -7373,91 +7477,153 @@ export default function RootDashboard() {
   };
 
   const renderPublicInformallog = () => {
+    const allInformals = wins.filter(w => w.type === 'informal');
+    const filteredInformals = allInformals
+      .filter(w => !informalLogSearchQuery || w.title.toLowerCase().includes(informalLogSearchQuery.toLowerCase()) || w.description.toLowerCase().includes(informalLogSearchQuery.toLowerCase()) || w.participants.toLowerCase().includes(informalLogSearchQuery.toLowerCase()));
+    const selectedInformal = selectedInformalLogId ? allInformals.find(w => w.id === selectedInformalLogId) : null;
+
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
-        {/* Log win (Admin) */}
-        {isLeaderOrAdmin && (
-          <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit">
-            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
-              🏆 LOG PUBLIC INFORMAL WIN
-            </h3>
-
-            <form onSubmit={(event) => handleLogWin(event, 'informal')} className="font-sans text-xs flex flex-col gap-4">
-              <input type="hidden" value="informal" readOnly />
-              
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">BATTLE TITLE</label>
-                <input 
-                  type="text"
-                  value={winForm.title}
-                  onChange={(e) => setWinForm(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Informal Win vs Vagos..."
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">direct DETAILS</label>
-                <textarea 
-                  rows={4}
-                  value={winForm.description}
-                  onChange={(e) => setWinForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Operation execution summary..."
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 focus:border-purple-600/50 outline-none resize-none leading-relaxed font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">PARTICIPATING COMBATANTS</label>
-                <input 
-                  type="text"
-                  value={winForm.participants}
-                  onChange={(e) => setWinForm(prev => ({ ...prev, participants: e.target.value }))}
-                  placeholder="Shooters..."
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-purple-600/50 outline-none font-sans"
-                />
-              </div>
-
-              <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta cursor-pointer">
-                PUBLISH INFORMAL RECORD
-              </button>
-            </form>
+      <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl overflow-hidden font-sans shadow-2xl max-w-6xl mx-auto">
+        {/* Explorer Toolbar */}
+        <div className="bg-[#0c0c14] border-b border-[#1c1a2a] px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-lg">📜</span>
+            <h2 className="font-title font-black text-sm italic text-zinc-200 tracking-wide uppercase">PUBLIC INFORMAL LOG</h2>
+            <span className="text-[9px] bg-cyan-600/20 text-cyan-400 px-2 py-0.5 rounded-full font-mono font-bold border border-cyan-500/20">{filteredInformals.length} RECORDS</span>
           </div>
-        )}
-
-        {/* Win records list */}
-        <div className={`${isLeaderOrAdmin ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4`}>
-          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
-            📜╰public-informallog RECORDS
-          </h2>
-
-          <div className="space-y-6">
-            {wins.filter(w => w.type === 'informal').length === 0 ? (
-              <div className="text-center py-12 text-zinc-500 italic">
-                NO INFORMAL WINS RECORDED TODAY.
-              </div>
-            ) : (
-              wins.filter(w => w.type === 'informal').map((w) => (
-                <div key={w.id} className="bg-[#13121d]/40 border border-[#1c1a2a] rounded-2xl p-4 flex flex-col md:flex-row gap-6 hover:border-purple-500/30 transition-smooth">
-                  {w.mediaUrl && (
-                    <img 
-                      src={w.mediaUrl} 
-                      alt={w.title} 
-                      className="w-full md:w-48 h-32 object-cover rounded-xl border border-[#1c1a2a] shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 space-y-2 font-sans">
-                    <h3 className="font-title font-black text-base italic text-zinc-200">{w.title}</h3>
-                    <p className="text-zinc-400 text-xs leading-relaxed font-sans">{w.description}</p>
-                    <div className="text-[10px] text-zinc-500">
-                      <span className="font-bold text-zinc-400">Combatants:</span> {w.participants}
-                    </div>
-                  </div>
-                </div>
-              ))
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-initial">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">🔍</span>
+              <input
+                type="text"
+                value={informalLogSearchQuery}
+                onChange={(e) => setInformalLogSearchQuery(e.target.value)}
+                placeholder="Search records..."
+                className="w-full sm:w-56 bg-[#0a0a14] border border-[#1c1a2a] rounded-lg pl-8 pr-3 py-2 text-xs text-zinc-300 focus:border-cyan-600/50 outline-none font-sans placeholder:text-zinc-600"
+              />
+            </div>
+            {isLeaderOrAdmin && (
+              <button
+                onClick={() => setIsNewInformalLogModalOpen(true)}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white font-title text-[10px] font-black italic tracking-wide py-2 px-3 rounded-lg border border-cyan-500/50 cursor-pointer flex items-center gap-1.5 shrink-0 transition-colors"
+              >
+                <span>＋</span> NEW ENTRY
+              </button>
             )}
           </div>
         </div>
+
+        <div className="flex flex-col lg:flex-row min-h-[500px]">
+          {/* Folder Sidebar */}
+          <div className="lg:w-52 bg-[#0a0a14] border-r border-[#1c1a2a] p-3 space-y-1 shrink-0">
+            <div className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider px-2 py-1 mb-1">Folders</div>
+            <button
+              className="w-full text-left px-3 py-2 rounded-lg text-xs font-sans flex items-center gap-2 bg-cyan-600/15 text-cyan-300 border border-cyan-500/20 font-bold cursor-pointer"
+            >
+              <span>⚔️</span>
+              <span className="truncate">📁 All Informal Wins</span>
+              <span className="ml-auto text-[9px] text-zinc-600 font-mono">{allInformals.length}</span>
+            </button>
+          </div>
+
+          {/* Main File List */}
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* Column Headers */}
+            <div className="bg-[#0c0c14]/60 border-b border-[#1c1a2a] px-4 py-2 grid grid-cols-12 gap-2 text-[9px] text-zinc-500 font-bold uppercase tracking-wider select-none">
+              <div className="col-span-1">📄</div>
+              <div className="col-span-5">Battle Name</div>
+              <div className="col-span-4">Combatants</div>
+              <div className="col-span-2">Date</div>
+            </div>
+
+            {/* File Rows */}
+            <div className="flex-1 overflow-y-auto max-h-[480px] divide-y divide-[#1c1a2a]/30">
+              {filteredInformals.length === 0 ? (
+                <div className="text-center py-16 text-zinc-600 italic text-xs">
+                  <div className="text-3xl mb-3 opacity-30">📂</div>
+                  NO INFORMAL RECORDS FOUND
+                </div>
+              ) : (
+                filteredInformals.map((w) => (
+                  <div
+                    key={w.id}
+                    onClick={() => setSelectedInformalLogId(selectedInformalLogId === w.id ? null : w.id)}
+                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center text-xs cursor-pointer transition-all group ${
+                      selectedInformalLogId === w.id
+                        ? 'bg-cyan-600/10 border-l-2 border-l-cyan-500'
+                        : 'hover:bg-[#13121d]/60 border-l-2 border-l-transparent'
+                    }`}
+                  >
+                    <div className="col-span-1">
+                      <div className="w-8 h-8 rounded bg-[#0a0a14] border border-[#1c1a2a] flex items-center justify-center text-zinc-600 text-sm">⚔️</div>
+                    </div>
+                    <div className="col-span-5 truncate">
+                      <span className="text-zinc-200 font-bold group-hover:text-cyan-300 transition-colors">{w.title}</span>
+                    </div>
+                    <div className="col-span-4 text-zinc-500 truncate font-sans">{w.participants || '—'}</div>
+                    <div className="col-span-2 text-zinc-600 font-mono text-[10px]">{w.createdAt ? new Date(w.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Detail Panel */}
+          {selectedInformal && (
+            <div className="lg:w-80 bg-[#0a0a14] border-l border-[#1c1a2a] p-5 space-y-4 shrink-0 overflow-y-auto max-h-[540px]">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">File Details</span>
+                <button onClick={() => setSelectedInformalLogId(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer">✕</button>
+              </div>
+              <h3 className="font-title font-black text-base italic text-zinc-200">{selectedInformal.title}</h3>
+              <div className="space-y-3">
+                <div>
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block mb-1">Category</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase bg-cyan-500/15 text-cyan-400">Informal Battle</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block mb-1">Description</span>
+                  <p className="text-zinc-400 text-xs leading-relaxed font-sans">{selectedInformal.description}</p>
+                </div>
+                <div>
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block mb-1">Combatants</span>
+                  <p className="text-zinc-400 text-xs font-sans">{selectedInformal.participants || 'None listed'}</p>
+                </div>
+                <div>
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block mb-1">Date Recorded</span>
+                  <p className="text-zinc-500 text-[10px] font-mono">{selectedInformal.createdAt ? new Date(selectedInformal.createdAt).toLocaleString() : '—'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* New Entry Modal */}
+        {isNewInformalLogModalOpen && isLeaderOrAdmin && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsNewInformalLogModalOpen(false)}>
+            <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b border-[#1c1a2a]/50 pb-3">
+                <h3 className="font-title font-bold text-sm text-zinc-200 italic">📜 LOG PUBLIC INFORMAL WIN</h3>
+                <button onClick={() => setIsNewInformalLogModalOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-sm cursor-pointer">✕</button>
+              </div>
+              <form onSubmit={(e) => { handleLogWin(e, 'informal'); setIsNewInformalLogModalOpen(false); }} className="font-sans text-xs flex flex-col gap-4">
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold block mb-1">BATTLE TITLE</label>
+                  <input type="text" value={winForm.title} onChange={(e) => setWinForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Informal Win vs Vagos..." className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-cyan-600/50 outline-none font-sans" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold block mb-1">DETAILS</label>
+                  <textarea rows={4} value={winForm.description} onChange={(e) => setWinForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Operation execution summary..." className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 focus:border-cyan-600/50 outline-none resize-none leading-relaxed font-sans" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold block mb-1">COMBATANTS</label>
+                  <input type="text" value={winForm.participants} onChange={(e) => setWinForm(prev => ({ ...prev, participants: e.target.value }))} placeholder="Shooters..." className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 focus:border-cyan-600/50 outline-none font-sans" />
+                </div>
+                <button type="submit" className="bg-cyan-600 hover:bg-cyan-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-cyan-500 cursor-pointer">PUBLISH INFORMAL RECORD</button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
