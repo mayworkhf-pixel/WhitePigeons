@@ -461,6 +461,20 @@ router.post('/deploy-priority-prompt', requireAdmin, async (req, res) => {
   }
 });
 
+// POST deploy interactive activity point system in Discord
+router.post('/deploy-activity-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployActivityPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Activity Point System panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST approve or reject a registration request
 router.post('/approve-member', requireAdmin, async (req, res) => {
   const { discordId, action } = req.body;

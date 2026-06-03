@@ -19,7 +19,8 @@ const VALID_CHANNEL_KEYS = new Set([
   'bonus-approval', 'bizwar-collect', 'rp-collect', 'submit-activity',
   'activity-results', 'activity-points-leaderboard', 'point-shop',
   'activity-review', 'order-details', 'rp-signup', 'informal-signup', 'signup-event',
-  'public-winlog', 'public-informallog', 'top-10-list', 'bonus-admin-panel'
+  'public-winlog', 'public-informallog', 'top-10-list', 'bonus-admin-panel',
+  'announcements', 'weekly-kill-list', 'long-time-kill-list'
 ]);
 
 function isValidEventId(eventId) {

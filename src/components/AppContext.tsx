@@ -296,7 +296,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       'bonus-approval', 'bizwar-collect', 'rp-collect', 'submit-activity',
       'activity-results', 'activity-points-leaderboard', 'point-shop',
       'activity-review', 'order-details', 'rp-signup', 'informal-signup', 'signup-event',
-      'public-winlog', 'public-informallog', 'top-10-list'
+      'public-winlog', 'public-informallog', 'top-10-list', 'bonus-admin-panel',
+      'announcements', 'weekly-kill-list', 'long-time-kill-list'
     ];
 
     if (!validKeys.includes(activeTab)) {

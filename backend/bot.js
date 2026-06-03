@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 const db = require('./database');
 const axios = require('axios');
 const { isDiscordWebhookUrl, sanitizeString } = require('./security');
@@ -353,7 +353,7 @@ const botService = {
               await interaction.update({ embeds: [updatedEmbed], components: [row] });
             } catch (err) {
               console.error('[Bot] Failed to refresh family stats in Discord:', err.message);
-              await interaction.reply({ content: '⚠️ Failed to refresh stats. Please try again later.', ephemeral: true });
+              await interaction.reply({ content: '⚠️ Failed to refresh stats. Please try again later.', flags: [MessageFlags.Ephemeral] });
             }
           }
           else if (customId === 'my_strikes') {
@@ -362,17 +362,17 @@ const botService = {
               const member = members.find(m => m.discordId === interaction.user.id);
               
               if (!member || !member.strikes || member.strikes.length === 0) {
-                return interaction.reply({ content: '✅ **You have 0 active strikes.** Keep up the good work!', ephemeral: true });
+                return interaction.reply({ content: '✅ **You have 0 active strikes.** Keep up the good work!', flags: [MessageFlags.Ephemeral] });
               }
               
               const list = member.strikes.map((st, idx) => `${idx + 1}. **"${st.reason}"** (Issued by: @${st.issuedBy} on ${new Date(st.date).toLocaleDateString()})`).join('\n');
               await interaction.reply({
                 content: `🚨 **Your Active Strikes (${member.strikes.length}/3)**:\n\n${list}\n\n*Accumulating 3 strikes will result in automatic blacklist / suspension.*`,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
               });
             } catch (err) {
               console.error('[Bot] Failed to retrieve user strikes:', err.message);
-              await interaction.reply({ content: '⚠️ Failed to check your strikes. Please try again later.', ephemeral: true });
+              await interaction.reply({ content: '⚠️ Failed to check your strikes. Please try again later.', flags: [MessageFlags.Ephemeral] });
             }
           }
           else if (customId === 'priority_add_top5' || customId === 'priority_add_top10') {
@@ -414,15 +414,15 @@ const botService = {
             const reqs = await db.getRoleRequests();
             const reqObj = reqs.find(r => r.id === requestId);
             if (!reqObj) {
-              return interaction.reply({ content: '❌ Role request not found in database.', ephemeral: true });
+              return interaction.reply({ content: '❌ Role request not found in database.', flags: [MessageFlags.Ephemeral] });
             }
             if (reqObj.status !== 'pending') {
-              return interaction.reply({ content: `❌ This request has already been reviewed (${reqObj.status}).`, ephemeral: true });
+              return interaction.reply({ content: `❌ This request has already been reviewed (${reqObj.status}).`, flags: [MessageFlags.Ephemeral] });
             }
             
             const selected = reqObj.selectedRoles || [];
             if (selected.length === 0) {
-              return interaction.reply({ content: '⚠️ Please select at least one role from the dropdown first before approving.', ephemeral: true });
+              return interaction.reply({ content: '⚠️ Please select at least one role from the dropdown first before approving.', flags: [MessageFlags.Ephemeral] });
             }
             
             const roleToGrant = selected.join(', ');
@@ -466,7 +466,7 @@ const botService = {
 
             const approvedEmbed = await botService.buildRoleReviewEmbed(requestId);
             await interaction.message.edit({ embeds: [approvedEmbed], components: [] });
-            await interaction.reply({ content: '✅ Role request approved and roles assigned.', ephemeral: true });
+            await interaction.reply({ content: '✅ Role request approved and roles assigned.', flags: [MessageFlags.Ephemeral] });
 
             botService.broadcastSocket('role_requests_update', await db.getRoleRequests());
           }
@@ -476,10 +476,10 @@ const botService = {
             const reqs = await db.getRoleRequests();
             const reqObj = reqs.find(r => r.id === requestId);
             if (!reqObj) {
-              return interaction.reply({ content: '❌ Role request not found in database.', ephemeral: true });
+              return interaction.reply({ content: '❌ Role request not found in database.', flags: [MessageFlags.Ephemeral] });
             }
             if (reqObj.status !== 'pending') {
-              return interaction.reply({ content: `❌ This request has already been reviewed (${reqObj.status}).`, ephemeral: true });
+              return interaction.reply({ content: `❌ This request has already been reviewed (${reqObj.status}).`, flags: [MessageFlags.Ephemeral] });
             }
 
             await db.updateRoleRequest(requestId, {
@@ -491,7 +491,7 @@ const botService = {
 
             const rejectedEmbed = await botService.buildRoleReviewEmbed(requestId);
             await interaction.message.edit({ embeds: [rejectedEmbed], components: [] });
-            await interaction.reply({ content: '❌ Role request rejected.', ephemeral: true });
+            await interaction.reply({ content: '❌ Role request rejected.', flags: [MessageFlags.Ephemeral] });
 
             botService.broadcastSocket('role_requests_update', await db.getRoleRequests());
           }
@@ -531,9 +531,9 @@ const botService = {
               await botService.sendSignupDm(eventId, discordId, result.action);
 
               if (result.action === 'confirmed') {
-                await interaction.reply({ content: `✅ Spot confirmed! Status: Confirmed.`, ephemeral: true });
+                await interaction.reply({ content: `✅ Spot confirmed! Status: Confirmed.`, flags: [MessageFlags.Ephemeral] });
               } else if (result.action === 'displaced') {
-                await interaction.reply({ content: `🔥 Spot confirmed! As a Top 10 shooter, you displaced the latest non-Top 10 signup.`, ephemeral: true });
+                await interaction.reply({ content: `🔥 Spot confirmed! As a Top 10 shooter, you displaced the latest non-Top 10 signup.`, flags: [MessageFlags.Ephemeral] });
                 if (result.displaced) {
                   botService.sendDirectMessage(
                     result.displaced.memberId, 
@@ -541,10 +541,10 @@ const botService = {
                   );
                 }
               } else {
-                await interaction.reply({ content: `⏳ Queue full. You are on the Reserve List.`, ephemeral: true });
+                await interaction.reply({ content: `⏳ Queue full. You are on the Reserve List.`, flags: [MessageFlags.Ephemeral] });
               }
             } else {
-              await interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+              await interaction.reply({ content: `❌ ${result.message}`, flags: [MessageFlags.Ephemeral] });
             }
           }
           else if (customId.startsWith('leave:')) {
@@ -578,9 +578,9 @@ const botService = {
               // Send channel notifications and direct messages
               await botService.handleRosterLeaveNotifications(eventId, username, result.promoted);
 
-              await interaction.reply({ content: `👋 You have successfully left the signup queue.`, ephemeral: true });
+              await interaction.reply({ content: `👋 You have successfully left the signup queue.`, flags: [MessageFlags.Ephemeral] });
             } else {
-              await interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+              await interaction.reply({ content: `❌ ${result.message}`, flags: [MessageFlags.Ephemeral] });
             }
           }
           else if (customId.startsWith('admin_actions:')) {
@@ -589,12 +589,12 @@ const botService = {
             const isLead = member ? member.roles.cache.some(r => r.name.toLowerCase().includes('leadership') || r.name.toLowerCase().includes('admin')) : false;
 
             if (!isLead) {
-              return interaction.reply({ content: '❌ You do not have permission to use admin actions.', ephemeral: true });
+              return interaction.reply({ content: '❌ You do not have permission to use admin actions.', flags: [MessageFlags.Ephemeral] });
             }
 
             const signups = await db.getSignups(eventId);
             if (signups.length === 0) {
-              return interaction.reply({ content: '⚠️ The roster is currently empty.', ephemeral: true });
+              return interaction.reply({ content: '⚠️ The roster is currently empty.', flags: [MessageFlags.Ephemeral] });
             }
 
             const kickSelect = new StringSelectMenuBuilder()
@@ -619,7 +619,7 @@ const botService = {
             await interaction.reply({
               content: '🛠️ **Roster Administrative Actions**\nSelect an action below:',
               components: [row1, row2],
-              ephemeral: true
+              flags: [MessageFlags.Ephemeral]
             });
           }
           else if (customId === 'trigger_bonus_ticket') {
@@ -674,11 +674,142 @@ const botService = {
 
             await interaction.showModal(modal);
           }
+          else if (customId === 'trigger_activity_submit') {
+            const modal = new ModalBuilder()
+              .setCustomId('activity_submit_modal')
+              .setTitle('Submit Activity Log');
+
+            const typeInput = new TextInputBuilder()
+              .setCustomId('modal_activity_type')
+              .setLabel('Activity Type')
+              .setPlaceholder('E.g. Collect RP Ticket')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true);
+
+            const descInput = new TextInputBuilder()
+              .setCustomId('modal_activity_desc')
+              .setLabel('Detail Description')
+              .setPlaceholder('Enter any details about this activity submission')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(false);
+
+            const proofInput = new TextInputBuilder()
+              .setCustomId('modal_activity_proof')
+              .setLabel('Proof Link (screenshot/video)')
+              .setPlaceholder('https://...')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(false);
+
+            modal.addComponents(
+              new ActionRowBuilder().addComponents(typeInput),
+              new ActionRowBuilder().addComponents(descInput),
+              new ActionRowBuilder().addComponents(proofInput)
+            );
+
+            await interaction.showModal(modal);
+          }
+          else if (customId === 'trigger_my_points') {
+            try {
+              const member = await db.getMember(interaction.user.id);
+              const points = member ? (member.points || 0) : 0;
+              await interaction.reply({ content: `👤 **Points Balance for @${interaction.user.username}**:\nYou currently have **${points}** Activity/Event Points.`, flags: [MessageFlags.Ephemeral] });
+            } catch (err) {
+              console.error('[Bot] Failed to check points:', err.message);
+              await interaction.reply({ content: '⚠️ Failed to retrieve points. Please try again.', flags: [MessageFlags.Ephemeral] });
+            }
+          }
+          else if (customId === 'trigger_refresh_activity') {
+            try {
+              const embed = await botService.buildActivityPromptEmbed();
+              const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId('trigger_activity_submit')
+                  .setLabel('Submit Activity')
+                  .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                  .setCustomId('trigger_my_points')
+                  .setLabel('My Points')
+                  .setStyle(ButtonStyle.Primary),
+                new ButtonBuilder()
+                  .setCustomId('trigger_refresh_activity')
+                  .setLabel('🔄 Refresh')
+                  .setStyle(ButtonStyle.Secondary)
+              );
+              await interaction.update({ embeds: [embed], components: [row] });
+            } catch (err) {
+              await interaction.reply({ content: '⚠️ Failed to refresh panel.', flags: [MessageFlags.Ephemeral] });
+            }
+          }
         }
 
         // 2. Modal submissions
         else if (interaction.isModalSubmit()) {
-          if (interaction.customId === 'role_request_modal') {
+          if (interaction.customId === 'activity_submit_modal') {
+            const activityType = interaction.fields.getTextInputValue('modal_activity_type');
+            const description = interaction.fields.getTextInputValue('modal_activity_desc') || '';
+            const mediaUrl = interaction.fields.getTextInputValue('modal_activity_proof') || '';
+
+            if (!activityType.trim()) {
+              return interaction.reply({ content: '❌ Activity type is required.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            if (mediaUrl && !mediaUrl.startsWith('http://') && !mediaUrl.startsWith('https://')) {
+              return interaction.reply({ content: '❌ Proof must be a valid http:// or https:// URL.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            let pointsRequested = 0;
+            const dbTypes = await db.getActivityTypes();
+            const match = dbTypes.find(t => 
+              t.key === activityType || 
+              t.name.toLowerCase().includes(activityType.toLowerCase()) ||
+              activityType.toLowerCase().includes(t.name.toLowerCase())
+            );
+            if (match) {
+              pointsRequested = parseInt(match.value || match.points || '0', 10);
+            }
+
+            const act = await db.createActivity({
+              memberId: interaction.user.id,
+              username: interaction.user.username,
+              activityType: match ? match.key : activityType,
+              pointsRequested,
+              description,
+              mediaUrl
+            });
+
+            const fields = [
+              { name: 'Activity ID', value: act.id, inline: true },
+              { name: 'Activity Type', value: match ? match.key : activityType, inline: false },
+              { name: 'Points Requested', value: `${pointsRequested} FP`, inline: true },
+              { name: 'Detail Description', value: description || 'N/A' }
+            ];
+
+            const embed = {
+              title: '💯 NEW ACTIVITY SUBMITTED',
+              description: `Activity logged by **${interaction.user.username}** for review.`,
+              color: 0xffaa00,
+              fields
+            };
+
+            if (mediaUrl) {
+              embed.image = mediaUrl;
+            }
+
+            await botService.sendWebhook('submit-activity', embed);
+            botService.logSimulated(`New activity ${act.id} submitted for review by @${interaction.user.username}.`);
+
+            botService.broadcastSocket('activity_logged', act);
+            if (ioInstance) {
+              ioInstance.emit('system_notification', {
+                title: 'Activity Submitted',
+                message: `@${interaction.user.username} logged activity: ${activityType}`,
+                type: 'info'
+              });
+            }
+
+            return interaction.reply({ content: '✅ **Your activity has been submitted successfully for review!**', flags: [MessageFlags.Ephemeral] });
+          }
+          else if (interaction.customId === 'role_request_modal') {
             const inGameName = interaction.fields.getTextInputValue('modal_name');
             const characterId = interaction.fields.getTextInputValue('modal_char_id');
             const level = interaction.fields.getTextInputValue('modal_level');
@@ -699,7 +830,7 @@ const botService = {
 
             const newRequest = await db.createRoleRequest(reqData);
             await botService.sendRoleReviewNotification(newRequest);
-            await interaction.reply({ content: '✅ Your role request form was submitted successfully and is under review.', ephemeral: true });
+            await interaction.reply({ content: '✅ Your role request form was submitted successfully and is under review.', flags: [MessageFlags.Ephemeral] });
 
             botService.broadcastSocket('role_requests_update', await db.getRoleRequests());
           }
@@ -739,7 +870,7 @@ const botService = {
               });
             }
 
-            await interaction.reply({ content: `✅ Your ticket **[${ticket.id}]** has been submitted and is under review.`, ephemeral: true });
+            await interaction.reply({ content: `✅ Your ticket **[${ticket.id}]** has been submitted and is under review.`, flags: [MessageFlags.Ephemeral] });
           }
           else if (interaction.customId.startsWith('priority_add_modal:')) {
             const type = interaction.customId.split(':')[1];
@@ -753,20 +884,20 @@ const botService = {
             );
 
             if (!found) {
-              return interaction.reply({ content: `❌ Member "${value}" not found in database.`, ephemeral: true });
+              return interaction.reply({ content: `❌ Member "${value}" not found in database.`, flags: [MessageFlags.Ephemeral] });
             }
 
             const list = await db.getPriorityList();
             if (type === 'top5') {
               if (!list.top5) list.top5 = [];
               if (list.top5.includes(found.discordId)) {
-                return interaction.reply({ content: `⚠️ ${found.username} is already in the TOP 5 list.`, ephemeral: true });
+                return interaction.reply({ content: `⚠️ ${found.username} is already in the TOP 5 list.`, flags: [MessageFlags.Ephemeral] });
               }
               list.top5.push(found.discordId);
             } else {
               if (!list.top10) list.top10 = [];
               if (list.top10.includes(found.discordId)) {
-                return interaction.reply({ content: `⚠️ ${found.username} is already in the TOP 10 list.`, ephemeral: true });
+                return interaction.reply({ content: `⚠️ ${found.username} is already in the TOP 10 list.`, flags: [MessageFlags.Ephemeral] });
               }
               list.top10.push(found.discordId);
             }
@@ -776,7 +907,7 @@ const botService = {
             const resolved = await botService.getResolvedPriorityList();
             botService.broadcastSocket('priority_list_update', resolved);
 
-            await interaction.reply({ content: `✅ Added **${found.username}** to Priority ${type === 'top5' ? 'TOP 5' : 'TOP 10'}!`, ephemeral: true });
+            await interaction.reply({ content: `✅ Added **${found.username}** to Priority ${type === 'top5' ? 'TOP 5' : 'TOP 10'}!`, flags: [MessageFlags.Ephemeral] });
           }
           else if (interaction.customId.startsWith('priority_remove_modal:')) {
             const type = interaction.customId.split(':')[1];
@@ -790,18 +921,18 @@ const botService = {
             );
 
             if (!found) {
-              return interaction.reply({ content: `❌ Member "${value}" not found in database.`, ephemeral: true });
+              return interaction.reply({ content: `❌ Member "${value}" not found in database.`, flags: [MessageFlags.Ephemeral] });
             }
 
             const list = await db.getPriorityList();
             if (type === 'top5') {
               if (!list.top5 || !list.top5.includes(found.discordId)) {
-                return interaction.reply({ content: `⚠️ ${found.username} is not in the TOP 5 list.`, ephemeral: true });
+                return interaction.reply({ content: `⚠️ ${found.username} is not in the TOP 5 list.`, flags: [MessageFlags.Ephemeral] });
               }
               list.top5 = list.top5.filter(id => id !== found.discordId);
             } else {
               if (!list.top10 || !list.top10.includes(found.discordId)) {
-                return interaction.reply({ content: `⚠️ ${found.username} is not in the TOP 10 list.`, ephemeral: true });
+                return interaction.reply({ content: `⚠️ ${found.username} is not in the TOP 10 list.`, flags: [MessageFlags.Ephemeral] });
               }
               list.top10 = list.top10.filter(id => id !== found.discordId);
             }
@@ -811,7 +942,7 @@ const botService = {
             const resolved = await botService.getResolvedPriorityList();
             botService.broadcastSocket('priority_list_update', resolved);
 
-            await interaction.reply({ content: `✅ Removed **${found.username}** from Priority ${type === 'top5' ? 'TOP 5' : 'TOP 10'}.`, ephemeral: true });
+            await interaction.reply({ content: `✅ Removed **${found.username}** from Priority ${type === 'top5' ? 'TOP 5' : 'TOP 10'}.`, flags: [MessageFlags.Ephemeral] });
           }
         }
 
@@ -2374,6 +2505,104 @@ const botService = {
       }
     } catch (err) {
       console.error('[Bot] Failed to sync Priority Members list:', err.message);
+    }
+  },
+
+  buildActivityPromptEmbed: async () => {
+    const dbTypes = await db.getActivityTypes();
+    const entries = dbTypes.map(t => `${t.emoji || '📝'} ${t.name} **(${t.points || (t.value + ' points')})**`).join('\n');
+    
+    return new EmbedBuilder()
+      .setTitle('White Pigeons #TOP1 Activity Point System')
+      .setDescription(`You can submit the log without a screenshot...\n\n${entries}`)
+      .setColor(0x23a55a)
+      .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
+      .setTimestamp();
+  },
+
+  deployActivityPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Activity Point System panel to Discord channel...');
+    const config = await db.getConfig();
+    
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = await findChannel(guild, c => cleanName(c.name).includes('submit-activity') || cleanName(c.name).includes('activity'));
+        if (!channel) {
+          channel = await findChannel(guild, c => cleanName(c.name).includes('general') || cleanName(c.name).includes('announcement'));
+        }
+        
+        if (channel) {
+          const embed = await botService.buildActivityPromptEmbed();
+          
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('trigger_activity_submit')
+              .setLabel('Submit Activity')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('trigger_my_points')
+              .setLabel('My Points')
+              .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+              .setCustomId('trigger_refresh_activity')
+              .setLabel('🔄 Refresh')
+              .setStyle(ButtonStyle.Secondary)
+          );
+          
+          const message = await channel.send({ embeds: [embed], components: [row] });
+          
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.activityPromptMessageId = message.id;
+          currentWebhooks.activityPromptChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+          
+          botService.logSimulated(`Successfully deployed Activity Point System panel to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Activity Point System panel:', err.message);
+      }
+    }
+    
+    botService.logSimulated('[Mock Panel] Deployed Activity Point System panel in #submit-activity channel.');
+    return true;
+  },
+
+  syncActivityPromptMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.activityPromptMessageId;
+    const channelId = webhooks.activityPromptChannelId;
+
+    if (!messageId || !channelId || !client) return;
+
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const embed = await botService.buildActivityPromptEmbed();
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('trigger_activity_submit')
+              .setLabel('Submit Activity')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId('trigger_my_points')
+              .setLabel('My Points')
+              .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+              .setCustomId('trigger_refresh_activity')
+              .setLabel('🔄 Refresh')
+              .setStyle(ButtonStyle.Secondary)
+          );
+          await message.edit({ embeds: [embed], components: [row] });
+          botService.logSimulated('Successfully updated active Discord Activity Point System prompt.');
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync Activity Point System prompt:', err.message);
     }
   }
 };

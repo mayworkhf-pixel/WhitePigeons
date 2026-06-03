@@ -31,19 +31,26 @@ interface WebhookChannel {
 const channelsList: WebhookChannel[] = [
   { key: 'announcements', name: '📢┃𝐀𝐧𝐧𝐨𝐮𝐧𝐜𝐞𝐦𝐞𝐧𝐭𝐬', description: 'General family announcements' },
   { key: 'role-request', name: '📋┃𝐑𝐨𝐥𝐞-𝐑𝐞𝐪𝐮𝐞𝐬𝐭', description: 'Member role application requests' },
+  { key: 'rolereq-review', name: '📋┃𝐑𝐨𝐥𝐞-𝐑𝐞𝐪𝐮𝐞𝐬𝐭-𝐑𝐞𝐯𝐢𝐞𝐰', description: 'Role request staff review channel' },
   { key: 'strikes', name: '🚨┃𝐒𝐭𝐫𝐢𝐤𝐞𝐬', description: 'Disciplinary warnings and strikes' },
   { key: 'tickets', name: '🎫┃𝐓𝐢𝐜𝐤𝐞𝐭𝐬', description: 'General support and complaints' },
   { key: 'check-balance', name: '💸┃𝐂𝐡𝐞𝐜𝐤-𝐁𝐚𝐥𝐚𝐧𝐜𝐞', description: 'Economy and banking logs' },
   { key: 'bizwar-collect', name: '💲┃𝐁𝐢𝐳𝐰𝐚𝐫-𝐂𝐨𝐥𝐥𝐞𝐜𝐭', description: 'BizWar collection logs' },
   { key: 'rp-collect', name: '🎫┃𝐑𝐏-𝐂𝐨𝐥𝐥𝐞𝐜𝐭', description: 'Ticket output collections' },
   { key: 'submit-activity', name: '📝┃𝐒𝐮𝐛𝐦𝐢𝐭-𝐀𝐜𝐭𝐢𝐯𝐢𝐭𝐲', description: 'Member activity submissions log' },
+  { key: 'activity-review', name: '📝┃𝐀𝐜𝐭𝐢𝐯𝐢𝐭𝐲-𝐑𝐞𝐯𝐢𝐞𝐰', description: 'Staff action logs for reviewing activities' },
+  { key: 'activity-results', name: '📊┃𝐀𝐜𝐭𝐢𝐯𝐢𝐭𝐲-𝐑𝐞𝐬𝐮𝐥𝐭𝐬', description: 'Activity logs outputs' },
+  { key: 'activity-points-leaderboard', name: '🏆┃𝐀𝐜𝐭𝐢𝐯𝐢𝐭𝐲-𝐋𝐞𝐚𝐝𝐞𝐫𝐛𝐨𝐚𝐫𝐝', description: 'Activity points leaderboard log' },
   { key: 'weekly-kill-list', name: '🔻┃𝐰𝐞𝐞𝐤λ𝐲-𝐊𝐢𝐥𝐥-𝐋𝐢𝐬𝐭', description: 'Weekly kills resets' },
+  { key: 'long-time-kill-list', name: '💀┃𝐚𝐥𝐥-𝐭𝐢𝐦𝐞-𝐊𝐢𝐥𝐥-𝐋𝐢𝐬𝐭', description: 'All Time Kills Leaderboard Log' },
   { key: 'point-shop', name: '💰┃𝐏𝐨𝐢𝐧𝐭-𝐒𝐡𝐨𝐩', description: 'Point shop order details' },
+  { key: 'order-details', name: '📦┃𝐎𝐫𝐝𝐞𝐫-𝐃𝐞𝐭𝐚𝐢𝐥𝐬', description: 'Shop order logs' },
   { key: 'rp-signup', name: '📅┃𝐑𝐏-𝐒𝐢𝐠𝐧𝐮𝐩-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'RP signup notifications' },
   { key: 'informal-signup', name: '⚔️┃𝐈𝐧𝐟𝐨𝐫𝐦𝐚𝐥-𝐒𝐢𝐠𝐧𝐮𝐩-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Informal signup notifications' },
   { key: 'signup-event', name: '🌟┃𝐒𝐢𝐠𝐧𝐮𝐩-𝐄𝐯𝐞𝐧𝐭-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Special events signup notifications' },
   { key: 'public-winlog', name: '🏆┃𝐖𝐢𝐧-𝐋𝐨𝐠-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Public log for Event/Bizwar wins' },
   { key: 'public-informallog', name: '⚔️┃𝐈𝐧𝐟𝐨𝐫𝐦𝐚𝐥-𝐋𝐨𝐠-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Public log for Informal wins' },
+  { key: 'top-10-list', name: '🔱┃𝐏𝐫𝐢𝐨𝐫𝐢𝐭𝐲-𝐌𝐞𝐦𝐛𝐞𝐫𝐬', description: 'Priority lists updates log' },
   { key: 'bonus-approval', name: '💵┃𝐁𝐨𝐧𝐮𝐬-𝐀𝐩𝐩𝐫𝐨𝐯𝐚𝐥-𝐂𝐡𝐚𝐧𝐧𝐞𝐥', description: 'Logs for High Command bonus decisions' },
   { key: 'bonus-admin-panel', name: '⚙️┃𝐁𝐨𝐧𝐮𝐬-𝐀𝐝𝐦𝐢𝐧-𝐏𝐚𝐧𝐞𝐥', description: 'Admin log for disbursed payouts' }
 ];
@@ -650,7 +657,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick Panel Deployment Card */}
-            {['role-request', 'strikes', 'tickets', 'check-balance', 'weekly-kill-list', 'announcements'].includes(broadcastForm.channelKey) && (
+            {['role-request', 'strikes', 'tickets', 'check-balance', 'weekly-kill-list', 'announcements', 'submit-activity', 'top-10-list', 'long-time-kill-list'].includes(broadcastForm.channelKey) && (
               <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col gap-4 shadow-xl animate-fade-in">
                 <div className="border-b border-[#201d2d]/60 pb-2 flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-amber-900/10">
@@ -920,6 +927,84 @@ export default function AdminDashboard() {
                         <Trash2 className="w-3.5 h-3.5" /> RESET WEEKLY KILLS
                       </button>
                     </div>
+                  )}
+
+                  {broadcastForm.channelKey === 'submit-activity' && (
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to deploy the interactive Activity Point System Panel in the channel?')) return;
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/deploy-activity-prompt`, {
+                            method: 'POST',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Panel Deployed', 'Activity Point System panel deployed in Discord.', 'success');
+                          } else {
+                            throw new Error('Failed to deploy panel.');
+                          }
+                        } catch (err: any) {
+                          addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                        }
+                      }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-amber-500 glow-amber transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY ACTIVITY POINT PANEL
+                    </button>
+                  )}
+
+                  {broadcastForm.channelKey === 'top-10-list' && (
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to deploy the interactive Priority Members list in the channel?')) return;
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/deploy-priority-prompt`, {
+                            method: 'POST',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Panel Deployed', 'Priority Members panel deployed in Discord.', 'success');
+                          } else {
+                            throw new Error('Failed to deploy panel.');
+                          }
+                        } catch (err: any) {
+                          addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                        }
+                      }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-amber-500 glow-amber transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY PRIORITY MEMBERS LIST
+                    </button>
+                  )}
+
+                  {broadcastForm.channelKey === 'long-time-kill-list' && (
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to deploy the interactive All Time Kills Leaderboard Embed in the channel?')) return;
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/deploy-alltime-kills-prompt`, {
+                            method: 'POST',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Panel Deployed', 'All Time Kills Leaderboard panel deployed in Discord.', 'success');
+                          } else {
+                            throw new Error('Failed to deploy panel.');
+                          }
+                        } catch (err: any) {
+                          addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                        }
+                      }}
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-purple-500 glow-magenta transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY ALL TIME KILLS LEADERBOARD
+                    </button>
                   )}
                 </div>
               </div>
