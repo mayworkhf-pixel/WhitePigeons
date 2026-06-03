@@ -17,7 +17,7 @@ const {
 
 function getFrontendUrl() {
   return process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production'
-    ? 'https://whitepigeons-35431.web.app'
+    ? 'https://whitepigeonslive.web.app'
     : 'http://localhost:3000');
 }
 

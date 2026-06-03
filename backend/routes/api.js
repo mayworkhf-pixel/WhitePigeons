@@ -1810,10 +1810,10 @@ router.post('/events/close/:eventId', requireAdmin, async (req, res) => {
   });
 
   const bannerImage = eventId === 'rp-signup'
-    ? 'https://whitepigeons-35431.web.app/rp_ticket_banner.webp'
+    ? 'https://whitepigeonslive.web.app/rp_ticket_banner.webp'
     : eventId === 'signup-event'
-    ? 'https://whitepigeons-35431.web.app/signup_event_banner.webp'
-    : 'https://whitepigeons-35431.web.app/informal_fight_banner.webp';
+    ? 'https://whitepigeonslive.web.app/signup_event_banner.webp'
+    : 'https://whitepigeonslive.web.app/informal_fight_banner.webp';
 
   const embedDescription = [
     `🔴 **Registration is closed!**\n`,

@@ -1131,16 +1131,16 @@ const botService = {
     ].join('\n');
 
     const bannerImage = eventId === 'rp-signup'
-      ? 'https://whitepigeons-35431.web.app/rp_ticket_banner.webp'
+      ? 'https://whitepigeonslive.web.app/rp_ticket_banner.webp'
       : eventId === 'signup-event'
-      ? 'https://whitepigeons-35431.web.app/signup_event_banner.webp'
-      : 'https://whitepigeons-35431.web.app/informal_fight_banner.webp';
+      ? 'https://whitepigeonslive.web.app/signup_event_banner.webp'
+      : 'https://whitepigeonslive.web.app/informal_fight_banner.webp';
 
     const embed = new EmbedBuilder()
       .setTitle(`${eventId === 'rp-signup' ? '🚀 RP Ticket' : eventId === 'signup-event' ? '🚀 Signup-Event' : '⚔️ Informal Fight'}`)
       .setDescription(embedDescription)
       .setColor(isClosed ? 0xff003c : 0x00f0ff)
-      .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+      .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
       .setImage(bannerImage)
       .setTimestamp();
 
@@ -1439,7 +1439,7 @@ const botService = {
         { name: '📊 Family Rank', value: `${stats.familyRank || '#1'}`, inline: true }
       )
       .setColor(0x8f00ff)
-      .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+      .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
       .setFooter({ text: `White Pigeons #TOP1 • Updated • Today at ${updatedTime}` });
   },
 
@@ -1655,7 +1655,7 @@ const botService = {
             .setTitle('💰 BONUS SYSTEM White Pigeons 💰')
             .setDescription('🎯 Bonus Rewards System\n\n🟫 Informal: 70k\n💥 Biz War: 200k\n🎟️ RP Ticket: 1 RP per ticket\n\nClick below to check your balance!')
             .setColor(0x00ff00)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+            .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
             .setTimestamp();
 
           const row = new ActionRowBuilder().addComponents(
@@ -1738,7 +1738,7 @@ const botService = {
               `• Foundry: 3 points`
             )
             .setColor(0xff003c) // Vibrant red-pink or matching screenshot
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+            .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
             .setTimestamp();
 
           const message = await channel.send({ embeds: [embed] });
@@ -1818,7 +1818,7 @@ const botService = {
               `• Foundry: 3 points`
             )
             .setColor(0xff003c)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+            .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
             .setTimestamp();
 
           await message.edit({ embeds: [embed] });
@@ -1861,7 +1861,7 @@ const botService = {
             .setTitle('💀 ALL TIME KILLS LEADERBOARD 💀')
             .setDescription(`🔥 Elite Marksmen of White Pigeons 🔥\n\n${entries}`)
             .setColor(0xff0000)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+            .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
             .setTimestamp();
 
           const message = await channel.send({ embeds: [embed] });
@@ -1914,7 +1914,7 @@ const botService = {
             .setTitle('💀 ALL TIME KILLS LEADERBOARD 💀')
             .setDescription(`🔥 Elite Marksmen of White Pigeons 🔥\n\n${entries}`)
             .setColor(0xff0000)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+            .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
             .setTimestamp();
 
           await message.edit({ embeds: [embed] });
@@ -1957,7 +1957,7 @@ const botService = {
             .setTitle('📊 WEEKLY KILLS LEADERBOARD 📊')
             .setDescription(`🔥 Top Marksmen This Week 🔥\n\n${entries}`)
             .setColor(0xff003c)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+            .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
             .setTimestamp();
 
           const message = await channel.send({ embeds: [embed] });
@@ -2010,7 +2010,7 @@ const botService = {
             .setTitle('📊 WEEKLY KILLS LEADERBOARD 📊')
             .setDescription(`🔥 Top Marksmen This Week 🔥\n\n${entries}`)
             .setColor(0xff003c)
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+            .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
             .setTimestamp();
 
           await message.edit({ embeds: [embed] });
@@ -2075,7 +2075,7 @@ const botService = {
               { name: 'TOP 5 Members', value: top5Entries, inline: true },
               { name: 'TOP 10 Members', value: top10Entries, inline: true }
             )
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+            .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
             .setFooter({ text: 'White Pigeons #TOP1 • Priority List' });
 
           const row = new ActionRowBuilder().addComponents(
@@ -2140,7 +2140,7 @@ const botService = {
               { name: 'TOP 5 Members', value: top5Entries, inline: true },
               { name: 'TOP 10 Members', value: top10Entries, inline: true }
             )
-            .setThumbnail('https://whitepigeons-35431.web.app/logo.webp')
+            .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
             .setFooter({ text: 'White Pigeons #TOP1 • Priority List' });
 
           const row = new ActionRowBuilder().addComponents(
