@@ -557,6 +557,36 @@ router.post('/economy/bizwar-screenshot', requireMember, async (req, res) => {
   return res.json(updatedLog);
 });
 
+router.post('/economy/bizwar-reset-cooldown', requireAdmin, async (req, res) => {
+  const logs = await db.getBizWarLogs();
+  if (logs.length === 0) {
+    return res.status(400).json({ error: 'No Bizwar Collection logs found to reset cooldown.' });
+  }
+
+  const lastLog = logs[0];
+  const resetTime = new Date(Date.now() - (24 * 60 * 60 * 1000 + 60 * 1000)).toISOString();
+  const updatedLog = await db.updateBizWarLog(lastLog.id, { timeCollected: resetTime });
+
+  // Sync Discord embed
+  try {
+    await botService.syncBizwarCollectionMessage();
+  } catch (err) {
+    console.error('Failed to sync Bizwar Collection embed on Discord:', err.message);
+  }
+
+  // Socket broadcast to all connected clients that the ledger has updated
+  if (req.app.get('socketio')) {
+    req.app.get('socketio').emit('bizwar_logs_update', await db.getBizWarLogs());
+    req.app.get('socketio').emit('system_notification', {
+      title: 'Cooldown Reset',
+      message: 'Bizwar collection cooldown was reset by an Admin.',
+      type: 'success'
+    });
+  }
+
+  return res.json({ success: true, log: updatedLog });
+});
+
 // RP Ticket tracker
 router.get('/economy/rp-collect', requireMember, async (req, res) => {
   const stats = await db.getRpTicketStats();
@@ -568,7 +598,7 @@ router.get('/economy/rp-collect', requireMember, async (req, res) => {
 });
 
 router.post('/economy/rp-collect', requireMember, async (req, res) => {
-  const { ticketsCollected, memberInput } = req.body;
+  const { ticketsCollected, memberInput, proofUrl } = req.body;
   let user = req.user;
 
   if (memberInput) {
@@ -597,6 +627,7 @@ router.post('/economy/rp-collect', requireMember, async (req, res) => {
     memberId: user.discordId,
     username: user.username,
     ticketsCollected: numTickets,
+    proofUrl: proofUrl || '',
     timeCollected: new Date().toISOString()
   });
 
@@ -612,6 +643,11 @@ router.post('/economy/rp-collect', requireMember, async (req, res) => {
       { name: 'Total Vault Stock', value: `${stats.totalCollected} RP Tickets`, inline: true }
     ]
   };
+
+  if (proofUrl && proofUrl.startsWith('http')) {
+    embed.image = { url: proofUrl };
+  }
+
   await botService.sendWebhook('rp-collect', embed);
   try {
     const state = await db.getRpCollectionState();
