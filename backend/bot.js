@@ -557,13 +557,6 @@ const botService = {
                 .setCustomId(p('bizwar_collect_modal'))
                 .setTitle('Bizwar Profit Collection');
 
-              const bizNameInput = new TextInputBuilder()
-                .setCustomId('bizwar_name')
-                .setLabel('Business Site Name')
-                .setPlaceholder('e.g. Hotel Factory')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-
               const amtInput = new TextInputBuilder()
                 .setCustomId('bizwar_amount')
                 .setLabel('Amount Collected ($)')
@@ -571,17 +564,8 @@ const botService = {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
-              const proofInput = new TextInputBuilder()
-                .setCustomId('bizwar_proof')
-                .setLabel('Proof Screenshot Link')
-                .setPlaceholder('e.g. https://...')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-
               modal.addComponents(
-                new ActionRowBuilder().addComponents(bizNameInput),
-                new ActionRowBuilder().addComponents(amtInput),
-                new ActionRowBuilder().addComponents(proofInput)
+                new ActionRowBuilder().addComponents(amtInput)
               );
 
               await interaction.showModal(modal);
@@ -1381,17 +1365,13 @@ const botService = {
         else if (interaction.isModalSubmit()) {
           if (interaction.customId === 'bizwar_collect_modal') {
             try {
-              const businessName = interaction.fields.getTextInputValue('bizwar_name');
               const amountStr = interaction.fields.getTextInputValue('bizwar_amount');
-              const proofUrl = interaction.fields.getTextInputValue('bizwar_proof');
+              const businessName = 'BizWar Collection';
+              const proofUrl = '';
 
               const numericAmount = parseFloat(amountStr);
               if (isNaN(numericAmount) || numericAmount <= 0) {
                 return interaction.reply({ content: '❌ Amount must be a positive number.', flags: [MessageFlags.Ephemeral] });
-              }
-
-              if (proofUrl && !proofUrl.startsWith('http://') && !proofUrl.startsWith('https://')) {
-                return interaction.reply({ content: '❌ Proof must be a valid http:// or https:// URL.', flags: [MessageFlags.Ephemeral] });
               }
 
               // Save to database
@@ -1413,23 +1393,19 @@ const botService = {
 
               // Send webhook & Socket broadcast
               const embed = {
-                title: '💲 BIZWAR COLLECT LOGGED',
+                title: '🕊️ WHITE PIGEONS ➔ BIZWAR REVENUE LOGGED',
                 description: `Business profits successfully collected.`,
-                color: 0x00ff00,
+                color: 0x10b981,
                 fields: [
                   { name: 'Collector', value: `<@${interaction.user.id}>`, inline: true },
-                  { name: 'Business Site', value: businessName, inline: true },
                   { name: 'Collected Amount', value: `$${numericAmount.toLocaleString()}`, inline: true }
                 ]
               };
-              if (proofUrl) {
-                embed.image = { url: proofUrl };
-              }
               await botService.sendWebhook('bizwar-collect', embed);
               botService.broadcastSocket('leaderboard_update', await db.getMembers());
 
               await interaction.reply({
-                content: `✅ Successfully collected **$${numericAmount.toLocaleString()}** from **${businessName}**.`,
+                content: `✅ Successfully collected **$${numericAmount.toLocaleString()}**.\n💡 Please paste (\`Ctrl+V\`) or upload your proof screenshot in this channel!`,
                 flags: [MessageFlags.Ephemeral]
               });
             } catch (err) {

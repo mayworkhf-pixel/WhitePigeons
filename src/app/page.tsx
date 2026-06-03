@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/components/AppContext';
 import { 
   Flame, Trophy, Users,
@@ -232,12 +232,69 @@ export default function RootDashboard() {
   // Form states
   const [ticketForm, setTicketForm] = useState({ type: 'complaint', subject: '', description: '' });
   const [activityForm, setActivityForm] = useState({ description: '', mediaUrl: '' });
-  const [bizwarForm, setBizwarForm] = useState({ businessName: 'Hotel Factory', amount: '' });
+  const [bizwarForm, setBizwarForm] = useState({ amount: '', proofUrl: '' });
   const [rpCollectForm, setRpCollectForm] = useState({ ticketsCollected: '5' });
   const [showBizwarDiscordModal, setShowBizwarDiscordModal] = useState(false);
-  const [bizwarDiscordForm, setBizwarDiscordForm] = useState({ businessName: 'Hotel Factory', amount: '', proofUrl: '' });
+  const [bizwarDiscordForm, setBizwarDiscordForm] = useState({ amount: '', proofUrl: '' });
   const [showRpDiscordModal, setShowRpDiscordModal] = useState(false);
   const [rpDiscordForm, setRpDiscordForm] = useState({ memberInput: '', countInput: '5' });
+
+  // Refs for file uploads
+  const fileInputRef1 = useRef<HTMLInputElement | null>(null);
+  const fileInputRef2 = useRef<HTMLInputElement | null>(null);
+
+  // Paste / Drop handlers
+  const handlePaste = (e: React.ClipboardEvent, setForm: React.Dispatch<React.SetStateAction<any>>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (reader.result) {
+              setForm((prev: any) => ({ ...prev, proofUrl: reader.result as string }));
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, setForm: React.Dispatch<React.SetStateAction<any>>) => {
+    e.preventDefault();
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (reader.result) {
+            setForm((prev: any) => ({ ...prev, proofUrl: reader.result as string }));
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setForm: React.Dispatch<React.SetStateAction<any>>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (reader.result) {
+            setForm((prev: any) => ({ ...prev, proofUrl: reader.result as string }));
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
   const [winForm, setWinForm] = useState({ type: 'event', title: '', description: '', participants: '', mediaUrl: '' });
   const [winLogContent, setWinLogContent] = useState('');
   const [winLogImage, setWinLogImage] = useState('');
@@ -962,7 +1019,7 @@ export default function RootDashboard() {
       });
       if (res.ok) {
         addNotification('Profits Logged', 'BizWar revenue logged and balance adjusted.', 'success');
-        setBizwarForm({ businessName: 'Hotel Factory', amount: '' });
+        setBizwarForm({ amount: '', proofUrl: '' });
         loadDashboardData();
         refreshUser();
       }
@@ -993,14 +1050,13 @@ export default function RootDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          businessName: bizwarDiscordForm.businessName,
           amount: bizwarDiscordForm.amount,
           proofUrl: bizwarDiscordForm.proofUrl
         })
       });
       if (res.ok) {
         addNotification('Profits Logged via Discord Bot', 'BizWar revenue logged and synced successfully.', 'success');
-        setBizwarDiscordForm({ businessName: 'Hotel Factory', amount: '', proofUrl: '' });
+        setBizwarDiscordForm({ amount: '', proofUrl: '' });
         setShowBizwarDiscordModal(false);
         loadDashboardData();
         refreshUser();
@@ -5773,21 +5829,6 @@ export default function RootDashboard() {
             </h3>
             <form onSubmit={handleBizwarCollect} className="font-sans text-xs flex flex-col gap-4">
               <div>
-                <label className="text-[10px] text-zinc-500 font-bold block mb-1">BUSINESS LANDMARK SITE</label>
-                <select 
-                  value={bizwarForm.businessName}
-                  onChange={(e) => setBizwarForm(prev => ({ ...prev, businessName: e.target.value }))}
-                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 outline-none font-sans"
-                >
-                  <option value="Hotel Factory">Hotel Factory</option>
-                  <option value="Oil Well 12">Oil Well 12</option>
-                  <option value="Gun Shop 4">Gun Shop 4</option>
-                  <option value="Docks Warehouse">Docks Warehouse</option>
-                  <option value="Cash Factory 3">Cash Factory 3</option>
-                </select>
-              </div>
-
-              <div>
                 <label className="text-[10px] text-zinc-500 font-bold block mb-1">HARVEST PROFIT VALUE ($)</label>
                 <input 
                   type="number"
@@ -5796,6 +5837,49 @@ export default function RootDashboard() {
                   placeholder="e.g. 450000"
                   className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold block mb-1">PROOF SCREENSHOT (OPTIONAL)</label>
+                {bizwarForm.proofUrl ? (
+                  <div className="relative bg-[#0a0a14] border border-purple-600/30 rounded-lg p-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                      <img src={bizwarForm.proofUrl} className="w-10 h-10 object-cover rounded border border-purple-500/30 shrink-0" alt="Proof screenshot" />
+                      <span className="text-[10px] text-zinc-400 truncate">screenshot.png</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => setBizwarForm(prev => ({ ...prev, proofUrl: '' }))}
+                      className="text-red-400 hover:text-red-300 font-bold text-xs px-2 py-1 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div 
+                    tabIndex={0}
+                    onPaste={(e) => handlePaste(e, setBizwarForm)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleDrop(e, setBizwarForm)}
+                    onClick={() => fileInputRef1.current?.click()}
+                    className="w-full bg-[#0a0a14] hover:bg-[#0c0c17] border-2 border-dashed border-[#1c1a2a] hover:border-purple-600/40 rounded-lg p-4 text-center cursor-pointer transition-all focus:outline-none focus:border-purple-600/50"
+                  >
+                    <input 
+                      type="file" 
+                      ref={fileInputRef1}
+                      onChange={(e) => handleFileChange(e, setBizwarForm)}
+                      accept="image/*"
+                      className="hidden" 
+                    />
+                    <div className="flex flex-col items-center justify-center gap-1 select-none">
+                      <svg className="w-6 h-6 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-[10px] text-zinc-400 font-bold">CLICK TO UPLOAD / DRAG HERE</span>
+                      <span className="text-[9px] text-zinc-550">OR CLICK THIS BOX & PRESS CTRL+V TO PASTE</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta cursor-pointer">
@@ -5932,85 +6016,89 @@ export default function RootDashboard() {
 
         {/* Simulated Discord modal for Bizwar */}
         {showBizwarDiscordModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in font-sans p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm animate-fade-in font-sans p-4">
             <div className="bg-[#313338] border border-[#1c1a2a]/45 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+              {/* Modal Header */}
               <div className="bg-[#1e1f22] p-4 flex justify-between items-center border-b border-[#151618]/30">
-                <h3 className="text-sm font-bold text-[#f2f3f5]">Submit Bizwar Profits</h3>
+                <h3 className="text-sm font-bold text-[#f2f3f5]">Bizwar Profit Collection</h3>
                 <button onClick={() => setShowBizwarDiscordModal(false)} className="text-[#949ba4] hover:text-white transition-colors cursor-pointer">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
               </div>
 
               <form onSubmit={handleBizwarDiscordModalSubmit} className="p-4 space-y-4 text-xs text-[#dbdee1]">
-                <div className="space-y-1">
-                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Business Site Name *</label>
-                  <select 
-                    value={bizwarDiscordForm.businessName}
-                    onChange={(e) => setBizwarDiscordForm(prev => ({ ...prev, businessName: e.target.value }))}
-                    className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-[#dbdee1] rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans"
-                  >
-                    <option value="Hotel Factory">Hotel Factory</option>
-                    <option value="Oil Well 12">Oil Well 12</option>
-                    <option value="Gun Shop 4">Gun Shop 4</option>
-                    <option value="Docks Warehouse">Docks Warehouse</option>
-                    <option value="Cash Factory 3">Cash Factory 3</option>
-                    <option value="Ammo Factory">Ammo Factory</option>
-                    <option value="Weed Farm 2">Weed Farm 2</option>
-                    <option value="Meth Lab 5">Meth Lab 5</option>
-                    <option value="Cocaine Depot">Cocaine Depot</option>
-                    <option value="Scrap Yard">Scrap Yard</option>
-                    <option value="Nightclub">Nightclub</option>
-                    <option value="Strip Club">Strip Club</option>
-                    <option value="Car Dealership">Car Dealership</option>
-                    <option value="Cargo Port">Cargo Port</option>
-                    <option value="Bank Vault">Bank Vault</option>
-                    <option value="Printing Press">Printing Press</option>
-                    <option value="Chemical Plant">Chemical Plant</option>
-                    <option value="Refinery">Refinery</option>
-                    <option value="Gold Mine">Gold Mine</option>
-                    <option value="Steel Mill">Steel Mill</option>
-                  </select>
+                {/* Warning Banner */}
+                <div className="border border-[#f0b232]/40 bg-[#f0b232]/5 p-3 rounded-lg text-[#dbdee1] text-[11px] leading-relaxed flex gap-2">
+                  <span className="text-[#f0b232] shrink-0 font-bold">⚠️</span>
+                  <span>This form will be submitted to <b>White Pigeons Info</b>. Do not share passwords or other sensitive information.</span>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Profit Amount ($) *</label>
+                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Amount Collected ($) *</label>
                   <input 
                     type="number"
                     required
                     value={bizwarDiscordForm.amount}
                     onChange={(e) => setBizwarDiscordForm(prev => ({ ...prev, amount: e.target.value }))}
                     placeholder="e.g. 450000"
-                    className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-white rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans animate-fade-in"
+                    className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-white rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Proof Screenshot Link *</label>
-                  <input 
-                    type="url"
-                    required
-                    value={bizwarDiscordForm.proofUrl}
-                    onChange={(e) => setBizwarDiscordForm(prev => ({ ...prev, proofUrl: e.target.value }))}
-                    placeholder="https://..."
-                    className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-white rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans animate-fade-in"
-                  />
-                </div>
-
-                <div className="bg-[#2b2d31] p-3 rounded text-[10px] text-[#949ba4] leading-relaxed select-none">
-                  💡 <b>Simulated Discord modal submits directly to the web backend,</b> generating a log in our database and syncing it with the live Discord server embed immediately.
+                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Proof Screenshot *</label>
+                  {bizwarDiscordForm.proofUrl ? (
+                    <div className="relative bg-[#1e1f22] border border-purple-600/30 rounded-lg p-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <img src={bizwarDiscordForm.proofUrl} className="w-10 h-10 object-cover rounded border border-purple-500/30 shrink-0" alt="Proof screenshot" />
+                        <span className="text-[10px] text-[#949ba4] truncate">screenshot.png</span>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setBizwarDiscordForm(prev => ({ ...prev, proofUrl: '' }))}
+                        className="text-red-400 hover:text-red-300 font-bold text-xs px-2 py-1 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div 
+                      tabIndex={0}
+                      onPaste={(e) => handlePaste(e, setBizwarDiscordForm)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleDrop(e, setBizwarDiscordForm)}
+                      onClick={() => fileInputRef2.current?.click()}
+                      className="w-full bg-[#1e1f22] hover:bg-[#232428] border-2 border-dashed border-[#1c1a2a] hover:border-purple-600/40 rounded-lg p-4 text-center cursor-pointer transition-all focus:outline-none focus:border-purple-600/50"
+                    >
+                      <input 
+                        type="file" 
+                        ref={fileInputRef2}
+                        onChange={(e) => handleFileChange(e, setBizwarDiscordForm)}
+                        accept="image/*"
+                        className="hidden" 
+                      />
+                      <div className="flex flex-col items-center justify-center gap-1 select-none">
+                        <svg className="w-6 h-6 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-[10px] text-zinc-400 font-bold">CLICK TO UPLOAD / DRAG HERE</span>
+                        <span className="text-[9px] text-[#949ba4]">OR CLICK THIS BOX & PRESS CTRL+V TO PASTE</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 select-none">
                   <button 
                     type="button" 
                     onClick={() => setShowBizwarDiscordModal(false)}
-                    className="bg-transparent hover:bg-zinc-800 text-white px-4 py-2 rounded text-xs font-bold transition-colors cursor-pointer"
+                    className="bg-[#4e5058] hover:bg-[#6d6f78] text-white px-4 py-2 rounded text-xs font-bold transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit"
-                    className="bg-[#248046] hover:bg-[#1a6535] text-white px-5 py-2 rounded text-xs font-bold transition-colors cursor-pointer"
+                    className="bg-[#5865f2] hover:bg-[#4752c4] text-white px-5 py-2 rounded text-xs font-bold transition-colors cursor-pointer"
                   >
                     Submit
                   </button>

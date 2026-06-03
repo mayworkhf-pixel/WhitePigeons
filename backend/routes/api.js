@@ -459,11 +459,12 @@ router.get('/economy/bizwar-collect', requireMember, async (req, res) => {
 });
 
 router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
-  const { businessName, amount } = req.body;
+  const { amount, proofUrl } = req.body;
+  const businessName = 'BizWar Collection';
   const user = req.user;
 
-  if (!businessName || !amount) {
-    return res.status(400).json({ error: 'Business name and profit amount are required.' });
+  if (!amount) {
+    return res.status(400).json({ error: 'Profit amount is required.' });
   }
 
   const numericAmount = parseFloat(amount);
@@ -475,6 +476,7 @@ router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
     username: user.username,
     businessName,
     amount: numericAmount,
+    proofUrl: proofUrl || '',
     timeCollected: new Date().toISOString()
   });
 
@@ -484,15 +486,20 @@ router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
   await db.updateMember(user.discordId, { balance: currentBalance + numericAmount });
 
   const embed = {
-    title: '💲 BIZWAR COLLECT LOGGED',
+    title: '🕊️ WHITE PIGEONS ➔ BIZWAR REVENUE LOGGED',
     description: `Business profits successfully collected.`,
-    color: 0x00ff00,
+    color: 0x10b981,
     fields: [
       { name: 'Collector', value: `@${user.username}`, inline: true },
-      { name: 'Business Site', value: businessName, inline: true },
       { name: 'Collected Amount', value: `$${numericAmount.toLocaleString()}`, inline: true }
     ]
   };
+
+  // If proofUrl is a direct web link, show as webhook image preview
+  if (proofUrl && proofUrl.startsWith('http')) {
+    embed.image = { url: proofUrl };
+  }
+
   await botService.sendWebhook('bizwar-collect', embed);
   try {
     await botService.syncBizwarCollectionMessage();
