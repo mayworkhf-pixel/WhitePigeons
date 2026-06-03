@@ -1509,14 +1509,17 @@ const botService = {
               await botService.sendWebhook('bizwar-collect', embed);
               botService.broadcastSocket('leaderboard_update', await db.getMembers());
 
-              const replyText = proofsUrl 
-                ? `✅ Successfully collected **$${numericAmount.toLocaleString()}** with proof screenshot!`
-                : `✅ Successfully collected **$${numericAmount.toLocaleString()}**! Please paste/upload your proof screenshot in this channel now to automatically link it to your collection log.`;
-
-              await interaction.reply({
-                content: replyText,
-                flags: [MessageFlags.Ephemeral]
-              });
+              if (proofsUrl) {
+                await interaction.reply({
+                  content: `✅ Successfully collected **$${numericAmount.toLocaleString()}** with proof screenshot!`,
+                  flags: [MessageFlags.Ephemeral]
+                });
+              } else {
+                await interaction.reply({
+                  content: `✅ Successfully collected **$${numericAmount.toLocaleString()}**!\n\n📸 **Now paste or upload your proof screenshot in this channel.**\nThe bot will automatically detect it and link it to your collection log (within 15 minutes).`,
+                  flags: [MessageFlags.Ephemeral]
+                });
+              }
             } catch (err) {
               console.error('Error in bizwar_collect_modal handler:', err.message);
               await interaction.reply({
@@ -1538,16 +1541,7 @@ const botService = {
 
               const value = interaction.fields.getTextInputValue('rp_member_input').trim();
               const countStr = interaction.fields.getTextInputValue('rp_count_input').trim();
-              let proofsUrl = '';
-              try {
-                const uploadedFiles = interaction.fields.getUploadedFiles('rp_proof_file');
-                const firstFile = uploadedFiles?.first();
-                if (firstFile) {
-                  proofsUrl = firstFile.url;
-                }
-              } catch (err) {
-                console.warn('[Bot] Failed to read uploaded RP files:', err.message);
-              }
+              const proofsUrl = interaction.fields.getTextInputValue('rp_proofs') || '';
 
               const numTickets = parseInt(countStr, 10);
               if (isNaN(numTickets) || numTickets <= 0) {
@@ -1607,14 +1601,17 @@ const botService = {
               await botService.sendWebhook('rp-collect', embed);
               botService.broadcastSocket('leaderboard_update', await db.getMembers());
 
-              const replyText = proofsUrl
-                ? `✅ Successfully registered collection of **${numTickets} RP tickets** for ${displayLabel} with proof screenshot!`
-                : `✅ Successfully registered collection of **${numTickets} RP tickets** for ${displayLabel}! Please paste/upload your proof screenshot in this channel now to automatically link it to your collection log.`;
-
-              await interaction.reply({
-                content: replyText,
-                flags: [MessageFlags.Ephemeral]
-              });
+              if (proofsUrl) {
+                await interaction.reply({
+                  content: `✅ Successfully registered collection of **${numTickets} RP tickets** for ${displayLabel} with proof screenshot!`,
+                  flags: [MessageFlags.Ephemeral]
+                });
+              } else {
+                await interaction.reply({
+                  content: `✅ Successfully registered collection of **${numTickets} RP tickets** for ${displayLabel}!\n\n📸 **Now paste or upload your proof screenshot in this channel.**\nThe bot will automatically detect it and link it to your collection log (within 15 minutes).`,
+                  flags: [MessageFlags.Ephemeral]
+                });
+              }
             } catch (err) {
               console.error('Error in rp_collect_by_id_modal handler:', err.message);
               await interaction.reply({
