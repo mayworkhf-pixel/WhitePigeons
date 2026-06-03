@@ -149,6 +149,14 @@ export default function AdminDashboard() {
     const loadBackendConfig = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`);
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem('wp_admin_auth');
+          localStorage.removeItem('wp_session_token');
+          localStorage.removeItem('wp_local_preview');
+          addNotification('Session Expired', 'Please log in again using passcode Grand2026.', 'error');
+          setTimeout(() => window.location.reload(), 1500);
+          return;
+        }
         if (res.ok) {
           const data = await res.json();
           // Load backend credentials to form if the user is in bot tab
