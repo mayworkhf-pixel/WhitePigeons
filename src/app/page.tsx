@@ -1051,7 +1051,7 @@ export default function RootDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: bizwarDiscordForm.amount,
-          proofUrl: ''
+          proofUrl: bizwarDiscordForm.proofUrl
         })
       });
       if (res.ok) {
@@ -6136,6 +6136,49 @@ export default function RootDashboard() {
                     placeholder="e.g. 450000"
                     className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-white rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans"
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Proof Screenshot *</label>
+                  {bizwarDiscordForm.proofUrl ? (
+                    <div className="relative bg-[#1e1f22] border border-purple-600/30 rounded-lg p-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <img src={bizwarDiscordForm.proofUrl} className="w-10 h-10 object-cover rounded border border-purple-500/30 shrink-0" alt="Proof screenshot" />
+                        <span className="text-[10px] text-[#949ba4] truncate">screenshot.png</span>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setBizwarDiscordForm(prev => ({ ...prev, proofUrl: '' }))}
+                        className="text-red-400 hover:text-red-300 font-bold text-xs px-2 py-1 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div 
+                      tabIndex={0}
+                      onPaste={(e) => handlePaste(e, setBizwarDiscordForm)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleDrop(e, setBizwarDiscordForm)}
+                      onClick={() => fileInputRef2.current?.click()}
+                      className="w-full bg-[#1e1f22] hover:bg-[#232428] border-2 border-dashed border-[#1c1a2a] hover:border-purple-600/40 rounded-lg p-4 text-center cursor-pointer transition-all focus:outline-none focus:border-purple-600/50"
+                    >
+                      <input 
+                        type="file" 
+                        ref={fileInputRef2}
+                        onChange={(e) => handleFileChange(e, setBizwarDiscordForm)}
+                        accept="image/*"
+                        className="hidden" 
+                      />
+                      <div className="flex flex-col items-center justify-center gap-1 select-none">
+                        <svg className="w-6 h-6 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-[10px] text-zinc-400 font-bold">CLICK TO UPLOAD / DRAG HERE</span>
+                        <span className="text-[9px] text-[#949ba4]">OR CLICK THIS BOX & PRESS CTRL+V TO PASTE</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 select-none">
