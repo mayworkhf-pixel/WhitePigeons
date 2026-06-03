@@ -53,6 +53,8 @@ router.get('/discord-config', requireAdmin, async (req, res) => {
   // Mask sensitive credentials
   const responseConfig = {
     botToken: config.botToken ? '••••••••••••••••' : '',
+    bizwarBotToken: config.bizwarBotToken ? '••••••••••••••••' : '',
+    rpBotToken: config.rpBotToken ? '••••••••••••••••' : '',
     guildId: config.guildId || '',
     clientId: config.clientId || '',
     clientSecret: config.clientSecret ? '••••••••••••••••' : '',
@@ -80,11 +82,13 @@ router.get('/discord-config', requireAdmin, async (req, res) => {
 
 // POST save config
 router.post('/discord-config', requireAdmin, async (req, res) => {
-  const { botToken, guildId, clientId, clientSecret, adminPassword, webhooks, rpTicketTimes, factoryVoiceChannelId, simulatedVoice, banners } = req.body;
+  const { botToken, bizwarBotToken, rpBotToken, guildId, clientId, clientSecret, adminPassword, webhooks, rpTicketTimes, factoryVoiceChannelId, simulatedVoice, banners } = req.body;
   const currentConfig = await db.getConfig();
 
   // If a field is sent as masked (i.e. '••••••••••••••••'), do not overwrite, keep the current value
   const finalBotToken = botToken === undefined ? currentConfig.botToken : (botToken === '••••••••••••••••' ? currentConfig.botToken : (botToken || ''));
+  const finalBizwarBotToken = bizwarBotToken === undefined ? currentConfig.bizwarBotToken : (bizwarBotToken === '••••••••••••••••' ? currentConfig.bizwarBotToken : (bizwarBotToken || ''));
+  const finalRpBotToken = rpBotToken === undefined ? currentConfig.rpBotToken : (rpBotToken === '••••••••••••••••' ? currentConfig.rpBotToken : (rpBotToken || ''));
   const finalGuildId = guildId === undefined ? currentConfig.guildId : (guildId || '');
   const finalClientId = clientId === undefined ? currentConfig.clientId : (clientId || '');
   const finalClientSecret = clientSecret === undefined ? currentConfig.clientSecret : (clientSecret === '••••••••••••••••' ? currentConfig.clientSecret : (clientSecret || ''));
@@ -135,6 +139,8 @@ router.post('/discord-config', requireAdmin, async (req, res) => {
 
   const newConfig = {
     botToken: finalBotToken,
+    bizwarBotToken: finalBizwarBotToken,
+    rpBotToken: finalRpBotToken,
     guildId: finalGuildId,
     clientId: finalClientId,
     clientSecret: finalClientSecret,
@@ -492,6 +498,50 @@ router.post('/deploy-bonus-admin-prompt', requireAdmin, async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+
+// POST deploy interactive activity points leaderboard in Discord
+router.post('/deploy-activity-leaderboard-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployActivityPointsLeaderboardPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Activity Points Leaderboard panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
+// POST deploy interactive Bizwar collection prompt in Discord
+router.post('/deploy-bizwar-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployBizwarPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'Bizwar Collection panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST deploy interactive RP collection prompt in Discord
+router.post('/deploy-rp-collect-prompt', requireAdmin, async (req, res) => {
+  try {
+    const success = await botService.deployRpCollectionPrompt();
+    if (success) {
+      return res.json({ success: true, message: 'RP Ticket Collection panel deployed in Discord.' });
+    } else {
+      throw new Error('Bot is not active or could not locate the channel.');
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 
 // POST approve or reject a registration request
 router.post('/approve-member', requireAdmin, async (req, res) => {

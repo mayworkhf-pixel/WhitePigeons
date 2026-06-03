@@ -494,6 +494,11 @@ router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
     ]
   };
   await botService.sendWebhook('bizwar-collect', embed);
+  try {
+    await botService.syncBizwarCollectionMessage();
+  } catch (err) {
+    console.error('Failed to sync Bizwar Collection embed on Discord:', err.message);
+  }
 
   return res.json(log);
 });
@@ -503,13 +508,28 @@ router.get('/economy/rp-collect', requireMember, async (req, res) => {
   const stats = await db.getRpTicketStats();
   res.json({
     logs: await db.getRpTicketLogs(),
+    rpCollectionState: await db.getRpCollectionState(),
     ...stats
   });
 });
 
 router.post('/economy/rp-collect', requireMember, async (req, res) => {
-  const { ticketsCollected } = req.body;
-  const user = req.user;
+  const { ticketsCollected, memberInput } = req.body;
+  let user = req.user;
+
+  if (memberInput) {
+    const members = await db.getMembers();
+    const found = members.find(m => 
+      m.discordId === memberInput || 
+      m.username.toLowerCase() === memberInput.toLowerCase() ||
+      (m.nickname && m.nickname.toLowerCase().includes(memberInput.toLowerCase()))
+    );
+    if (found) {
+      user = { discordId: found.discordId, username: found.username };
+    } else {
+      user = { discordId: req.user.discordId, username: memberInput };
+    }
+  }
 
   if (!ticketsCollected) {
     return res.status(400).json({ error: 'Number of tickets collected is required.' });
@@ -539,8 +559,49 @@ router.post('/economy/rp-collect', requireMember, async (req, res) => {
     ]
   };
   await botService.sendWebhook('rp-collect', embed);
+  try {
+    const state = await db.getRpCollectionState();
+    if (state.collectionsCount < state.maxCollections) {
+      state.collectionsList.push({
+        logId: log.id,
+        discordId: user.discordId,
+        username: user.username,
+        ticketsCollected: numTickets,
+        time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
+      });
+      state.collectionsCount = state.collectionsList.length;
+      await db.saveRpCollectionState(state);
+    }
+    await botService.syncRpCollectionMessage();
+  } catch (err) {
+    console.error('Failed to sync RP Collection embed on Discord:', err.message);
+  }
 
   return res.json(log);
+});
+
+router.post('/economy/rp-collect/undo', requireMember, async (req, res) => {
+  try {
+    const state = await db.getRpCollectionState();
+    if (!state.collectionsList || state.collectionsList.length === 0) {
+      return res.status(400).json({ error: 'No collections in active session to undo.' });
+    }
+
+    const removed = state.collectionsList.pop();
+    state.collectionsCount = state.collectionsList.length;
+    await db.saveRpCollectionState(state);
+
+    if (removed && removed.logId) {
+      await db.deleteRpTicketLog(removed.logId);
+    }
+
+    await botService.syncRpCollectionMessage();
+    botService.broadcastSocket('leaderboard_update', await db.getMembers());
+
+    return res.json({ success: true, removed });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // -------------------------------------------------------------
@@ -1259,7 +1320,7 @@ router.post('/activities', requireMember, async (req, res) => {
     embed.image = cleanMediaUrl;
   }
 
-  await botService.sendWebhook('submit-activity', embed);
+  await botService.sendWebhook('activity-review', embed);
   await botService.sendActivityReviewNotification(act);
   botService.logSimulated(`New activity ${act.id} submitted for review by @${user.username}.`);
 
@@ -1297,38 +1358,9 @@ router.post('/activities/:id/review', requireAdmin, async (req, res) => {
     }
   }
 
-  const resultEmbed = {
-    title: status === 'approved' ? '💯 ACTIVITY APPROVED' : '❌ ACTIVITY REJECTED',
-    description: `Activity review completed by **${req.user.username}**.`,
-    color: status === 'approved' ? 0x00ff00 : 0xff0000,
-    fields: [
-      { name: 'Activity ID', value: act.id, inline: true },
-      { name: 'Submitter', value: `<@${act.memberId}>`, inline: true },
-      { name: 'Awarded Points', value: `${numPoints} Points`, inline: true },
-      { name: 'Review Notes', value: reason || 'Reviewed by Admin.' }
-    ]
-  };
-
-  await botService.sendWebhook('activity-results', resultEmbed);
-  await botService.sendWebhook('activity-review', resultEmbed);
+  await botService.sendActivityResult(act, status, numPoints, req.user.username);
   await botService.closeActiveActivityReview(id, status, req.user.username);
   await botService.syncActivityPointsLeaderboardMessage();
-
-  // If approved, notify activity points leaderboard channel
-  if (status === 'approved' && numPoints > 0) {
-    const currentPoints = (await db.getMember(act.memberId))?.points || 0;
-    const leaderEmbed = {
-      title: '📈 ACTIVITY POINTS UPDATE',
-      description: `Points granted to **${act.username}**!`,
-      color: 0x00ff00,
-      fields: [
-        { name: 'Player', value: `<@${act.memberId}>`, inline: true },
-        { name: 'Earned Points', value: `+${numPoints} Points`, inline: true },
-        { name: 'New Total', value: `${currentPoints} Points`, inline: true }
-      ]
-    };
-    await botService.sendWebhook('activity-points-leaderboard', leaderEmbed);
-  }
 
   // Alert member
   await botService.sendDirectMessage(

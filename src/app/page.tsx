@@ -155,7 +155,7 @@ export default function RootDashboard() {
     'strike-system': 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
     'bonus-admin-panel': 'https://images.unsplash.com/photo-1554672408-730436b60dde?w=500'
   });
-  const [nowTime, setNowTime] = useState<number>(Date.now());
+  const [nowTime, setNowTime] = useState<number>(0);
   
   const formatRemainingTime = (openedAt: number | null) => {
     if (!openedAt) return '15:00';
@@ -227,12 +227,17 @@ export default function RootDashboard() {
   const [bizwarLogs, setBizwarLogs] = useState<any[]>([]);
   const [rpLogs, setRpLogs] = useState<any[]>([]);
   const [rpTotalStock, setRpTotalStock] = useState(1235);
+  const [rpCollectionState, setRpCollectionState] = useState<any>(null);
   
   // Form states
   const [ticketForm, setTicketForm] = useState({ type: 'complaint', subject: '', description: '' });
   const [activityForm, setActivityForm] = useState({ description: '', mediaUrl: '' });
   const [bizwarForm, setBizwarForm] = useState({ businessName: 'Hotel Factory', amount: '' });
   const [rpCollectForm, setRpCollectForm] = useState({ ticketsCollected: '5' });
+  const [showBizwarDiscordModal, setShowBizwarDiscordModal] = useState(false);
+  const [bizwarDiscordForm, setBizwarDiscordForm] = useState({ businessName: 'Hotel Factory', amount: '', proofUrl: '' });
+  const [showRpDiscordModal, setShowRpDiscordModal] = useState(false);
+  const [rpDiscordForm, setRpDiscordForm] = useState({ memberInput: '', countInput: '5' });
   const [winForm, setWinForm] = useState({ type: 'event', title: '', description: '', participants: '', mediaUrl: '' });
   const [winLogContent, setWinLogContent] = useState('');
   const [winLogImage, setWinLogImage] = useState('');
@@ -354,6 +359,7 @@ export default function RootDashboard() {
             if (data) {
               setRpLogs(data.logs);
               setRpTotalStock(data.totalCollected);
+              setRpCollectionState(data.rpCollectionState);
             }
           }),
           fetch(`${API_BASE_URL}/api/shop/items`).then(r => r.ok ? r.json() : null).then(data => {
@@ -977,6 +983,60 @@ export default function RootDashboard() {
         loadDashboardData();
       }
     } catch {}
+  };
+
+  const handleBizwarDiscordModalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bizwarDiscordForm.amount) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/economy/bizwar-collect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessName: bizwarDiscordForm.businessName,
+          amount: bizwarDiscordForm.amount,
+          proofUrl: bizwarDiscordForm.proofUrl
+        })
+      });
+      if (res.ok) {
+        addNotification('Profits Logged via Discord Bot', 'BizWar revenue logged and synced successfully.', 'success');
+        setBizwarDiscordForm({ businessName: 'Hotel Factory', amount: '', proofUrl: '' });
+        setShowBizwarDiscordModal(false);
+        loadDashboardData();
+        refreshUser();
+      } else {
+        const err = await res.json();
+        addNotification('Collection Failed', err.error || 'Failed to submit.', 'error');
+      }
+    } catch {
+      addNotification('Error', 'Network connection failure.', 'error');
+    }
+  };
+
+  const handleRpDiscordModalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rpDiscordForm.memberInput) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/economy/rp-collect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketsCollected: rpDiscordForm.countInput,
+          memberInput: rpDiscordForm.memberInput
+        })
+      });
+      if (res.ok) {
+        addNotification('Shift Claimed via Discord Bot', `Successfully registered x${rpDiscordForm.countInput} tickets.`, 'success');
+        setRpDiscordForm({ memberInput: '', countInput: '5' });
+        setShowRpDiscordModal(false);
+        loadDashboardData();
+      } else {
+        const err = await res.json();
+        addNotification('Failed to Claim', err.error || 'Claim failed.', 'error');
+      }
+    } catch {
+      addNotification('Error', 'Connection failure.', 'error');
+    }
   };
 
   // Purchase item
@@ -1800,12 +1860,6 @@ export default function RootDashboard() {
               <span className="bg-gradient-to-r from-purple-500/10 to-amber-500/5 border border-purple-500/20 text-purple-750 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans select-none shrink-0">
                 WHO WE ARE
               </span>
-              
-              <div className="flex items-center gap-2 bg-[#0a0a14]/50 border border-[#1c1a2a]/40 px-2.5 py-1 rounded-lg backdrop-blur-md shadow-sm text-[9px] font-mono select-none shrink-0">
-                <span className="text-purple-400 font-bold">LON: <span className="font-black">{getLondonTime()}</span></span>
-                <span className="text-zinc-500 font-bold px-0.5">|</span>
-                <span className="text-amber-500 font-bold">IND: <span className="font-black">{getIndiaTime()}</span></span>
-              </div>
             </div>
             
             <div className="flex items-center gap-3.5">
@@ -1845,17 +1899,6 @@ export default function RootDashboard() {
                   <PowerIcon />
                   POWER
                 </span>
-              </div>
-
-              <div className="flex items-center gap-3 bg-[#0a0a14]/65 border border-[#1c1a2a] px-3 py-1.5 rounded-xl backdrop-blur-md shadow-lg shrink-0">
-                <div className="text-left border-r border-[#1c1a2a]/60 pr-3 select-none">
-                  <div className="text-[6.5px] text-zinc-550 font-extrabold uppercase tracking-widest leading-none">LONDON (IN-GAME)</div>
-                  <div className="text-xs font-mono font-black text-purple-400 leading-none mt-1">{getLondonTime()}</div>
-                </div>
-                <div className="text-left select-none">
-                  <div className="text-[6.5px] text-zinc-555 font-extrabold uppercase tracking-widest leading-none">INDIA (IST)</div>
-                  <div className="text-xs font-mono font-black text-amber-500 leading-none mt-1">{getIndiaTime()}</div>
-                </div>
               </div>
             </div>
           </div>
@@ -2511,7 +2554,7 @@ export default function RootDashboard() {
                       <div className="space-y-1 py-1 pr-2">
                         {item.strikesList.map((st: any) => (
                           <div key={st.id} className="flex justify-between items-center text-[10px] text-zinc-400 group">
-                            <span className="truncate italic">"{st.reason}"</span>
+                            <span className="truncate italic">&ldquo;{st.reason}&rdquo;</span>
                             {isAuditor && item.realId && (
                               <button
                                 onClick={() => handleResolveStrike(item.realId!, st.id)}
@@ -4340,6 +4383,7 @@ export default function RootDashboard() {
   };
 
   const renderActivityPointsLeaderboard = () => {
+    const isAuditor = checkAccess('admin');
     const list = [...members].sort((a, b) => b.points - a.points);
     const rankTone = (rank: number) => {
       if (rank === 1) return 'border-[#ff9f1c]/55 bg-[#ff9f1c]/12 text-[#ffbf5c]';
@@ -4402,6 +4446,27 @@ export default function RootDashboard() {
             </div>
 
             <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+              {isAuditor && (
+                <button
+                  onClick={async () => {
+                    if (confirm('Are you sure you want to deploy/sync the Activity Points Leaderboard Embed in Discord?')) {
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/api/admin/deploy-activity-leaderboard-prompt`, { method: 'POST' });
+                        if (res.ok) {
+                          addNotification('Embed Deployed', 'Activity Points Leaderboard feed successfully pushed to Discord!', 'success');
+                        } else {
+                          addNotification('Deployment Failed', 'Verify bot connection.', 'warning');
+                        }
+                      } catch {
+                        addNotification('Deployment Failed', 'Network failure while syncing Discord embed.', 'error');
+                      }
+                    }
+                  }}
+                  className="w-full border border-cyan-400/35 bg-cyan-400/10 px-3 py-2.5 font-title text-[11px] font-black uppercase text-cyan-100 hover:bg-cyan-400/18 active:scale-[0.98] transition-smooth cursor-pointer"
+                >
+                  Sync Live Leaderboard
+                </button>
+              )}
               <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
                 🤖 DISCORD CHANNEL INTEGRATION PREVIEW
               </div>
@@ -5673,71 +5738,287 @@ export default function RootDashboard() {
   const renderBizWarCollect = () => {
     if (!checkAccess('member')) return renderAccessDenied('Roster credentials required');
 
+    const lastLog = bizwarLogs[0];
+    let isCooldown = false;
+    let cooldownText = '🟢 Active (Available)';
+    let lastCollectorText = 'None';
+    let lastAmountText = '$0';
+    let lastTimeText = 'N/A';
+
+    if (lastLog && nowTime > 0) {
+      const lastTime = new Date(lastLog.timeCollected).getTime();
+      const elapsed = nowTime - lastTime;
+      const cooldownPeriod = 24 * 60 * 60 * 1000;
+      if (elapsed < cooldownPeriod) {
+        isCooldown = true;
+        const remainingMs = cooldownPeriod - elapsed;
+        const hours = Math.floor(remainingMs / (60 * 60 * 1000));
+        const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+        cooldownText = `🔴 Cooldown (Available in ${hours}h ${minutes}m)`;
+      }
+    }
+    if (lastLog) {
+      lastCollectorText = `@${lastLog.username}`;
+      lastAmountText = `$${parseFloat(lastLog.amount).toLocaleString()}`;
+      lastTimeText = new Date(lastLog.timeCollected).toLocaleString();
+    }
+
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
-        {/* Log profits Form */}
-        <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit">
-          <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
-            💲┃𝐁𝐢𝐳𝐰𝐚𝐫-𝐂𝐨𝐥𝐥𝐞𝐜𝐭 FORM
-          </h3>
-
-          <form onSubmit={handleBizwarCollect} className="font-sans text-xs flex flex-col gap-4">
-            <div>
-              <label className="text-[10px] text-zinc-500 font-bold block mb-1">BUSINESS LANDMARK SITE</label>
-              <select 
-                value={bizwarForm.businessName}
-                onChange={(e) => setBizwarForm(prev => ({ ...prev, businessName: e.target.value }))}
-                className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 outline-none font-sans"
-              >
-                <option value="Hotel Factory">Hotel Factory</option>
-                <option value="Oil Well 12">Oil Well 12</option>
-                <option value="Gun Shop 4">Gun Shop 4</option>
-                <option value="Docks Warehouse">Docks Warehouse</option>
-                <option value="Cash Factory 3">Cash Factory 3</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[10px] text-zinc-500 font-bold block mb-1">HARVEST PROFIT VALUE ($)</label>
-              <input 
-                type="number"
-                value={bizwarForm.amount}
-                onChange={(e) => setBizwarForm(prev => ({ ...prev, amount: e.target.value }))}
-                placeholder="e.g. 450000"
-                className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
-              />
-            </div>
-
-            <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta cursor-pointer">
-              LOG BUSINESS REVENUE
-            </button>
-          </form>
-        </div>
-
-        {/* Business collection lists */}
-        <div className="lg:col-span-2 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4">
-          <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
-            📊 BUSINESS PROFITS LEDGER
-          </h2>
-
-          <div className="space-y-3">
-            {bizwarLogs.length === 0 ? (
-              <div className="text-center py-12 text-zinc-500 italic">
-                NO REVENUES RECORDED TODAY.
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto font-sans">
+        {/* Left Side: Web Forms & Ledger */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4">
+            <h3 className="font-title font-bold text-xs text-primary tracking-wide uppercase border-b border-[#1c1a2a]/50 pb-2">
+              💲┃𝐁𝐢𝐳𝐰𝐚𝐫-𝐂𝐨𝐥𝐥𝐞𝐜𝐭 FORM
+            </h3>
+            <form onSubmit={handleBizwarCollect} className="font-sans text-xs flex flex-col gap-4">
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold block mb-1">BUSINESS LANDMARK SITE</label>
+                <select 
+                  value={bizwarForm.businessName}
+                  onChange={(e) => setBizwarForm(prev => ({ ...prev, businessName: e.target.value }))}
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-350 outline-none font-sans"
+                >
+                  <option value="Hotel Factory">Hotel Factory</option>
+                  <option value="Oil Well 12">Oil Well 12</option>
+                  <option value="Gun Shop 4">Gun Shop 4</option>
+                  <option value="Docks Warehouse">Docks Warehouse</option>
+                  <option value="Cash Factory 3">Cash Factory 3</option>
+                </select>
               </div>
-            ) : (
-              bizwarLogs.map((log, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-3 border border-[#1c1a2a] rounded-xl font-sans text-xs">
-                  <div>
-                    <span className="font-bold text-zinc-200">{log.businessName}</span>
-                    <span className="block text-[8px] text-zinc-500">Collected by: @{log.username} | {new Date(log.timeCollected).toLocaleTimeString()}</span>
-                  </div>
-                  <span className="font-bold text-green-400 font-mono">+${log.amount.toLocaleString()}</span>
+
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold block mb-1">HARVEST PROFIT VALUE ($)</label>
+                <input 
+                  type="number"
+                  value={bizwarForm.amount}
+                  onChange={(e) => setBizwarForm(prev => ({ ...prev, amount: e.target.value }))}
+                  placeholder="e.g. 450000"
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 font-mono focus:border-purple-600/50 outline-none"
+                />
+              </div>
+
+              <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta cursor-pointer">
+                LOG BUSINESS REVENUE
+              </button>
+            </form>
+          </div>
+
+          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4">
+            <h2 className="font-title font-black text-lg italic text-zinc-200 border-b border-[#1c1a2a]/50 pb-2">
+              📊 BUSINESS PROFITS LEDGER
+            </h2>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+              {bizwarLogs.length === 0 ? (
+                <div className="text-center py-12 text-zinc-500 italic">
+                  NO REVENUES RECORDED TODAY.
                 </div>
-              ))
-            )}
+              ) : (
+                bizwarLogs.map((log, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-3 border border-[#1c1a2a] rounded-xl font-sans text-xs">
+                    <div>
+                      <span className="font-bold text-zinc-200">{log.businessName}</span>
+                      <span className="block text-[8px] text-zinc-500">Collected by: @{log.username} | {new Date(log.timeCollected).toLocaleTimeString()}</span>
+                    </div>
+                    <span className="font-bold text-green-400 font-mono">+${log.amount.toLocaleString()}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Right Side: Discord Live Preview */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+            🤖 DISCORD CHANNEL INTEGRATION PREVIEW
+          </div>
+          
+          <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full">
+            {/* Header */}
+            <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                  bizwar-collect
+                </span>
+              </div>
+              <span className="text-[8px] bg-[#313338] text-[#e0a82e] px-2 py-0.5 rounded font-bold font-mono border border-[#e0a82e]/20">BIZWAR BOT ACTIVE</span>
+            </div>
+
+            {/* Chat Area */}
+            <div className="p-4 space-y-4 bg-[#313338]">
+              <div className="flex gap-3">
+                {/* Bot Avatar */}
+                <div className="w-9 h-9 rounded-full bg-[#111118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
+                  <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover animate-pulse" />
+                </div>
+
+                {/* Message Body */}
+                <div className="flex-1 space-y-2 min-w-0">
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons BIZ</span>
+                    <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">BOT</span>
+                    <span className="text-[9px] text-[#949ba4] font-sans">Today at 12:00 PM</span>
+                  </div>
+
+                  {/* Embed Box */}
+                  <div className="border-l-4 border-[#8a2be2] bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3.5 shadow-md relative">
+                    <img 
+                      src="/logo.webp" 
+                      alt="Pigeon Thumbnail" 
+                      className="absolute top-4 right-4 w-10 h-10 object-contain rounded opacity-80 hidden sm:block pointer-events-none" 
+                    />
+
+                    <div className="space-y-1.5 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                      <h4 className="text-sm font-extrabold text-white">
+                        💵 WHITE PIGEON BIZWAR REVENUE
+                      </h4>
+                      <p className="text-[11px] text-[#dbdee1] font-normal leading-relaxed">
+                        Collect the profits from our family&apos;s occupied business sites.<br/><br/>
+                        <strong>🏢 Our 20 Family Business Sites:</strong><br/>
+                        1. Hotel Factory • 2. Oil Well 12 • 3. Gun Shop 4 • 4. Docks Warehouse • 5. Cash Factory 3<br/>
+                        6. Ammo Factory • 7. Weed Farm 2 • 8. Meth Lab 5 • 9. Cocaine Depot • 10. Scrap Yard<br/>
+                        11. Nightclub • 12. Strip Club • 13. Car Dealership • 14. Cargo Port • 15. Bank Vault<br/>
+                        16. Printing Press • 17. Chemical Plant • 18. Refinery • 19. Gold Mine • 20. Steel Mill
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-4 pt-3 text-[11px] border-t border-zinc-800">
+                        <div>
+                          <span className="text-[#949ba4] block font-bold">COLLECTION STATUS</span>
+                          <span className={isCooldown ? "text-red-400 font-bold animate-pulse" : "text-green-400 font-bold"}>{cooldownText}</span>
+                        </div>
+                        <div>
+                          <span className="text-[#949ba4] block font-bold">LAST COLLECTOR</span>
+                          <span className="text-white font-bold">{lastCollectorText}</span>
+                        </div>
+                        <div>
+                          <span className="text-[#949ba4] block font-bold">AMOUNT</span>
+                          <span className="text-green-400 font-mono font-bold">{lastAmountText}</span>
+                        </div>
+                        <div>
+                          <span className="text-[#949ba4] block font-bold">COLLECTED AT</span>
+                          <span className="text-white font-bold text-[10px]">{lastTimeText}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Button */}
+                  <div className="pt-2">
+                    <button
+                      onClick={() => {
+                        if (isCooldown) {
+                          addNotification('Collection Cooldown', 'Bizwar collection is currently on cooldown.', 'warning');
+                        } else {
+                          setShowBizwarDiscordModal(true);
+                        }
+                      }}
+                      disabled={isCooldown}
+                      className={`px-4 py-2 rounded text-xs font-semibold font-sans tracking-wide transition-colors cursor-pointer flex items-center gap-1.5 ${
+                        isCooldown 
+                          ? 'bg-[#2b2d31] text-[#949ba4] border border-zinc-700/50 cursor-not-allowed' 
+                          : 'bg-[#248046] hover:bg-[#1a6535] text-white'
+                      }`}
+                    >
+                      💵 Collect Profit
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Simulated Discord modal for Bizwar */}
+        {showBizwarDiscordModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in font-sans p-4">
+            <div className="bg-[#313338] border border-[#1c1a2a]/45 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+              <div className="bg-[#1e1f22] p-4 flex justify-between items-center border-b border-[#151618]/30">
+                <h3 className="text-sm font-bold text-[#f2f3f5]">Submit Bizwar Profits</h3>
+                <button onClick={() => setShowBizwarDiscordModal(false)} className="text-[#949ba4] hover:text-white transition-colors cursor-pointer">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleBizwarDiscordModalSubmit} className="p-4 space-y-4 text-xs text-[#dbdee1]">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Business Site Name *</label>
+                  <select 
+                    value={bizwarDiscordForm.businessName}
+                    onChange={(e) => setBizwarDiscordForm(prev => ({ ...prev, businessName: e.target.value }))}
+                    className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-[#dbdee1] rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans"
+                  >
+                    <option value="Hotel Factory">Hotel Factory</option>
+                    <option value="Oil Well 12">Oil Well 12</option>
+                    <option value="Gun Shop 4">Gun Shop 4</option>
+                    <option value="Docks Warehouse">Docks Warehouse</option>
+                    <option value="Cash Factory 3">Cash Factory 3</option>
+                    <option value="Ammo Factory">Ammo Factory</option>
+                    <option value="Weed Farm 2">Weed Farm 2</option>
+                    <option value="Meth Lab 5">Meth Lab 5</option>
+                    <option value="Cocaine Depot">Cocaine Depot</option>
+                    <option value="Scrap Yard">Scrap Yard</option>
+                    <option value="Nightclub">Nightclub</option>
+                    <option value="Strip Club">Strip Club</option>
+                    <option value="Car Dealership">Car Dealership</option>
+                    <option value="Cargo Port">Cargo Port</option>
+                    <option value="Bank Vault">Bank Vault</option>
+                    <option value="Printing Press">Printing Press</option>
+                    <option value="Chemical Plant">Chemical Plant</option>
+                    <option value="Refinery">Refinery</option>
+                    <option value="Gold Mine">Gold Mine</option>
+                    <option value="Steel Mill">Steel Mill</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Profit Amount ($) *</label>
+                  <input 
+                    type="number"
+                    required
+                    value={bizwarDiscordForm.amount}
+                    onChange={(e) => setBizwarDiscordForm(prev => ({ ...prev, amount: e.target.value }))}
+                    placeholder="e.g. 450000"
+                    className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-white rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans animate-fade-in"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Proof Screenshot Link *</label>
+                  <input 
+                    type="url"
+                    required
+                    value={bizwarDiscordForm.proofUrl}
+                    onChange={(e) => setBizwarDiscordForm(prev => ({ ...prev, proofUrl: e.target.value }))}
+                    placeholder="https://..."
+                    className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-white rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans animate-fade-in"
+                  />
+                </div>
+
+                <div className="bg-[#2b2d31] p-3 rounded text-[10px] text-[#949ba4] leading-relaxed select-none">
+                  💡 <b>Simulated Discord modal submits directly to the web backend,</b> generating a log in our database and syncing it with the live Discord server embed immediately.
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 select-none">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowBizwarDiscordModal(false)}
+                    className="bg-transparent hover:bg-zinc-800 text-white px-4 py-2 rounded text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="bg-[#248046] hover:bg-[#1a6535] text-white px-5 py-2 rounded text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Submit
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -5745,64 +6026,295 @@ export default function RootDashboard() {
   const renderRpCollect = () => {
     if (!checkAccess('member')) return renderAccessDenied('Roster verification required');
 
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto font-sans shadow-xl">
-        {/* Ticket Harvest controls */}
-        <div className="lg:col-span-1 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 h-fit">
-          <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-2">
-            <h3 className="font-title font-bold text-xs text-secondary tracking-wide uppercase">
-              🎫┃𝐑package-𝐂𝐨𝐥𝐥𝐞𝐜𝐭 LOOP
-            </h3>
-            <span className="bg-zinc-900 px-2 py-0.5 border border-zinc-800 text-[9px] text-secondary font-bold font-mono rounded animate-pulse">{rpCountdown}</span>
-          </div>
+    const shifts = rpCollectionState?.collectionsList || [];
+    const count = rpCollectionState?.collectionsCount || 0;
+    const max = rpCollectionState?.maxCollections || 6;
+    const isCompleted = count >= max;
 
-          <form onSubmit={handleRpCollect} className="font-sans text-xs flex flex-col gap-4">
-            <div>
-              <label className="text-[10px] text-zinc-500 font-bold block mb-1">HARVEST BUNDLE SIZE</label>
-              <select 
-                value={rpCollectForm.ticketsCollected}
-                onChange={(e) => setRpCollectForm({ ticketsCollected: e.target.value })}
-                className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 outline-none font-sans"
-              >
-                <option value="5">5 RP Tickets (1 Hour standard)</option>
-                <option value="10">10 RP Tickets (2 Hour batch)</option>
-                <option value="15">15 RP Tickets (3 Hour batch)</option>
-              </select>
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto font-sans">
+        {/* Left Side: Forms & Logs */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-2">
+              <h3 className="font-title font-bold text-xs text-secondary tracking-wide uppercase">
+                🎫┃𝐑package-𝐂𝐨𝐥𝐥𝐞𝐜𝐭 LOOP
+              </h3>
+              <span className="bg-zinc-900 px-2 py-0.5 border border-zinc-800 text-[9px] text-secondary font-bold font-mono rounded animate-pulse">{rpCountdown}</span>
             </div>
 
-            <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta cursor-pointer">
-              LOG HARVEST TRANSACTION
-            </button>
-          </form>
-        </div>
-
-        {/* Harvest logs */}
-        <div className="lg:col-span-2 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4">
-          <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-2">
-            <h2 className="font-title font-black text-lg italic text-zinc-200">
-              💎 VAULT STOCK LOGS
-            </h2>
-            <span className="font-mono text-xs text-purple-400 font-bold">VAULT VALUE: {rpTotalStock} TICKETS</span>
-          </div>
-
-          <div className="space-y-3">
-            {rpLogs.length === 0 ? (
-              <div className="text-center py-12 text-zinc-500 italic">
-                NO TRANSACTIONS LOGGED IN TICKET ARCHIVE.
+            <form onSubmit={handleRpCollect} className="font-sans text-xs flex flex-col gap-4">
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold block mb-1">HARVEST BUNDLE SIZE</label>
+                <select 
+                  value={rpCollectForm.ticketsCollected}
+                  onChange={(e) => setRpCollectForm({ ticketsCollected: e.target.value })}
+                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 outline-none font-sans"
+                >
+                  <option value="5">5 RP Tickets (1 Hour standard)</option>
+                  <option value="10">10 RP Tickets (2 Hour batch)</option>
+                  <option value="15">15 RP Tickets (3 Hour batch)</option>
+                </select>
               </div>
-            ) : (
-              rpLogs.map((log, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-3 border border-[#1c1a2a] rounded-xl font-sans text-xs">
-                  <div>
-                    <span className="font-bold text-zinc-200">Harvest Process</span>
-                    <span className="block text-[8px] text-zinc-500">Collector: @{log.username} | {new Date(log.timeCollected).toLocaleTimeString()}</span>
-                  </div>
-                  <span className="font-bold text-purple-400 font-mono">+{log.ticketsCollected} RP Tickets</span>
+
+              <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic tracking-wide py-3 rounded-lg border border-purple-500 glow-magenta cursor-pointer">
+                LOG HARVEST TRANSACTION
+              </button>
+            </form>
+          </div>
+
+          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-2">
+              <h2 className="font-title font-black text-lg italic text-zinc-200">
+                💎 VAULT STOCK LOGS
+              </h2>
+              <span className="font-mono text-xs text-purple-400 font-bold">VAULT VALUE: {rpTotalStock} TICKETS</span>
+            </div>
+
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+              {rpLogs.length === 0 ? (
+                <div className="text-center py-12 text-zinc-500 italic">
+                  NO TRANSACTIONS LOGGED IN TICKET ARCHIVE.
                 </div>
-              ))
-            )}
+              ) : (
+                rpLogs.map((log, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-3 border border-[#1c1a2a] rounded-xl font-sans text-xs">
+                    <div>
+                      <span className="font-bold text-zinc-200">Harvest Process</span>
+                      <span className="block text-[8px] text-zinc-500">Collector: @{log.username} | {new Date(log.timeCollected).toLocaleTimeString()}</span>
+                    </div>
+                    <span className="font-bold text-purple-400 font-mono">+{log.ticketsCollected} RP Tickets</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Right Side: Discord Live Preview */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+            🤖 DISCORD CHANNEL INTEGRATION PREVIEW
+          </div>
+          
+          <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full">
+            {/* Header */}
+            <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                  rp-collect
+                </span>
+              </div>
+              <span className="text-[8px] bg-[#313338] text-[#5865f2] px-2 py-0.5 rounded font-bold font-mono border border-[#5865f2]/20">RP BOT ACTIVE</span>
+            </div>
+
+            {/* Chat Area */}
+            <div className="p-4 space-y-4 bg-[#313338]">
+              <div className="flex gap-3">
+                {/* Bot Avatar */}
+                <div className="w-9 h-9 rounded-full bg-[#111118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
+                  <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover animate-pulse" />
+                </div>
+
+                {/* Message Body */}
+                <div className="flex-1 space-y-2 min-w-0">
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons RP</span>
+                    <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">BOT</span>
+                    <span className="text-[9px] text-[#949ba4] font-sans">Today at 12:00 PM</span>
+                  </div>
+
+                  {/* Embed Box */}
+                  <div className="border-l-4 border-[#00f0ff] bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3.5 shadow-md relative">
+                    <img 
+                      src="/logo.webp" 
+                      alt="Pigeon Thumbnail" 
+                      className="absolute top-4 right-4 w-10 h-10 object-contain rounded opacity-80 hidden sm:block pointer-events-none" 
+                    />
+
+                    <div className="space-y-1.5 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                      <h4 className="text-sm font-extrabold text-white">
+                        🎫 RP TICKET FACTORY COLLECTION
+                      </h4>
+                      <p className="text-[11px] text-[#dbdee1] leading-relaxed">
+                        Track and log RP Ticket factory collection status.<br/><br/>
+                        <strong>📋 Active Shifts:</strong>
+                      </p>
+
+                      <div className="space-y-1 bg-[#1e1f22]/50 p-2.5 rounded-lg border border-zinc-800 text-[11px] font-mono text-zinc-300">
+                        {shifts.length === 0 ? (
+                          <span className="italic text-zinc-500">*No collections registered yet for this session.*</span>
+                        ) : (
+                          shifts.map((s: any, idx: number) => {
+                            const charLabel = s.characterId ? ` (ID: ${s.characterId})` : '';
+                            return (
+                              <div key={idx}>
+                                {idx + 1}. 🎫 <b>x{s.ticketsCollected || 5}</b> tickets collected by <span className="text-sky-400">@{s.username}</span>{charLabel} at {s.time}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 pt-3 text-[11px] border-t border-zinc-800 select-none">
+                        <div>
+                          <span className="text-[#949ba4] block font-bold">COLLECTION STATUS</span>
+                          <span className={isCompleted ? "text-red-400 font-bold" : "text-green-400 font-bold animate-pulse"}>
+                            {isCompleted ? `🔴 Completed (${count}/${max})` : `🟢 Active (${count}/${max})`}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[#949ba4] block font-bold">TOTAL COLLECTED</span>
+                          <span className="text-white font-bold">{count * 5} RP Tickets</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Buttons below the Embed */}
+                  <div className="flex flex-wrap gap-2 pt-2 select-none">
+                    <button
+                      onClick={async () => {
+                        if (isCompleted) {
+                          return addNotification('Full Roster', 'All active collection shifts for this session are complete.', 'warning');
+                        }
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/economy/rp-collect`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ticketsCollected: '5' })
+                          });
+                          if (res.ok) {
+                            addNotification('Shift Claimed', 'Successfully registered x5 tickets for your account.', 'success');
+                            loadDashboardData();
+                          } else {
+                            const err = await res.json();
+                            addNotification('Failed to Claim', err.error || 'Claim failed.', 'error');
+                          }
+                        } catch {
+                          addNotification('Error', 'Connection failure.', 'error');
+                        }
+                      }}
+                      disabled={isCompleted}
+                      className={`px-3 py-1.5 rounded text-[11px] font-bold font-sans tracking-wide transition-colors cursor-pointer flex items-center gap-1 ${
+                        isCompleted 
+                          ? 'bg-[#2b2d31] text-[#949ba4] border border-zinc-700/50 cursor-not-allowed' 
+                          : 'bg-[#5865f2] hover:bg-[#4752c4] text-white'
+                      }`}
+                    >
+                      Collect RP Ticket
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (isCompleted) {
+                          return addNotification('Full Roster', 'All active collection shifts for this session are complete.', 'warning');
+                        }
+                        setShowRpDiscordModal(true);
+                      }}
+                      disabled={isCompleted}
+                      className={`px-3 py-1.5 rounded text-[11px] font-bold font-sans tracking-wide transition-colors cursor-pointer flex items-center gap-1 ${
+                        isCompleted 
+                          ? 'bg-[#2b2d31] text-[#949ba4] border border-zinc-700/50 cursor-not-allowed' 
+                          : 'bg-[#4f545c] hover:bg-[#686d73] text-white'
+                      }`}
+                    >
+                      Collect By ID
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        if (shifts.length === 0) {
+                          return addNotification('Nothing to Undo', 'No collections logged in this active session.', 'warning');
+                        }
+                        if (!confirm('Revert the last shift collection?')) return;
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/economy/rp-collect/undo`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                          });
+                          if (res.ok) {
+                            addNotification('Shift Reverted', 'Successfully undid the last shift collection.', 'success');
+                            loadDashboardData();
+                          } else {
+                            const err = await res.json();
+                            addNotification('Failed to Undo', err.error || 'Undo failed.', 'error');
+                          }
+                        } catch {
+                          addNotification('Error', 'Connection failure.', 'error');
+                        }
+                      }}
+                      className="bg-[#da373c] hover:bg-[#a92b2f] text-white px-3 py-1.5 rounded text-[11px] font-bold font-sans tracking-wide transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      Undo Last
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Simulated Discord modal for RP Collect by ID */}
+        {showRpDiscordModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in font-sans p-4">
+            <div className="bg-[#313338] border border-[#1c1a2a]/45 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+              <div className="bg-[#1e1f22] p-4 flex justify-between items-center border-b border-[#151618]/30">
+                <h3 className="text-sm font-bold text-[#f2f3f5]">Collect RP Ticket By User</h3>
+                <button onClick={() => setShowRpDiscordModal(false)} className="text-[#949ba4] hover:text-white transition-colors cursor-pointer">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleRpDiscordModalSubmit} className="p-4 space-y-4 text-xs text-[#dbdee1]">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Discord ID, Username, or Nickname *</label>
+                  <input 
+                    type="text"
+                    required
+                    value={rpDiscordForm.memberInput}
+                    onChange={(e) => setRpDiscordForm(prev => ({ ...prev, memberInput: e.target.value }))}
+                    placeholder="e.g. 3572 or VitoScaletta"
+                    className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-white rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans animate-fade-in"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Tickets Collected *</label>
+                  <input 
+                    type="number"
+                    required
+                    value={rpDiscordForm.countInput}
+                    onChange={(e) => setRpDiscordForm(prev => ({ ...prev, countInput: e.target.value }))}
+                    placeholder="5"
+                    className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-white rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans animate-fade-in"
+                  />
+                </div>
+
+                <div className="bg-[#2b2d31] p-3 rounded text-[10px] text-[#949ba4] leading-relaxed select-none">
+                  💡 <b>Simulated Discord modal submits directly to the web backend,</b> generating a log in our database and updating the active shift roster on Discord in real-time.
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 select-none">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowRpDiscordModal(false)}
+                    className="bg-transparent hover:bg-zinc-800 text-white px-4 py-2 rounded text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="bg-[#248046] hover:bg-[#1a6535] text-white px-5 py-2 rounded text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Submit
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -7674,7 +8186,7 @@ export default function RootDashboard() {
     };
 
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-6 max-w-7xl mx-auto font-sans">
         {/* Page header and deploy */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl">
           <div>
@@ -7697,124 +8209,280 @@ export default function RootDashboard() {
           )}
         </div>
 
-        {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-          {/* TOP 5 CARD */}
-          <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 space-y-4 shadow-lg">
-            <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3">
-              <h3 className="font-title font-black text-sm italic text-amber-400 flex items-center gap-2">
-                🥇 TOP 5 MEMBERS
-              </h3>
-              <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[8px] font-black uppercase px-2 py-0.5 rounded">
-                ELITE ROSTER
-              </span>
-            </div>
+        {/* 2-Column Grid Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
+          {/* Left Column: Management Cards */}
+          <div className="lg:col-span-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* TOP 5 CARD */}
+              <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 space-y-4 shadow-lg">
+                <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3">
+                  <h3 className="font-title font-black text-sm italic text-amber-400 flex items-center gap-2">
+                    🥇 TOP 5 MEMBERS
+                  </h3>
+                  <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[8px] font-black uppercase px-2 py-0.5 rounded">
+                    ELITE ROSTER
+                  </span>
+                </div>
 
-            <div className="space-y-2">
-              {(!priorityList.top5 || priorityList.top5.length === 0) ? (
-                <div className="text-zinc-500 text-xs italic py-6 text-center">No members listed</div>
-              ) : (
-                priorityList.top5.map((m, idx) => (
-                  <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a2a]/50 p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-6 h-6 bg-amber-950/40 text-amber-400 border border-amber-800/35 rounded-lg flex items-center justify-center font-title font-black italic text-xs shrink-0 select-none">
-                        #{idx + 1}
+                <div className="space-y-2">
+                  {(!priorityList.top5 || priorityList.top5.length === 0) ? (
+                    <div className="text-zinc-500 text-xs italic py-6 text-center">No members listed</div>
+                  ) : (
+                    priorityList.top5.map((m, idx) => (
+                      <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a2a]/50 p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-6 h-6 bg-amber-950/40 text-amber-400 border border-amber-800/35 rounded-lg flex items-center justify-center font-title font-black italic text-xs shrink-0 select-none">
+                            #{idx + 1}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-title font-black text-xs italic text-zinc-200 truncate">
+                              @{m.username}
+                            </h4>
+                            <p className="text-[9px] text-zinc-500 font-mono truncate">{m.nickname}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-[10px] font-bold text-zinc-400 font-sans">{m.kills || 0} Kills</span>
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleRemoveMember('top5', m.discordId)}
+                              className="text-rose-400 hover:text-white p-1 hover:bg-rose-950/30 border border-rose-900/30 hover:border-rose-600/50 rounded-lg transition-smooth cursor-pointer"
+                              title="Remove Member"
+                            >
+                              <Trash className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="font-title font-black text-xs italic text-zinc-200 truncate">
-                          @{m.username}
-                        </h4>
-                        <p className="text-[9px] text-zinc-500 font-mono truncate">{m.nickname}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-[10px] font-bold text-zinc-400 font-sans">{m.kills || 0} Kills</span>
-                      {isAdmin && (
-                        <button
-                          onClick={() => handleRemoveMember('top5', m.discordId)}
-                          className="text-rose-400 hover:text-white p-1 hover:bg-rose-950/30 border border-rose-900/30 hover:border-rose-600/50 rounded-lg transition-smooth cursor-pointer"
-                          title="Remove Member"
-                        >
-                          <Trash className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
+                    ))
+                  )}
+                </div>
+
+                {isAdmin && (
+                  <div className="relative pt-2">
+                    <button
+                      onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top5' ? null : 'top5')}
+                      className="w-full flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 hover:text-white font-title font-black italic tracking-wide bg-emerald-950/20 hover:bg-emerald-600 border border-emerald-800/35 hover:border-emerald-500 py-2.5 rounded-lg transition-smooth cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> ADD TOP 5 MEMBER
+                    </button>
+                    {showAddMemberDropdown === 'top5' && renderAddDropdown('top5')}
                   </div>
-                ))
-              )}
-            </div>
-
-            {isAdmin && (
-              <div className="relative pt-2">
-                <button
-                  onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top5' ? null : 'top5')}
-                  className="w-full flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 hover:text-white font-title font-black italic tracking-wide bg-emerald-950/20 hover:bg-emerald-600 border border-emerald-800/35 hover:border-emerald-500 py-2.5 rounded-lg transition-smooth cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" /> ADD TOP 5 MEMBER
-                </button>
-                {showAddMemberDropdown === 'top5' && renderAddDropdown('top5')}
+                )}
               </div>
-            )}
+
+              {/* TOP 10 CARD */}
+              <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 space-y-4 shadow-lg">
+                <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3">
+                  <h3 className="font-title font-black text-sm italic text-purple-400 flex items-center gap-2">
+                    🎖️ TOP 10 MEMBERS
+                  </h3>
+                  <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[8px] font-black uppercase px-2 py-0.5 rounded">
+                    SHARPSHOOTERS
+                  </span>
+                </div>
+
+                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                  {(!priorityList.top10 || priorityList.top10.length === 0) ? (
+                    <div className="text-zinc-500 text-xs italic py-6 text-center">No members listed</div>
+                  ) : (
+                    priorityList.top10.map((m, idx) => (
+                      <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a2a]/50 p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-6 h-6 bg-purple-950/40 text-purple-400 border border-purple-800/35 rounded-lg flex items-center justify-center font-title font-black italic text-xs shrink-0 select-none">
+                            #{idx + 1}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-title font-black text-xs italic text-zinc-200 truncate">
+                              @{m.username}
+                            </h4>
+                            <p className="text-[9px] text-zinc-500 font-mono truncate">{m.nickname}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-[10px] font-bold text-zinc-400 font-sans">{m.kills || 0} Kills</span>
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleRemoveMember('top10', m.discordId)}
+                              className="text-rose-400 hover:text-white p-1 hover:bg-rose-950/30 border border-rose-900/30 hover:border-rose-600/50 rounded-lg transition-smooth cursor-pointer"
+                              title="Remove Member"
+                            >
+                              <Trash className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {isAdmin && (
+                  <div className="relative pt-2">
+                    <button
+                      onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top10' ? null : 'top10')}
+                      className="w-full flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 hover:text-white font-title font-black italic tracking-wide bg-emerald-950/20 hover:bg-emerald-600 border border-emerald-800/35 hover:border-emerald-500 py-2.5 rounded-lg transition-smooth cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> ADD TOP 10 MEMBER
+                    </button>
+                    {showAddMemberDropdown === 'top10' && renderAddDropdown('top10')}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* TOP 10 CARD */}
-          <div className="bg-[#111118] border border-[#1c1a2a] rounded-2xl p-6 space-y-4 shadow-lg">
-            <div className="flex justify-between items-center border-b border-[#1c1a2a]/50 pb-3">
-              <h3 className="font-title font-black text-sm italic text-purple-400 flex items-center gap-2">
-                🎖️ TOP 10 MEMBERS
-              </h3>
-              <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[8px] font-black uppercase px-2 py-0.5 rounded">
-                SHARPSHOOTERS
-              </span>
+          {/* Right Column: Discord Channel Integration Preview */}
+          <div className="lg:col-span-4 space-y-4">
+            <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+              🤖 DISCORD CHANNEL INTEGRATION PREVIEW
             </div>
 
-            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-              {(!priorityList.top10 || priorityList.top10.length === 0) ? (
-                <div className="text-zinc-500 text-xs italic py-6 text-center">No members listed</div>
-              ) : (
-                priorityList.top10.map((m, idx) => (
-                  <div key={m.discordId} className="flex items-center justify-between bg-[#0c0a10] border border-[#1c1a2a]/50 p-3 rounded-xl hover:border-purple-600/30 transition-smooth group">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-6 h-6 bg-purple-950/40 text-purple-400 border border-purple-800/35 rounded-lg flex items-center justify-center font-title font-black italic text-xs shrink-0 select-none">
-                        #{idx + 1}
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="font-title font-black text-xs italic text-zinc-200 truncate">
-                          @{m.username}
+            <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+              {/* Discord Server HUD Header */}
+              <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+                <div className="flex items-center gap-2 font-semibold">
+                  <span className="text-[#949ba4] font-black text-sm select-none">#</span>
+                  <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                    priority-members
+                  </span>
+                </div>
+                <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+              </div>
+
+              {/* Discord Chat Area */}
+              <div className="p-4 space-y-4 bg-[#313338]">
+                <div className="flex gap-3">
+                  {/* Bot Avatar */}
+                  <div className="w-9 h-9 rounded-full bg-[#111118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
+                    <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                  </div>
+
+                  {/* Message Body */}
+                  <div className="flex-1 space-y-2 min-w-0">
+                    <div className="flex items-center gap-1.5 leading-none">
+                      <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                      <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                      <span className="text-[9px] text-[#949ba4] font-sans">Today at 10:41 AM</span>
+                    </div>
+
+                    {/* Bot Embed Box */}
+                    <div className="border-l-4 border-[#ffd700] bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3.5 shadow-md relative select-text">
+                      <img 
+                        src="/logo.webp" 
+                        alt="Pigeon Thumbnail" 
+                        className="absolute top-4 right-4 w-12 h-12 object-contain rounded opacity-80 hidden sm:block pointer-events-none" 
+                      />
+
+                      <div className="space-y-3 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                        <h4 className="text-sm font-extrabold text-white">
+                          Priority Members
                         </h4>
-                        <p className="text-[9px] text-zinc-500 font-mono truncate">{m.nickname}</p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {/* TOP 5 FIELD */}
+                          <div>
+                            <div className="text-[11px] font-extrabold text-white mb-1.5">TOP 5 Members</div>
+                            <div className="space-y-1.5 text-[11px]">
+                              {(!priorityList.top5 || priorityList.top5.length === 0) ? (
+                                <span className="text-zinc-500 italic">*No members*</span>
+                              ) : (
+                                priorityList.top5.map((m, idx) => (
+                                  <div key={m.discordId} className="flex items-center gap-1">
+                                    <span className="text-zinc-400 font-mono">{idx + 1}.</span>
+                                    <span className="bg-[#5865f2]/10 text-[#5865f2] hover:bg-[#5865f2] hover:text-white transition-colors px-1 py-0.5 rounded font-semibold text-[10px] cursor-pointer truncate max-w-[120px]">
+                                      @{m.username}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          {/* TOP 10 FIELD */}
+                          <div>
+                            <div className="text-[11px] font-extrabold text-white mb-1.5">TOP 10 Members</div>
+                            <div className="space-y-1.5 text-[11px]">
+                              {(!priorityList.top10 || priorityList.top10.length === 0) ? (
+                                <span className="text-zinc-500 italic">*No members*</span>
+                              ) : (
+                                priorityList.top10.map((m, idx) => (
+                                  <div key={m.discordId} className="flex items-center gap-1">
+                                    <span className="text-zinc-400 font-mono">{idx + 1}.</span>
+                                    <span className="bg-[#5865f2]/10 text-[#5865f2] hover:bg-[#5865f2] hover:text-white transition-colors px-1 py-0.5 rounded font-semibold text-[10px] cursor-pointer truncate max-w-[120px]">
+                                      @{m.username}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      <div className="text-[9px] text-[#949ba4] pt-2 border-t border-[#3f4147]/40 flex items-center gap-1 select-none">
+                        <span>White Pigeons #TOP1 • Priority List</span>
                       </div>
                     </div>
-                    
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-[10px] font-bold text-zinc-400 font-sans">{m.kills || 0} Kills</span>
-                      {isAdmin && (
-                        <button
-                          onClick={() => handleRemoveMember('top10', m.discordId)}
-                          className="text-rose-400 hover:text-white p-1 hover:bg-rose-950/30 border border-rose-900/30 hover:border-rose-600/50 rounded-lg transition-smooth cursor-pointer"
-                          title="Remove Member"
-                        >
-                          <Trash className="w-3 h-3" />
-                        </button>
-                      )}
+
+                    {/* Interactive Bot Embed Buttons */}
+                    <div className="flex flex-wrap gap-2 pt-1 select-none">
+                      <button
+                        onClick={() => {
+                          if (isAdmin) {
+                            setShowAddMemberDropdown(showAddMemberDropdown === 'top5' ? null : 'top5');
+                          } else {
+                            addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                          }
+                        }}
+                        className="bg-[#248046] hover:bg-[#1a6535] text-white px-3 py-1.5 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        + Add Top 5 Member
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (isAdmin) {
+                            setShowAddMemberDropdown(showAddMemberDropdown === 'top10' ? null : 'top10');
+                          } else {
+                            addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                          }
+                        }}
+                        className="bg-[#248046] hover:bg-[#1a6535] text-white px-3 py-1.5 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        + Add Top 10 Member
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (isAdmin) {
+                            addNotification('Roster Management', 'To remove members, use the inline red trash (X) icons next to their names in the list columns on the left.', 'info');
+                          } else {
+                            addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                          }
+                        }}
+                        className="bg-[#da373c] hover:bg-[#a92b2f] text-white px-3 py-1.5 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        X Remove Top 5 Member
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (isAdmin) {
+                            addNotification('Roster Management', 'To remove members, use the inline red trash (X) icons next to their names in the list columns on the left.', 'info');
+                          } else {
+                            addNotification('Access Denied', 'Admin console passcode is required to edit the priority list.', 'warning');
+                          }
+                        }}
+                        className="bg-[#da373c] hover:bg-[#a92b2f] text-white px-3 py-1.5 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        X Remove Top 10 Member
+                      </button>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-
-            {isAdmin && (
-              <div className="relative pt-2">
-                <button
-                  onClick={() => setShowAddMemberDropdown(showAddMemberDropdown === 'top10' ? null : 'top10')}
-                  className="w-full flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 hover:text-white font-title font-black italic tracking-wide bg-emerald-950/20 hover:bg-emerald-600 border border-emerald-800/35 hover:border-emerald-500 py-2.5 rounded-lg transition-smooth cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" /> ADD TOP 10 MEMBER
-                </button>
-                {showAddMemberDropdown === 'top10' && renderAddDropdown('top10')}
+                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
 

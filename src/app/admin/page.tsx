@@ -130,6 +130,8 @@ export default function AdminDashboard() {
   // Bot Credentials form state
   const [credentials, setCredentials] = useState({
     botToken: '••••••••••••••••',
+    bizwarBotToken: '••••••••••••••••',
+    rpBotToken: '••••••••••••••••',
     guildId: '1511130238074093698',
     clientId: '1511505854728503336',
     clientSecret: '••••••••••••••••',
@@ -177,6 +179,8 @@ export default function AdminDashboard() {
           // Load backend credentials to form if the user is in bot tab
           setCredentials({
             botToken: data.botToken || '',
+            bizwarBotToken: data.bizwarBotToken || '',
+            rpBotToken: data.rpBotToken || '',
             guildId: data.guildId || '',
             clientId: data.clientId || '',
             clientSecret: data.clientSecret || '',
@@ -408,6 +412,8 @@ export default function AdminDashboard() {
         const data = await res.json();
         setCredentials({
           botToken: data.botToken || '',
+          bizwarBotToken: data.bizwarBotToken || '',
+          rpBotToken: data.rpBotToken || '',
           guildId: data.guildId || '',
           clientId: data.clientId || '',
           clientSecret: data.clientSecret || '',
@@ -486,6 +492,8 @@ export default function AdminDashboard() {
         addNotification('Credentials Reset', 'All bot settings cleared on the backend.', 'success');
         setCredentials({
           botToken: '',
+          bizwarBotToken: '',
+          rpBotToken: '',
           guildId: '',
           clientId: '',
           clientSecret: '',
@@ -693,7 +701,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick Panel Deployment Card */}
-            {['role-request', 'strikes', 'tickets', 'check-balance', 'weekly-kill-list', 'announcements', 'submit-activity', 'top-10-list', 'long-time-kill-list', 'bonus-admin-panel'].includes(broadcastForm.channelKey) && (
+            {['role-request', 'strikes', 'tickets', 'check-balance', 'weekly-kill-list', 'announcements', 'submit-activity', 'top-10-list', 'long-time-kill-list', 'bonus-admin-panel', 'bizwar-collect', 'rp-collect'].includes(broadcastForm.channelKey) && (
               <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col gap-4 shadow-xl animate-fade-in">
                 <div className="border-b border-[#201d2d]/60 pb-2 flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-amber-900/10">
@@ -991,6 +999,33 @@ export default function AdminDashboard() {
                     </button>
                   )}
 
+                  {broadcastForm.channelKey === 'activity-points-leaderboard' && (
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to deploy the interactive Activity Points Leaderboard Panel in the channel?')) return;
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/deploy-activity-leaderboard-prompt`, {
+                            method: 'POST',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Panel Deployed', 'Activity Points Leaderboard panel deployed in Discord.', 'success');
+                          } else {
+                            throw new Error('Failed to deploy panel.');
+                          }
+                        } catch (err: any) {
+                          addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                        }
+                      }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-amber-500 glow-amber transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY ACTIVITY LEADERBOARD
+                    </button>
+                  )}
+
+
                   {broadcastForm.channelKey === 'top-10-list' && (
                     <button 
                       onClick={async () => {
@@ -1066,6 +1101,58 @@ export default function AdminDashboard() {
                       className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-purple-500 glow-magenta transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <ShieldCheck className="w-3.5 h-3.5" /> DEPLOY BONUS ADMIN PANEL
+                    </button>
+                  )}
+
+                  {broadcastForm.channelKey === 'bizwar-collect' && (
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to deploy the interactive Bizwar Collection panel in the channel?')) return;
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/deploy-bizwar-prompt`, {
+                            method: 'POST',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Panel Deployed', 'Bizwar Collection panel deployed in Discord.', 'success');
+                          } else {
+                            throw new Error('Failed to deploy panel.');
+                          }
+                        } catch (err: any) {
+                          addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                        }
+                      }}
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-purple-500 glow-magenta transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Server className="w-3.5 h-3.5" /> DEPLOY BIZWAR PANEL
+                    </button>
+                  )}
+
+                  {broadcastForm.channelKey === 'rp-collect' && (
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to deploy the interactive RP Ticket Collection panel in the channel?')) return;
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/api/admin/deploy-rp-collect-prompt`, {
+                            method: 'POST',
+                            headers: { 
+                              'Content-Type': 'application/json',
+                            }
+                          });
+                          if (res.ok) {
+                            addNotification('Panel Deployed', 'RP Ticket Collection panel deployed in Discord.', 'success');
+                          } else {
+                            throw new Error('Failed to deploy panel.');
+                          }
+                        } catch (err: any) {
+                          addNotification('Deployment Failed', err.message || 'Error deploying panel.', 'error');
+                        }
+                      }}
+                      className="bg-sky-600 hover:bg-sky-700 text-white font-title text-xs font-black italic py-2.5 rounded-xl border border-sky-500 glow-cyan transition-smooth cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Server className="w-3.5 h-3.5" /> DEPLOY RP COLLECT PANEL
                     </button>
                   )}
                 </div>
@@ -1259,6 +1346,30 @@ export default function AdminDashboard() {
                     value={credentials.botToken}
                     onChange={handleCredChange}
                     placeholder={credentials.botToken ? '••••••••••••••••' : 'Enter Bot Token'} 
+                    className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] text-zinc-500 font-black block mb-1">BIZWAR BOT TOKEN (OPTIONAL)</label>
+                  <input 
+                    type="password"
+                    name="bizwarBotToken"
+                    value={credentials.bizwarBotToken || ''}
+                    onChange={handleCredChange}
+                    placeholder={credentials.bizwarBotToken ? '••••••••••••••••' : 'Fallback to Primary Bot Token'} 
+                    className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] text-zinc-500 font-black block mb-1">RP COLLECTION BOT TOKEN (OPTIONAL)</label>
+                  <input 
+                    type="password"
+                    name="rpBotToken"
+                    value={credentials.rpBotToken || ''}
+                    onChange={handleCredChange}
+                    placeholder={credentials.rpBotToken ? '••••••••••••••••' : 'Fallback to Primary Bot Token'} 
                     className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
                   />
                 </div>

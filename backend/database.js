@@ -59,6 +59,8 @@ if (!fs.existsSync(DATA_DIR)) {
 const initialDb = {
   config: {
     botToken: '',
+    bizwarBotToken: '',
+    rpBotToken: '',
     guildId: '',
     clientId: '',
     clientSecret: '',
@@ -1123,6 +1125,8 @@ const db = {
         if (doc.exists) {
           const config = doc.data();
           if (config.botToken) config.botToken = decrypt(config.botToken);
+          if (config.bizwarBotToken) config.bizwarBotToken = decrypt(config.bizwarBotToken);
+          if (config.rpBotToken) config.rpBotToken = decrypt(config.rpBotToken);
           if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
           config.adminPassword = resolveAdminPassword(config.adminPassword);
           if (!config.rpTicketTimes) {
@@ -1135,6 +1139,8 @@ const db = {
           const localConfig = { ...localData.config };
           await firebaseDb.collection('settings').doc('discord').set(localConfig);
           if (localConfig.botToken) localConfig.botToken = decrypt(localConfig.botToken);
+          if (localConfig.bizwarBotToken) localConfig.bizwarBotToken = decrypt(localConfig.bizwarBotToken);
+          if (localConfig.rpBotToken) localConfig.rpBotToken = decrypt(localConfig.rpBotToken);
           if (localConfig.clientSecret) localConfig.clientSecret = decrypt(localConfig.clientSecret);
           localConfig.adminPassword = resolveAdminPassword(localConfig.adminPassword);
           if (!localConfig.rpTicketTimes) {
@@ -1151,6 +1157,8 @@ const db = {
       const config = { ...data.config };
       // Decrypt credentials before returning
       if (config.botToken) config.botToken = decrypt(config.botToken);
+      if (config.bizwarBotToken) config.bizwarBotToken = decrypt(config.bizwarBotToken);
+      if (config.rpBotToken) config.rpBotToken = decrypt(config.rpBotToken);
       if (config.clientSecret) config.clientSecret = decrypt(config.clientSecret);
       config.adminPassword = resolveAdminPassword(config.adminPassword);
       if (!config.rpTicketTimes) {
@@ -1188,6 +1196,8 @@ const db = {
     // Encrypt sensitive fields
     const encryptedConfig = {
       botToken: newConfig.botToken ? encrypt(newConfig.botToken) : '',
+      bizwarBotToken: newConfig.bizwarBotToken ? encrypt(newConfig.bizwarBotToken) : '',
+      rpBotToken: newConfig.rpBotToken ? encrypt(newConfig.rpBotToken) : '',
       guildId: newConfig.guildId || '',
       clientId: newConfig.clientId || '',
       clientSecret: newConfig.clientSecret ? encrypt(newConfig.clientSecret) : '',
@@ -1801,6 +1811,21 @@ const db = {
     writeDb(data);
     return newLog;
   },
+
+  deleteRpTicketLog: async (id) => {
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('rpTicketLogs').doc(id).delete();
+        return true;
+      } catch (err) {
+        console.error('Firestore deleteRpTicketLog failed:', err.message);
+      }
+    }
+    const data = readDb();
+    data.rpTicketLogs = data.rpTicketLogs.filter(log => log.id !== id);
+    writeDb(data);
+    return true;
+  },
   
   getRpTicketStats: async () => {
     const logs = await db.getRpTicketLogs();
@@ -2196,6 +2221,41 @@ const db = {
       ...(description !== null && { description }),
       ...(state === 'open' && { openedAt: Date.now() })
     };
+    writeDb(data);
+    return true;
+  },
+
+  getRpCollectionState: async () => {
+    if (firebaseDb) {
+      try {
+        const doc = await firebaseDb.collection('event_states').doc('rp-collect-state').get();
+        if (doc.exists) return doc.data();
+      } catch (err) {
+        console.error('Firestore getRpCollectionState failed:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.eventStates) data.eventStates = {};
+    return data.eventStates['rp-collect-state'] || {
+      collectionTime: '22:30',
+      maxCollections: 6,
+      collectionsCount: 0,
+      collectionsList: []
+    };
+  },
+
+  saveRpCollectionState: async (state) => {
+    if (firebaseDb) {
+      try {
+        await firebaseDb.collection('event_states').doc('rp-collect-state').set(state);
+        return true;
+      } catch (err) {
+        console.error('Firestore saveRpCollectionState failed:', err.message);
+      }
+    }
+    const data = readDb();
+    if (!data.eventStates) data.eventStates = {};
+    data.eventStates['rp-collect-state'] = state;
     writeDb(data);
     return true;
   },

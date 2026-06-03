@@ -1,4 +1,15 @@
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, MessageFlags, Partials } = require('discord.js');
+
+const isProduction = () => {
+  return process.env.NODE_ENV === 'production' || process.env.USE_FIRESTORE === 'true';
+};
+
+const getEnvPrefix = () => {
+  return isProduction() ? 'prod:' : 'dev:';
+};
+
+const p = (id) => `${getEnvPrefix()}${id}`;
+
 const db = require('./database');
 const axios = require('axios');
 const { isDiscordWebhookUrl, sanitizeString } = require('./security');
@@ -115,6 +126,8 @@ const isAuthorizedAdmin = (member) => {
 };
 
 let client = null;
+let bizwarClient = null;
+let rpClient = null;
 let ioInstance = null; // Socket.io reference to broadcast simulated logs
 
 const botService = {
@@ -124,6 +137,22 @@ const botService = {
 
   isReady: () => {
     return client && client.readyAt !== null;
+  },
+
+  getGuild: async (guildId) => {
+    if (!client) return null;
+    let guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      try {
+        guild = await client.guilds.fetch(guildId);
+      } catch (err) {
+        guild = client.guilds.cache.first();
+      }
+    }
+    if (!guild) {
+      guild = client.guilds.cache.first();
+    }
+    return guild;
   },
 
   broadcastSocket: (event, data) => {
@@ -178,6 +207,22 @@ const botService = {
       }
       client = null;
     }
+    if (bizwarClient && bizwarClient !== client) {
+      try {
+        bizwarClient.destroy();
+      } catch (err) {
+        console.error('[Bot] Error destroying old bizwarClient:', err.message);
+      }
+    }
+    bizwarClient = null;
+    if (rpClient && rpClient !== client) {
+      try {
+        rpClient.destroy();
+      } catch (err) {
+        console.error('[Bot] Error destroying old rpClient:', err.message);
+      }
+    }
+    rpClient = null;
     const config = await db.getConfig();
     if (!config.botToken || !config.guildId) {
       botService.logSimulated('Bot credentials missing. Running in Mock/Simulated Mode.');
@@ -200,6 +245,8 @@ const botService = {
       client.once('ready', () => {
         console.log(`[Bot] Connected as ${client.user.tag}`);
         botService.logSimulated(`Discord Bot Connected live as ${client.user.tag}`);
+        const guildIds = client.guilds.cache.map(g => `${g.name} (${g.id})`).join(', ');
+        console.log(`[Bot] Connected to guilds: [${guildIds}]`);
       });
 
       client.on('error', (err) => {
@@ -408,14 +455,35 @@ const botService = {
       });
 
       // Discord interaction listener for components and modals
-      client.on('interactionCreate', async (interaction) => {
+      const handleInteraction = async (interaction) => {
+        // Filter by environment using customId prefix if present
+        if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+          let customId = interaction.customId;
+          const isProd = process.env.NODE_ENV === 'production' || process.env.USE_FIRESTORE === 'true';
+          const currentEnv = isProd ? 'prod' : 'dev';
+          
+          if (customId.startsWith('dev:') || customId.startsWith('prod:')) {
+            if (customId.startsWith('dev:') && currentEnv !== 'dev') {
+              return; // Ignore dev interaction on prod bot
+            }
+            if (customId.startsWith('prod:') && currentEnv !== 'prod') {
+              return; // Ignore prod interaction on dev bot
+            }
+            // Strip the prefix for the rest of the code
+            Object.defineProperty(interaction, 'customId', {
+              value: customId.substring(customId.indexOf(':') + 1),
+              writable: true,
+              configurable: true
+            });
+          }
+        }
         // 1. Button interactions
         if (interaction.isButton()) {
           const customId = interaction.customId;
           
           if (customId === 'trigger_role_request') {
             const modal = new ModalBuilder()
-              .setCustomId('role_request_modal')
+              .setCustomId(p('role_request_modal'))
               .setTitle('Role Request Form');
 
             const nameInput = new TextInputBuilder()
@@ -464,6 +532,203 @@ const botService = {
             await interaction.showModal(modal);
           }
           
+          else if (customId === 'bizwar_collect_btn') {
+            try {
+              // Check cooldown
+              const logs = await db.getBizWarLogs();
+              const lastLog = logs[0];
+              if (lastLog) {
+                const lastTime = new Date(lastLog.timeCollected).getTime();
+                const elapsed = Date.now() - lastTime;
+                const cooldownPeriod = 24 * 60 * 60 * 1000;
+                if (elapsed < cooldownPeriod) {
+                  const remainingMs = cooldownPeriod - elapsed;
+                  const hours = Math.floor(remainingMs / (60 * 60 * 1000));
+                  const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+                  return interaction.reply({
+                    content: `❌ **Bizwar profits collection is on cooldown.**\nAvailable in **${hours}h ${minutes}m**.`,
+                    flags: [MessageFlags.Ephemeral]
+                  });
+                }
+              }
+
+              // Not on cooldown, show modal
+              const modal = new ModalBuilder()
+                .setCustomId(p('bizwar_collect_modal'))
+                .setTitle('Bizwar Profit Collection');
+
+              const bizNameInput = new TextInputBuilder()
+                .setCustomId('bizwar_name')
+                .setLabel('Business Site Name')
+                .setPlaceholder('e.g. Hotel Factory')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+              const amtInput = new TextInputBuilder()
+                .setCustomId('bizwar_amount')
+                .setLabel('Amount Collected ($)')
+                .setPlaceholder('e.g. 450000')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+              const proofInput = new TextInputBuilder()
+                .setCustomId('bizwar_proof')
+                .setLabel('Proof Screenshot Link')
+                .setPlaceholder('e.g. https://...')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+              modal.addComponents(
+                new ActionRowBuilder().addComponents(bizNameInput),
+                new ActionRowBuilder().addComponents(amtInput),
+                new ActionRowBuilder().addComponents(proofInput)
+              );
+
+              await interaction.showModal(modal);
+            } catch (err) {
+              console.error('Error in bizwar_collect_btn handler:', err.message);
+              await interaction.reply({ content: '⚠️ Failed to open collection modal.', flags: [MessageFlags.Ephemeral] });
+            }
+          }
+
+          else if (customId === 'rp_collect_btn') {
+            try {
+              const state = await db.getRpCollectionState();
+              if (state.collectionsCount >= state.maxCollections) {
+                return interaction.reply({
+                  content: `❌ **RP Ticket Collection shifts are full (${state.collectionsCount}/${state.maxCollections}).**`,
+                  flags: [MessageFlags.Ephemeral]
+                });
+              }
+
+              // Create the log in DB
+              const log = await db.createRpTicketLog({
+                memberId: interaction.user.id,
+                username: interaction.user.username,
+                ticketsCollected: 5,
+                timeCollected: new Date().toISOString()
+              });
+
+              // Add to state
+              state.collectionsList.push({
+                logId: log.id,
+                discordId: interaction.user.id,
+                username: interaction.user.username,
+                ticketsCollected: 5,
+                time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
+              });
+              state.collectionsCount = state.collectionsList.length;
+              await db.saveRpCollectionState(state);
+
+              // Update Discord message
+              await botService.syncRpCollectionMessage();
+
+              // Send webhook & Socket broadcast
+              const stats = await db.getRpTicketStats();
+              const embed = {
+                title: '🎫 RP TICKET FACTORY COLLECTION',
+                description: `RP Tickets successfully harvested.`,
+                color: 0x00f0ff,
+                fields: [
+                  { name: 'Collector', value: `<@${interaction.user.id}>`, inline: true },
+                  { name: 'Tickets Collected', value: `5 RP Tickets`, inline: true },
+                  { name: 'Total Vault Stock', value: `${stats.totalCollected} RP Tickets`, inline: true }
+                ]
+              };
+              await botService.sendWebhook('rp-collect', embed);
+              botService.broadcastSocket('leaderboard_update', await db.getMembers());
+
+              await interaction.reply({
+                content: `✅ Successfully registered your shift collection of **5 RP tickets**.`,
+                flags: [MessageFlags.Ephemeral]
+              });
+            } catch (err) {
+              console.error('Error in rp_collect_btn handler:', err.message);
+              await interaction.reply({
+                content: `❌ Error registering collection: ${err.message}`,
+                flags: [MessageFlags.Ephemeral]
+              });
+            }
+          }
+
+          else if (customId === 'rp_collect_by_id_btn') {
+            try {
+              const state = await db.getRpCollectionState();
+              if (state.collectionsCount >= state.maxCollections) {
+                return interaction.reply({
+                  content: `❌ **RP Ticket Collection shifts are full (${state.collectionsCount}/${state.maxCollections}).**`,
+                  flags: [MessageFlags.Ephemeral]
+                });
+              }
+
+              const modal = new ModalBuilder()
+                .setCustomId(p('rp_collect_by_id_modal'))
+                .setTitle('Collect RP Ticket By User');
+
+              const idInput = new TextInputBuilder()
+                .setCustomId('rp_member_input')
+                .setLabel('Discord ID, Username, or Nickname')
+                .setPlaceholder('e.g. 3572 or VitoScaletta')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+              const countInput = new TextInputBuilder()
+                .setCustomId('rp_count_input')
+                .setLabel('Tickets Collected')
+                .setValue('5')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+              modal.addComponents(
+                new ActionRowBuilder().addComponents(idInput),
+                new ActionRowBuilder().addComponents(countInput)
+              );
+
+              await interaction.showModal(modal);
+            } catch (err) {
+              console.error('Error in rp_collect_by_id_btn handler:', err.message);
+              await interaction.reply({ content: '⚠️ Failed to open ID collection modal.', flags: [MessageFlags.Ephemeral] });
+            }
+          }
+
+          else if (customId === 'rp_undo_btn') {
+            try {
+              const state = await db.getRpCollectionState();
+              if (!state.collectionsList || state.collectionsList.length === 0) {
+                return interaction.reply({
+                  content: `❌ **No collections registered in this session to undo.**`,
+                  flags: [MessageFlags.Ephemeral]
+                });
+              }
+
+              const removed = state.collectionsList.pop();
+              state.collectionsCount = state.collectionsList.length;
+              await db.saveRpCollectionState(state);
+
+              // Delete from DB
+              if (removed && removed.logId) {
+                await db.deleteRpTicketLog(removed.logId);
+              }
+
+              // Update Discord message
+              await botService.syncRpCollectionMessage();
+
+              // Send update to webhook or socket
+              botService.broadcastSocket('leaderboard_update', await db.getMembers());
+
+              await interaction.reply({
+                content: `🔄 Undid last collection by <@${removed.discordId}>.`,
+                flags: [MessageFlags.Ephemeral]
+              });
+            } catch (err) {
+              console.error('Error in rp_undo_btn handler:', err.message);
+              await interaction.reply({
+                content: `❌ Error undoing last collection: ${err.message}`,
+                flags: [MessageFlags.Ephemeral]
+              });
+            }
+          }
+
           else if (customId === 'refresh_stats') {
             try {
               const stats = await db.getFamilyStats();
@@ -471,7 +736,7 @@ const botService = {
               
               const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                  .setCustomId('refresh_stats')
+                  .setCustomId(p('refresh_stats'))
                   .setLabel('🔄 Refresh Stats')
                   .setStyle(ButtonStyle.Secondary)
               );
@@ -505,7 +770,7 @@ const botService = {
             const type = customId.includes('top5') ? 'top5' : 'top10';
             const label = type === 'top5' ? 'Top 5' : 'Top 10';
             const modal = new ModalBuilder()
-              .setCustomId(`priority_add_modal:${type}`)
+              .setCustomId(p(`priority_add_modal:${type}`))
               .setTitle(`Add to ${label} Members`);
 
             const input = new TextInputBuilder()
@@ -522,7 +787,7 @@ const botService = {
             const type = customId.includes('top5') ? 'top5' : 'top10';
             const label = type === 'top5' ? 'Top 5' : 'Top 10';
             const modal = new ModalBuilder()
-              .setCustomId(`priority_remove_modal:${type}`)
+              .setCustomId(p(`priority_remove_modal:${type}`))
               .setTitle(`Remove from ${label} Members`);
 
             const input = new TextInputBuilder()
@@ -724,7 +989,7 @@ const botService = {
             }
 
             const kickSelect = new StringSelectMenuBuilder()
-              .setCustomId(`admin_kick_select:${eventId}`)
+              .setCustomId(p(`admin_kick_select:${eventId}`))
               .setPlaceholder('Select a member to KICK...')
               .addOptions(signups.map(s => ({
                 label: `@${s.username} (${s.status.toUpperCase()})`,
@@ -732,7 +997,7 @@ const botService = {
               })));
 
             const swapSelect = new StringSelectMenuBuilder()
-              .setCustomId(`admin_swap_first_select:${eventId}`)
+              .setCustomId(p(`admin_swap_first_select:${eventId}`))
               .setPlaceholder('Select first member to SWAP...')
               .addOptions(signups.map(s => ({
                 label: `@${s.username} (${s.status.toUpperCase()})`,
@@ -750,7 +1015,7 @@ const botService = {
           }
           else if (customId === 'trigger_bonus_ticket') {
             const modal = new ModalBuilder()
-              .setCustomId('discord_ticket_bonus_modal')
+              .setCustomId(p('discord_ticket_bonus_modal'))
               .setTitle('Bonus Problem Ticket');
 
             const subjectInput = new TextInputBuilder()
@@ -776,7 +1041,7 @@ const botService = {
           }
           else if (customId === 'trigger_support_ticket') {
             const modal = new ModalBuilder()
-              .setCustomId('discord_ticket_support_modal')
+              .setCustomId(p('discord_ticket_support_modal'))
               .setTitle('Support Problem Ticket');
 
             const subjectInput = new TextInputBuilder()
@@ -802,7 +1067,7 @@ const botService = {
           }
           else if (customId === 'trigger_activity_submit') {
             const modal = new ModalBuilder()
-              .setCustomId('activity_submit_modal')
+              .setCustomId(p('activity_submit_modal'))
               .setTitle('Submit Activity Log');
 
             const typeInput = new TextInputBuilder()
@@ -849,15 +1114,15 @@ const botService = {
               const embed = await botService.buildActivityPromptEmbed();
               const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                  .setCustomId('trigger_activity_submit')
+                  .setCustomId(p('trigger_activity_submit'))
                   .setLabel('Submit Activity')
                   .setStyle(ButtonStyle.Success),
                 new ButtonBuilder()
-                  .setCustomId('trigger_my_points')
+                  .setCustomId(p('trigger_my_points'))
                   .setLabel('My Points')
                   .setStyle(ButtonStyle.Primary),
                 new ButtonBuilder()
-                  .setCustomId('trigger_refresh_activity')
+                  .setCustomId(p('trigger_refresh_activity'))
                   .setLabel('🔄 Refresh')
                   .setStyle(ButtonStyle.Secondary)
               );
@@ -912,25 +1177,7 @@ const botService = {
                 components: []
               });
 
-              try {
-                let resultChannel = interaction.guild.channels.cache.find(c => {
-                  const name = cleanName(c.name);
-                  return name.includes('activity-result') || name.includes('activity-results');
-                });
-                if (!resultChannel) {
-                  resultChannel = interaction.guild.channels.cache.find(c => cleanName(c.name).includes('result'));
-                }
-                if (resultChannel) {
-                  const resultEmbed = new EmbedBuilder()
-                    .setTitle('✅ Activity Approved')
-                    .setDescription(`**User:** <@${act.memberId}>\n**Category:** ${act.activityType}\n**Points:** +${points}`)
-                    .setColor(0x23a55a)
-                    .setTimestamp();
-                  await resultChannel.send({ embeds: [resultEmbed] });
-                }
-              } catch (err) {
-                console.error('[Bot] Failed to send activity approved message:', err.message);
-              }
+              await botService.sendActivityResult(act, 'approved', points, reviewerName);
 
               await botService.sendDirectMessage(
                 act.memberId,
@@ -956,6 +1203,8 @@ const botService = {
                 embeds: [reviewEmbed],
                 components: []
               });
+
+              await botService.sendActivityResult(act, 'rejected', 0, reviewerName);
 
               await botService.sendDirectMessage(
                 act.memberId,
@@ -1130,7 +1379,148 @@ const botService = {
 
         // 2. Modal submissions
         else if (interaction.isModalSubmit()) {
-          if (interaction.customId === 'activity_submit_modal') {
+          if (interaction.customId === 'bizwar_collect_modal') {
+            try {
+              const businessName = interaction.fields.getTextInputValue('bizwar_name');
+              const amountStr = interaction.fields.getTextInputValue('bizwar_amount');
+              const proofUrl = interaction.fields.getTextInputValue('bizwar_proof');
+
+              const numericAmount = parseFloat(amountStr);
+              if (isNaN(numericAmount) || numericAmount <= 0) {
+                return interaction.reply({ content: '❌ Amount must be a positive number.', flags: [MessageFlags.Ephemeral] });
+              }
+
+              if (proofUrl && !proofUrl.startsWith('http://') && !proofUrl.startsWith('https://')) {
+                return interaction.reply({ content: '❌ Proof must be a valid http:// or https:// URL.', flags: [MessageFlags.Ephemeral] });
+              }
+
+              // Save to database
+              const log = await db.createBizWarLog({
+                memberId: interaction.user.id,
+                username: interaction.user.username,
+                businessName,
+                amount: numericAmount,
+                timeCollected: new Date().toISOString()
+              });
+
+              // Add to member balance
+              const member = await db.getMember(interaction.user.id);
+              const currentBalance = member ? member.balance : 0;
+              await db.updateMember(interaction.user.id, { balance: currentBalance + numericAmount });
+
+              // Sync Discord embed
+              await botService.syncBizwarCollectionMessage();
+
+              // Send webhook & Socket broadcast
+              const embed = {
+                title: '💲 BIZWAR COLLECT LOGGED',
+                description: `Business profits successfully collected.`,
+                color: 0x00ff00,
+                fields: [
+                  { name: 'Collector', value: `<@${interaction.user.id}>`, inline: true },
+                  { name: 'Business Site', value: businessName, inline: true },
+                  { name: 'Collected Amount', value: `$${numericAmount.toLocaleString()}`, inline: true }
+                ]
+              };
+              if (proofUrl) {
+                embed.image = { url: proofUrl };
+              }
+              await botService.sendWebhook('bizwar-collect', embed);
+              botService.broadcastSocket('leaderboard_update', await db.getMembers());
+
+              await interaction.reply({
+                content: `✅ Successfully collected **$${numericAmount.toLocaleString()}** from **${businessName}**.`,
+                flags: [MessageFlags.Ephemeral]
+              });
+            } catch (err) {
+              console.error('Error in bizwar_collect_modal handler:', err.message);
+              await interaction.reply({
+                content: `❌ Error submitting bizwar collect: ${err.message}`,
+                flags: [MessageFlags.Ephemeral]
+              });
+            }
+          }
+
+          else if (interaction.customId === 'rp_collect_by_id_modal') {
+            try {
+              const state = await db.getRpCollectionState();
+              if (state.collectionsCount >= state.maxCollections) {
+                return interaction.reply({
+                  content: `❌ **RP Ticket Collection shifts are full (${state.collectionsCount}/${state.maxCollections}).**`,
+                  flags: [MessageFlags.Ephemeral]
+                });
+              }
+
+              const value = interaction.fields.getTextInputValue('rp_member_input').trim();
+              const countStr = interaction.fields.getTextInputValue('rp_count_input').trim();
+
+              const numTickets = parseInt(countStr, 10);
+              if (isNaN(numTickets) || numTickets <= 0) {
+                return interaction.reply({ content: '❌ Tickets collected must be a positive integer.', flags: [MessageFlags.Ephemeral] });
+              }
+
+              const members = await db.getMembers();
+              const found = members.find(m => 
+                m.discordId === value || 
+                m.username.toLowerCase() === value.toLowerCase() ||
+                (m.nickname && m.nickname.toLowerCase().includes(value.toLowerCase()))
+              );
+
+              const memberId = found ? found.discordId : interaction.user.id;
+              const username = found ? found.username : value;
+              const displayLabel = found ? `<@${found.discordId}>` : `@${value}`;
+
+              // Create the log in DB
+              const log = await db.createRpTicketLog({
+                memberId,
+                username,
+                ticketsCollected: numTickets,
+                timeCollected: new Date().toISOString()
+              });
+
+              // Add to state
+              state.collectionsList.push({
+                logId: log.id,
+                discordId: memberId,
+                username,
+                ticketsCollected: numTickets,
+                time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
+              });
+              state.collectionsCount = state.collectionsList.length;
+              await db.saveRpCollectionState(state);
+
+              // Update Discord message
+              await botService.syncRpCollectionMessage();
+
+              // Send webhook & Socket broadcast
+              const stats = await db.getRpTicketStats();
+              const embed = {
+                title: '🎫 RP TICKET FACTORY COLLECTION',
+                description: `RP Tickets successfully harvested.`,
+                color: 0x00f0ff,
+                fields: [
+                  { name: 'Collector', value: displayLabel, inline: true },
+                  { name: 'Tickets Collected', value: `${numTickets} RP Tickets`, inline: true },
+                  { name: 'Total Vault Stock', value: `${stats.totalCollected} RP Tickets`, inline: true }
+                ]
+              };
+              await botService.sendWebhook('rp-collect', embed);
+              botService.broadcastSocket('leaderboard_update', await db.getMembers());
+
+              await interaction.reply({
+                content: `✅ Successfully registered collection of **${numTickets} RP tickets** for ${displayLabel}.`,
+                flags: [MessageFlags.Ephemeral]
+              });
+            } catch (err) {
+              console.error('Error in rp_collect_by_id_modal handler:', err.message);
+              await interaction.reply({
+                content: `❌ Error submitting modal: ${err.message}`,
+                flags: [MessageFlags.Ephemeral]
+              });
+            }
+          }
+
+          else if (interaction.customId === 'activity_submit_modal') {
             const activityType = interaction.fields.getTextInputValue('modal_activity_type');
             const description = interaction.fields.getTextInputValue('modal_activity_desc') || '';
             const mediaUrl = interaction.fields.getTextInputValue('modal_activity_proof') || '';
@@ -1181,7 +1571,7 @@ const botService = {
               embed.image = mediaUrl;
             }
 
-            await botService.sendWebhook('submit-activity', embed);
+            await botService.sendWebhook('activity-review', embed);
             await botService.sendActivityReviewNotification(act);
             botService.logSimulated(`New activity ${act.id} submitted for review by @${interaction.user.username}.`);
 
@@ -1451,7 +1841,7 @@ const botService = {
               }
 
               const modal = new ModalBuilder()
-                .setCustomId(`bonus_edit_kills_modal:${submissionId}:${username}`)
+                .setCustomId(p(`bonus_edit_kills_modal:${submissionId}:${username}`))
                 .setTitle(`Edit Kills for ${username}`);
 
               const killsInput = new TextInputBuilder()
@@ -1498,7 +1888,7 @@ const botService = {
             }
 
             const swap2Select = new StringSelectMenuBuilder()
-              .setCustomId(`admin_swap_second_select:${eventId}:${memberId1}`)
+              .setCustomId(p(`admin_swap_second_select:${eventId}:${memberId1}`))
               .setPlaceholder(`Select who to swap @${m1Name} with...`)
               .addOptions(otherSignups.map(s => ({
                 label: `@${s.username} (${s.status.toUpperCase()})`,
@@ -1536,7 +1926,71 @@ const botService = {
             }
           }
         }
-      });
+      };
+
+      client.on('interactionCreate', handleInteraction);
+
+      // Now handle bizwarClient
+      if (config.bizwarBotToken && config.bizwarBotToken !== config.botToken) {
+        try {
+          bizwarClient = new Client({
+            intents: [
+              GatewayIntentBits.Guilds,
+              GatewayIntentBits.GuildMembers,
+              GatewayIntentBits.GuildMessages,
+              GatewayIntentBits.MessageContent
+            ],
+            partials: [Partials.Message, Partials.Channel]
+          });
+          bizwarClient.once('ready', () => {
+            console.log(`[Bizwar Bot] Connected as ${bizwarClient.user.tag}`);
+            botService.logSimulated(`Bizwar Bot Connected live as ${bizwarClient.user.tag}`);
+          });
+          bizwarClient.on('error', (err) => {
+            console.error('[Bizwar Bot] Client Error:', err);
+            botService.logSimulated(`Bizwar Bot Connection Error: ${err.message}`);
+          });
+          bizwarClient.on('interactionCreate', handleInteraction);
+          await bizwarClient.login(config.bizwarBotToken);
+        } catch (err) {
+          console.error('[Bizwar Bot] Failed to login:', err.message);
+          botService.logSimulated(`Failed to connect Bizwar Bot: ${err.message}. Falling back to main bot.`);
+          bizwarClient = client;
+        }
+      } else {
+        bizwarClient = client;
+      }
+
+      // Now handle rpClient
+      if (config.rpBotToken && config.rpBotToken !== config.botToken) {
+        try {
+          rpClient = new Client({
+            intents: [
+              GatewayIntentBits.Guilds,
+              GatewayIntentBits.GuildMembers,
+              GatewayIntentBits.GuildMessages,
+              GatewayIntentBits.MessageContent
+            ],
+            partials: [Partials.Message, Partials.Channel]
+          });
+          rpClient.once('ready', () => {
+            console.log(`[RP Bot] Connected as ${rpClient.user.tag}`);
+            botService.logSimulated(`RP Bot Connected live as ${rpClient.user.tag}`);
+          });
+          rpClient.on('error', (err) => {
+            console.error('[RP Bot] Client Error:', err);
+            botService.logSimulated(`RP Bot Connection Error: ${err.message}`);
+          });
+          rpClient.on('interactionCreate', handleInteraction);
+          await rpClient.login(config.rpBotToken);
+        } catch (err) {
+          console.error('[RP Bot] Failed to login:', err.message);
+          botService.logSimulated(`Failed to connect RP Bot: ${err.message}. Falling back to main bot.`);
+          rpClient = client;
+        }
+      } else {
+        rpClient = client;
+      }
 
       client.on('voiceStateUpdate', async (oldState, newState) => {
         try {
@@ -1936,11 +2390,11 @@ const botService = {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId(`signup:${eventId}`)
+              .setCustomId(p(`signup:${eventId}`))
               .setLabel('✅ Join')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-              .setCustomId(`leave:${eventId}`)
+              .setCustomId(p(`leave:${eventId}`))
               .setLabel('❌ Leave')
               .setStyle(ButtonStyle.Danger)
           );
@@ -2097,7 +2551,7 @@ const botService = {
           const embed = await botService.buildRoleReviewEmbed(req.id);
           
           const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId(`role_select:${req.id}`)
+            .setCustomId(p(`role_select:${req.id}`))
             .setPlaceholder('Select roles to give (can select multiple)')
             .setMinValues(1)
             .setMaxValues(6)
@@ -2114,13 +2568,13 @@ const botService = {
           const selectRow = new ActionRowBuilder().addComponents(selectMenu);
 
           const approveBtn = new ButtonBuilder()
-            .setCustomId(`role_approve:${req.id}`)
+            .setCustomId(p(`role_approve:${req.id}`))
             .setLabel('Approve & Give Roles')
             .setStyle(ButtonStyle.Success)
             .setEmoji('✅');
 
           const rejectBtn = new ButtonBuilder()
-            .setCustomId(`role_reject:${req.id}`)
+            .setCustomId(p(`role_reject:${req.id}`))
             .setLabel('Reject')
             .setStyle(ButtonStyle.Danger)
             .setEmoji('❌');
@@ -2203,13 +2657,15 @@ const botService = {
     const config = await db.getConfig();
     if (client && config.guildId) {
       try {
-        const guild = await client.guilds.fetch(config.guildId);
-        let channel = guild.channels.cache.find(c => {
+        const guild = await botService.getGuild(config.guildId);
+        if (!guild) throw new Error('No guild found for the bot client.');
+
+        let channel = await findChannel(guild, c => {
           const name = cleanName(c.name);
           return name.includes('activity-review') || name.includes('review-activity') || name.includes('review');
         });
         if (!channel) {
-          channel = guild.channels.cache.find(c => {
+          channel = await findChannel(guild, c => {
             const name = cleanName(c.name);
             return name.includes('activity') && name.includes('review');
           });
@@ -2234,13 +2690,13 @@ const botService = {
           }
 
           const approveBtn = new ButtonBuilder()
-            .setCustomId(`activity_approve:${act.id}`)
+            .setCustomId(p(`activity_approve:${act.id}`))
             .setLabel('Approve')
             .setStyle(ButtonStyle.Success)
             .setEmoji('✅');
 
           const rejectBtn = new ButtonBuilder()
-            .setCustomId(`activity_reject:${act.id}`)
+            .setCustomId(p(`activity_reject:${act.id}`))
             .setLabel('Reject')
             .setStyle(ButtonStyle.Danger)
             .setEmoji('❌');
@@ -2268,6 +2724,73 @@ const botService = {
 
     botService.logSimulated(`[Mock Review Notification] Fired activity review embed to #activity-review for ${act.username}.`);
     return false;
+  },
+
+  sendActivityResult: async (act, status, points, reviewerName) => {
+    const isApproved = status === 'approved';
+    const embedColor = isApproved ? 0x23a55a : 0xf23f43;
+
+    // A. Webhook result embed
+    const resultEmbed = {
+      title: isApproved ? '💯 ACTIVITY APPROVED' : '❌ ACTIVITY REJECTED',
+      description: `Activity review completed by **${reviewerName}**.`,
+      color: embedColor,
+      fields: [
+        { name: 'Activity ID', value: act.id, inline: true },
+        { name: 'Submitter', value: `<@${act.memberId}>`, inline: true },
+        { name: 'Awarded Points', value: `${points} Points`, inline: true },
+        { name: 'Review Notes', value: isApproved ? 'Approved' : 'Rejected' }
+      ]
+    };
+
+    // B. Send webhooks
+    await botService.sendWebhook('activity-results', resultEmbed);
+    await botService.sendWebhook('activity-review', resultEmbed);
+
+    // C. If approved, send to leaderboard webhook
+    if (isApproved && points > 0) {
+      const currentPoints = (await db.getMember(act.memberId))?.points || 0;
+      const leaderEmbed = {
+        title: '📈 ACTIVITY POINTS UPDATE',
+        description: `Points granted to **${act.username}**!`,
+        color: 0x00ff00,
+        fields: [
+          { name: 'Player', value: `<@${act.memberId}>`, inline: true },
+          { name: 'Earned Points', value: `+${points} Points`, inline: true },
+          { name: 'New Total', value: `${currentPoints} Points`, inline: true }
+        ]
+      };
+      await botService.sendWebhook('activity-points-leaderboard', leaderEmbed);
+    }
+
+    // D. Post directly to Discord channel via Bot (direct bot integration)
+    if (client) {
+      try {
+        const config = await db.getConfig();
+        if (config.guildId) {
+          const guild = await botService.getGuild(config.guildId);
+          if (guild) {
+            let resultChannel = await findChannel(guild, c => {
+              const name = cleanName(c.name);
+              return name.includes('activity-result') || name.includes('activity-results');
+            });
+            if (!resultChannel) {
+              resultChannel = await findChannel(guild, c => cleanName(c.name).includes('result'));
+            }
+            if (resultChannel) {
+              const discordEmbed = new EmbedBuilder()
+                .setTitle(isApproved ? '✅ Activity Approved' : '❌ Activity Rejected')
+                .setDescription(`**User:** <@${act.memberId}>\n**Category:** ${act.activityType}\n**Points:** ${isApproved ? `+${points}` : '0'}\n**Reviewer:** ${reviewerName}`)
+                .setColor(embedColor)
+                .setTimestamp();
+              await resultChannel.send({ embeds: [discordEmbed] });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to send activity result message to Discord channel:', err.message);
+      }
+    }
   },
 
   closeActiveActivityReview: async (activityId, status, reviewerName) => {
@@ -2302,6 +2825,241 @@ const botService = {
     }
   },
 
+  buildBizwarCollectionEmbed: async () => {
+    const logs = await db.getBizWarLogs();
+    const lastLog = logs[0];
+    let statusText = '🟢 Active (Available)';
+    let lastCollectorText = 'None';
+    let lastAmountText = '$0';
+    let lastTimeText = 'N/A';
+
+    if (lastLog) {
+      const lastTime = new Date(lastLog.timeCollected).getTime();
+      const elapsed = Date.now() - lastTime;
+      const cooldownPeriod = 24 * 60 * 60 * 1000;
+      if (elapsed < cooldownPeriod) {
+        const remainingMs = cooldownPeriod - elapsed;
+        const hours = Math.floor(remainingMs / (60 * 60 * 1000));
+        const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+        statusText = `🔴 Cooldown (Available in ${hours}h ${minutes}m)`;
+      }
+      lastCollectorText = `<@${lastLog.memberId}>`;
+      lastAmountText = `$${parseFloat(lastLog.amount).toLocaleString()}`;
+      lastTimeText = new Date(lastLog.timeCollected).toLocaleString();
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('💵 WHITE PIGEON BIZWAR REVENUE')
+      .setDescription('Collect the profits from our family\'s occupied business sites.\n\n**🏢 Our 20 Family Business Sites:**\n' + 
+        '1. Hotel Factory • 2. Oil Well 12 • 3. Gun Shop 4 • 4. Docks Warehouse • 5. Cash Factory 3\n' +
+        '6. Ammo Factory • 7. Weed Farm 2 • 8. Meth Lab 5 • 9. Cocaine Depot • 10. Scrap Yard\n' +
+        '11. Nightclub • 12. Strip Club • 13. Car Dealership • 14. Cargo Port • 15. Bank Vault\n' +
+        '16. Printing Press • 17. Chemical Plant • 18. Refinery • 19. Gold Mine • 20. Steel Mill'
+      )
+      .addFields(
+        { name: 'Collection Status', value: statusText, inline: false },
+        { name: 'Last Collector', value: lastCollectorText, inline: true },
+        { name: 'Amount', value: lastAmountText, inline: true },
+        { name: 'Collected At', value: lastTimeText, inline: true }
+      )
+      .setColor(0x8a2be2)
+      .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
+      .setTimestamp();
+
+    return embed;
+  },
+
+  deployBizwarPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Bizwar Collection prompt to Discord channel...');
+    const config = await db.getConfig();
+    const activeClient = bizwarClient || client;
+
+    if (activeClient && config.guildId) {
+      try {
+        const guild = await activeClient.guilds.fetch(config.guildId);
+        let channel = await findChannel(guild, c => {
+          const name = cleanName(c.name);
+          return name.includes('bizwar') && (name.includes('collect') || name.includes('log') || name.includes('profit'));
+        });
+        if (!channel) {
+          channel = await findChannel(guild, c => {
+            const name = cleanName(c.name);
+            return name.includes('bizwar') || name.includes('collect');
+          });
+        }
+
+        if (channel) {
+          const embed = await botService.buildBizwarCollectionEmbed();
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(p('bizwar_collect_btn'))
+              .setLabel('💵 COLLECT PROFIT')
+              .setStyle(ButtonStyle.Success)
+          );
+
+          const message = await channel.send({ embeds: [embed], components: [row] });
+
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.bizwarMessageId = message.id;
+          currentWebhooks.bizwarChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+
+          botService.logSimulated(`Successfully deployed Bizwar Collection panel to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Bizwar Collection prompt:', err.message);
+      }
+    }
+
+    botService.logSimulated('[Mock Panel] Deployed Bizwar Collection panel.');
+    return true;
+  },
+
+  syncBizwarCollectionMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.bizwarMessageId;
+    const channelId = webhooks.bizwarChannelId;
+
+    const activeClient = bizwarClient || client;
+    if (!messageId || !channelId || !activeClient) return;
+
+    try {
+      const channel = await activeClient.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const embed = await botService.buildBizwarCollectionEmbed();
+          await message.edit({ embeds: [embed] });
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync Bizwar Collection message:', err.message);
+    }
+  },
+
+  buildRpCollectionEmbed: async () => {
+    const state = await db.getRpCollectionState();
+    const count = state.collectionsCount || 0;
+    const max = state.maxCollections || 6;
+    
+    // Status text
+    let statusText = `🟢 Active (${count}/${max})`;
+    if (count >= max) {
+      statusText = `🔴 Completed (${count}/${max})`;
+    }
+
+    // Collection list formatting
+    let collectionListText = '*No collections registered yet.*';
+    if (state.collectionsList && state.collectionsList.length > 0) {
+      collectionListText = state.collectionsList.map((c, idx) => {
+        const timeFormatted = c.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
+        const charIdText = c.characterId ? ` (ID: ${c.characterId})` : '';
+        return `${idx + 1}. 🎫 **x${c.ticketsCollected || 5}** tickets collected by <@${c.discordId}>${charIdText} at ${timeFormatted}`;
+      }).join('\n');
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('🎫 RP TICKET FACTORY COLLECTION')
+      .setDescription(`Track and log RP Ticket factory collection status.\n\n**📋 Active Shifts:**\n${collectionListText}`)
+      .addFields(
+        { name: 'Collection Status', value: statusText, inline: true },
+        { name: 'Total Collected', value: `${count * 5} Tickets`, inline: true }
+      )
+      .setColor(0x00f0ff)
+      .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
+      .setTimestamp();
+
+    return embed;
+  },
+
+  deployRpCollectionPrompt: async () => {
+    botService.logSimulated('Attempting to deploy RP Ticket Collection prompt to Discord channel...');
+    const config = await db.getConfig();
+    const activeClient = rpClient || client;
+
+    if (activeClient && config.guildId) {
+      try {
+        const guild = await activeClient.guilds.fetch(config.guildId);
+        let channel = await findChannel(guild, c => {
+          const name = cleanName(c.name);
+          return name.includes('rp') && (name.includes('collect') || name.includes('log') || name.includes('ticket'));
+        });
+        if (!channel) {
+          channel = await findChannel(guild, c => {
+            const name = cleanName(c.name);
+            return name.includes('rp') || name.includes('collect');
+          });
+        }
+
+        if (channel) {
+          // Reset the RP Collection state for a new session
+          const state = {
+            collectionTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }),
+            maxCollections: 6,
+            collectionsCount: 0,
+            collectionsList: []
+          };
+          await db.saveRpCollectionState(state);
+
+          const embed = await botService.buildRpCollectionEmbed();
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(p('rp_collect_btn')).setLabel('Collect RP Ticket').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId(p('rp_collect_by_id_btn')).setLabel('Collect By ID').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(p('rp_undo_btn')).setLabel('Undo Last').setStyle(ButtonStyle.Danger)
+          );
+
+          const message = await channel.send({ embeds: [embed], components: [row] });
+
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.rpMessageId = message.id;
+          currentWebhooks.rpChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+
+          botService.logSimulated(`Successfully deployed RP Ticket Collection panel to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy RP Ticket Collection prompt:', err.message);
+      }
+    }
+
+    // Fallback/Simulated
+    const state = {
+      collectionTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }),
+      maxCollections: 6,
+      collectionsCount: 0,
+      collectionsList: []
+    };
+    await db.saveRpCollectionState(state);
+    botService.logSimulated('[Mock Panel] Deployed RP Ticket Collection panel.');
+    return true;
+  },
+
+  syncRpCollectionMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.rpMessageId;
+    const channelId = webhooks.rpChannelId;
+
+    const activeClient = rpClient || client;
+    if (!messageId || !channelId || !activeClient) return;
+
+    try {
+      const channel = await activeClient.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const embed = await botService.buildRpCollectionEmbed();
+          await message.edit({ embeds: [embed] });
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync RP Ticket Collection message:', err.message);
+    }
+  },
+
   // Deploy the "Submit Role Request" button prompt in the #role-request channel
   deployRoleRequestPrompt: async () => {
     botService.logSimulated('Attempting to deploy Role Request prompt to Discord channel...');
@@ -2330,7 +3088,7 @@ const botService = {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('trigger_role_request')
+              .setCustomId(p('trigger_role_request'))
               .setLabel('📝 Submit Role Request')
               .setStyle(ButtonStyle.Primary)
           );
@@ -2399,7 +3157,7 @@ const botService = {
           
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('refresh_stats')
+              .setCustomId(p('refresh_stats'))
               .setLabel('🔄 Refresh Stats')
               .setStyle(ButtonStyle.Secondary)
           );
@@ -2431,7 +3189,7 @@ const botService = {
           
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('refresh_stats')
+              .setCustomId(p('refresh_stats'))
               .setLabel('🔄 Refresh Stats')
               .setStyle(ButtonStyle.Secondary)
           );
@@ -2473,7 +3231,7 @@ const botService = {
           
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('refresh_stats')
+              .setCustomId(p('refresh_stats'))
               .setLabel('🔄 Refresh Stats')
               .setStyle(ButtonStyle.Secondary)
           );
@@ -2523,7 +3281,7 @@ const botService = {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('my_strikes')
+              .setCustomId(p('my_strikes'))
               .setLabel('⚠️ My Strikes')
               .setStyle(ButtonStyle.Danger)
           );
@@ -2583,7 +3341,7 @@ const botService = {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('my_strikes')
+              .setCustomId(p('my_strikes'))
               .setLabel('⚠️ My Strikes')
               .setStyle(ButtonStyle.Danger)
           );
@@ -2619,11 +3377,11 @@ const botService = {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('trigger_bonus_ticket')
+              .setCustomId(p('trigger_bonus_ticket'))
               .setLabel('💰 Bonus Problem')
               .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
-              .setCustomId('trigger_support_ticket')
+              .setCustomId(p('trigger_support_ticket'))
               .setLabel('⚠️ Support Problem')
               .setStyle(ButtonStyle.Danger)
           );
@@ -2663,7 +3421,7 @@ const botService = {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('check_my_balance')
+              .setCustomId(p('check_my_balance'))
               .setLabel('💰 My Balance')
               .setStyle(ButtonStyle.Primary)
           );
@@ -2870,7 +3628,7 @@ const botService = {
             .setTimestamp();
 
           const myPointsBtn = new ButtonBuilder()
-            .setCustomId('trigger_my_points')
+            .setCustomId(p('trigger_my_points'))
             .setLabel('My Points')
             .setStyle(ButtonStyle.Primary);
 
@@ -2928,7 +3686,7 @@ const botService = {
             .setTimestamp();
 
           const myPointsBtn = new ButtonBuilder()
-            .setCustomId('trigger_my_points')
+            .setCustomId(p('trigger_my_points'))
             .setLabel('My Points')
             .setStyle(ButtonStyle.Primary);
 
@@ -3205,19 +3963,19 @@ const botService = {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('priority_add_top5')
+              .setCustomId(p('priority_add_top5'))
               .setLabel('+ Add Top 5 Member')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-              .setCustomId('priority_add_top10')
+              .setCustomId(p('priority_add_top10'))
               .setLabel('+ Add Top 10 Member')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-              .setCustomId('priority_remove_top5')
+              .setCustomId(p('priority_remove_top5'))
               .setLabel('X Remove Top 5 Member')
               .setStyle(ButtonStyle.Danger),
             new ButtonBuilder()
-              .setCustomId('priority_remove_top10')
+              .setCustomId(p('priority_remove_top10'))
               .setLabel('X Remove Top 10 Member')
               .setStyle(ButtonStyle.Danger)
           );
@@ -3270,19 +4028,19 @@ const botService = {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('priority_add_top5')
+              .setCustomId(p('priority_add_top5'))
               .setLabel('+ Add Top 5 Member')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-              .setCustomId('priority_add_top10')
+              .setCustomId(p('priority_add_top10'))
               .setLabel('+ Add Top 10 Member')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-              .setCustomId('priority_remove_top5')
+              .setCustomId(p('priority_remove_top5'))
               .setLabel('X Remove Top 5 Member')
               .setStyle(ButtonStyle.Danger),
             new ButtonBuilder()
-              .setCustomId('priority_remove_top10')
+              .setCustomId(p('priority_remove_top10'))
               .setLabel('X Remove Top 10 Member')
               .setStyle(ButtonStyle.Danger)
           );
@@ -3325,15 +4083,15 @@ const botService = {
           
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('trigger_activity_submit')
+              .setCustomId(p('trigger_activity_submit'))
               .setLabel('Submit Activity')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-              .setCustomId('trigger_my_points')
+              .setCustomId(p('trigger_my_points'))
               .setLabel('My Points')
               .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
-              .setCustomId('trigger_refresh_activity')
+              .setCustomId(p('trigger_refresh_activity'))
               .setLabel('🔄 Refresh')
               .setStyle(ButtonStyle.Secondary)
           );
@@ -3373,15 +4131,15 @@ const botService = {
           const embed = await botService.buildActivityPromptEmbed();
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('trigger_activity_submit')
+              .setCustomId(p('trigger_activity_submit'))
               .setLabel('Submit Activity')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-              .setCustomId('trigger_my_points')
+              .setCustomId(p('trigger_my_points'))
               .setLabel('My Points')
               .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
-              .setCustomId('trigger_refresh_activity')
+              .setCustomId(p('trigger_refresh_activity'))
               .setLabel('🔄 Refresh')
               .setStyle(ButtonStyle.Secondary)
           );
@@ -3451,7 +4209,7 @@ const botService = {
 
   buildBonusApprovalComponents: async (submission) => {
     const eventSelect = new StringSelectMenuBuilder()
-      .setCustomId(`bonus_select_event:${submission.id}`)
+      .setCustomId(p(`bonus_select_event:${submission.id}`))
       .setPlaceholder('🎯 Select Event / Bonus Type')
       .addOptions([
         { label: 'Informal - $70,000/kill', value: 'Informal' },
@@ -3468,7 +4226,7 @@ const botService = {
     }
 
     const dateSelect = new StringSelectMenuBuilder()
-      .setCustomId(`bonus_select_date:${submission.id}`)
+      .setCustomId(p(`bonus_select_date:${submission.id}`))
       .setPlaceholder('📅 Select Date')
       .addOptions([
         { label: 'Today', value: 'Today' },
@@ -3478,7 +4236,7 @@ const botService = {
       ]);
 
     const timeSelect = new StringSelectMenuBuilder()
-      .setCustomId(`bonus_select_time:${submission.id}`)
+      .setCustomId(p(`bonus_select_time:${submission.id}`))
       .setPlaceholder('⏰ Select Time')
       .addOptions([
         { label: '15:00', value: '15:00' },
@@ -3500,7 +4258,7 @@ const botService = {
     }
 
     const userSelect = new StringSelectMenuBuilder()
-      .setCustomId(`bonus_select_user:${submission.id}`)
+      .setCustomId(p(`bonus_select_user:${submission.id}`))
       .setPlaceholder('👥 Select participant to edit kills')
       .addOptions(
         submission.participants.map(p => {
@@ -3524,13 +4282,13 @@ const botService = {
     const row4 = new ActionRowBuilder().addComponents(userSelect);
 
     const cancelBtn = new ButtonBuilder()
-      .setCustomId(`bonus_cancel:${submission.id}`)
+      .setCustomId(p(`bonus_cancel:${submission.id}`))
       .setLabel('Cancel')
       .setStyle(ButtonStyle.Secondary)
       .setEmoji('🔙');
 
     const confirmBtn = new ButtonBuilder()
-      .setCustomId(`bonus_confirm:${submission.id}`)
+      .setCustomId(p(`bonus_confirm:${submission.id}`))
       .setLabel('Confirm')
       .setStyle(ButtonStyle.Success)
       .setEmoji('✅');
@@ -3566,12 +4324,12 @@ const botService = {
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('refresh_bonus_admin')
+              .setCustomId(p('refresh_bonus_admin'))
               .setLabel('Refresh')
               .setStyle(ButtonStyle.Primary)
               .setEmoji('🔄'),
             new ButtonBuilder()
-              .setCustomId('export_bonus_admin')
+              .setCustomId(p('export_bonus_admin'))
               .setLabel('Export')
               .setStyle(ButtonStyle.Secondary)
               .setEmoji('📂')
@@ -3610,12 +4368,12 @@ const botService = {
           const embed = await botService.buildBonusAdminPanelEmbed();
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('refresh_bonus_admin')
+              .setCustomId(p('refresh_bonus_admin'))
               .setLabel('Refresh')
               .setStyle(ButtonStyle.Primary)
               .setEmoji('🔄'),
             new ButtonBuilder()
-              .setCustomId('export_bonus_admin')
+              .setCustomId(p('export_bonus_admin'))
               .setLabel('Export')
               .setStyle(ButtonStyle.Secondary)
               .setEmoji('📂')

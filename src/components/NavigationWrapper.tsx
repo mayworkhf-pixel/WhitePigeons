@@ -85,9 +85,10 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   const [registrationStatus, setRegistrationStatus] = useState<'pending' | 'approved' | 'none'>('none');
   const canUseLocalPreview = mounted && ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 
-  const [nowTime, setNowTime] = useState<number>(Date.now());
+  const [nowTime, setNowTime] = useState<number>(0);
 
   useEffect(() => {
+    setNowTime(Date.now());
     const timer = setInterval(() => {
       setNowTime(Date.now());
     }, 1000);
