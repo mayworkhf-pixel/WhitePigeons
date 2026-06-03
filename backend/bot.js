@@ -756,9 +756,17 @@ const botService = {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
+              const proofsInput = new TextInputBuilder()
+                .setCustomId('rp_proofs')
+                .setLabel('Proofs (screenshot link)')
+                .setPlaceholder('Paste a Discord image link, Imgur link, etc.')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(false);
+
               modal.addComponents(
                 new ActionRowBuilder().addComponents(idInput),
-                new ActionRowBuilder().addComponents(countInput)
+                new ActionRowBuilder().addComponents(countInput),
+                new ActionRowBuilder().addComponents(proofsInput)
               );
 
               await interaction.showModal(modal);
@@ -1530,6 +1538,7 @@ const botService = {
 
               const value = interaction.fields.getTextInputValue('rp_member_input').trim();
               const countStr = interaction.fields.getTextInputValue('rp_count_input').trim();
+              const proofsUrl = interaction.fields.getTextInputValue('rp_proofs') || '';
 
               const numTickets = parseInt(countStr, 10);
               if (isNaN(numTickets) || numTickets <= 0) {
@@ -1552,6 +1561,7 @@ const botService = {
                 memberId,
                 username,
                 ticketsCollected: numTickets,
+                proofUrl: proofsUrl,
                 timeCollected: new Date().toISOString()
               });
 
@@ -1561,6 +1571,7 @@ const botService = {
                 discordId: memberId,
                 username,
                 ticketsCollected: numTickets,
+                proofUrl: proofsUrl,
                 time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
               });
               state.collectionsCount = state.collectionsList.length;
@@ -1581,11 +1592,18 @@ const botService = {
                   { name: 'Total Vault Stock', value: `${stats.totalCollected} RP Tickets`, inline: true }
                 ]
               };
+              if (proofsUrl && proofsUrl.startsWith('http')) {
+                embed.image = { url: proofsUrl };
+              }
               await botService.sendWebhook('rp-collect', embed);
               botService.broadcastSocket('leaderboard_update', await db.getMembers());
 
+              const replyText = proofsUrl
+                ? `✅ Successfully registered collection of **${numTickets} RP tickets** for ${displayLabel} with proof screenshot!`
+                : `✅ Successfully registered collection of **${numTickets} RP tickets** for ${displayLabel}! Please paste/upload your proof screenshot in this channel now to automatically link it to your collection log.`;
+
               await interaction.reply({
-                content: `✅ Successfully registered collection of **${numTickets} RP tickets** for ${displayLabel}.`,
+                content: replyText,
                 flags: [MessageFlags.Ephemeral]
               });
             } catch (err) {
