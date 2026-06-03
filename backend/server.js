@@ -102,14 +102,14 @@ setInterval(() => {
   });
 }, 10000);
 
-// Minute-by-minute automated signup scheduler loop in Indian Standard Time (IST)
+// Minute-by-minute automated signup scheduler loop in London Server Time (Europe/London)
 let lastTriggeredMinutes = {}; // Track eventId-day-time to prevent double triggering
 
 setInterval(async () => {
   try {
-    const options = { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false };
-    const istTimeStr = new Date().toLocaleTimeString('en-US', options); // e.g. "14:30"
-    const currentIstDay = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' }); // e.g. "6/2/2026"
+    const options = { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hour12: false };
+    const londonTimeStr = new Date().toLocaleTimeString('en-US', options); // e.g. "14:30"
+    const currentLondonDay = new Date().toLocaleDateString('en-US', { timeZone: 'Europe/London' }); // e.g. "6/2/2026"
 
     const eventIds = ['rp-signup', 'informal-signup', 'signup-event'];
     
@@ -136,7 +136,7 @@ setInterval(async () => {
       }
 
       // Check if "set for a day" schedule has rolled over to a new day (expired)
-      if (schedule.mode === 'day' && schedule.lastTriggeredDate && schedule.lastTriggeredDate !== currentIstDay) {
+      if (schedule.mode === 'day' && schedule.lastTriggeredDate && schedule.lastTriggeredDate !== currentLondonDay) {
         schedule.enabled = false;
         await database.setEventSchedule(eventId, schedule);
         io.emit('event_schedule_change', { eventId, schedule });
@@ -144,16 +144,16 @@ setInterval(async () => {
       }
 
       // Check if we already triggered this minute
-      const trackingKey = `${eventId}-${currentIstDay}-${istTimeStr}`;
+      const trackingKey = `${eventId}-${currentLondonDay}-${londonTimeStr}`;
       if (lastTriggeredMinutes[trackingKey]) {
         continue;
       }
 
-      // Compare current IST time with configured times
-      const matchedTime = schedule.times.find(t => t && t.trim() === istTimeStr);
+      // Compare current London time with configured times
+      const matchedTime = schedule.times.find(t => t && t.trim() === londonTimeStr);
       if (matchedTime) {
         lastTriggeredMinutes[trackingKey] = true;
-        console.log(`[Scheduler] Automatically opening ${eventId} at scheduled IST time: ${istTimeStr} (Mode: ${schedule.mode})`);
+        console.log(`[Scheduler] Automatically opening ${eventId} at scheduled London time: ${londonTimeStr} (Mode: ${schedule.mode})`);
         
         const title = schedule.title || (eventId === 'rp-signup' ? 'Roster control' : eventId === 'signup-event' ? 'Signup-Event' : 'Roster control');
         const description = schedule.description || '';
@@ -187,7 +187,7 @@ setInterval(async () => {
           schedule.enabled = false;
           shouldSaveUpdate = true;
         } else if (schedule.mode === 'day') {
-          schedule.lastTriggeredDate = currentIstDay;
+          schedule.lastTriggeredDate = currentLondonDay;
           shouldSaveUpdate = true;
         }
 
@@ -196,7 +196,7 @@ setInterval(async () => {
           io.emit('event_schedule_change', { eventId, schedule });
         }
         
-        botService.logSimulated(`Automated scheduler fired ${eventId} signup at ${istTimeStr} IST.`);
+        botService.logSimulated(`Automated scheduler fired ${eventId} signup at ${londonTimeStr} London time.`);
       }
     }
   } catch (err) {

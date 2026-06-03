@@ -150,6 +150,26 @@ export default function RootDashboard() {
     const seconds = Math.floor((remaining % 60000) / 1000);
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  const getLondonTime = () => {
+    return new Date(nowTime).toLocaleTimeString('en-GB', {
+      timeZone: 'Europe/London',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  };
+
+  const getIndiaTime = () => {
+    return new Date(nowTime).toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  };
   
   // Schedule states for both events
   const [rpSchedule, setRpSchedule] = useState<{ times: string[]; mode: 'once' | 'day' | 'ever'; enabled: boolean; title: string; description: string }>({
@@ -1757,10 +1777,21 @@ export default function RootDashboard() {
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full filter blur-3xl pointer-events-none" />
           <div className="flex-1 space-y-3.5 relative z-10 text-left">
-            <div className="flex items-center gap-2">
-              <span className="bg-gradient-to-r from-purple-500/10 to-amber-500/5 border border-purple-500/20 text-purple-750 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans">
+            <div className="flex items-center justify-between flex-wrap gap-4 border-b border-[#1c1a2a]/20 pb-3">
+              <span className="bg-gradient-to-r from-purple-500/10 to-amber-500/5 border border-purple-500/20 text-purple-750 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans select-none shrink-0">
                 WHO WE ARE
               </span>
+              
+              <div className="flex items-center gap-3 bg-[#0a0a14]/65 border border-[#1c1a2a] px-3 py-1.5 rounded-xl backdrop-blur-md shadow-lg shrink-0">
+                <div className="text-left border-r border-[#1c1a2a]/60 pr-3 select-none">
+                  <div className="text-[6.5px] text-zinc-550 font-extrabold uppercase tracking-widest leading-none">LONDON (IN-GAME)</div>
+                  <div className="text-xs font-mono font-black text-purple-400 leading-none mt-1">{getLondonTime()}</div>
+                </div>
+                <div className="text-left select-none">
+                  <div className="text-[6.5px] text-zinc-555 font-extrabold uppercase tracking-widest leading-none">INDIA (IST)</div>
+                  <div className="text-xs font-mono font-black text-amber-500 leading-none mt-1">{getIndiaTime()}</div>
+                </div>
+              </div>
             </div>
             
             <div className="flex items-center gap-3.5">
@@ -5752,7 +5783,7 @@ export default function RootDashboard() {
               {/* IST Scheduler section */}
               <div className="border-t border-[#1c1a2a]/60 pt-3 mt-2 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">IST DAILY TRIGGER TIMES</span>
+                  <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">LONDON DAILY TRIGGER TIMES</span>
                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
                     <input 
                       type="checkbox" 
@@ -6092,7 +6123,7 @@ export default function RootDashboard() {
               {/* IST Scheduler section */}
               <div className="border-t border-[#1c1a2a]/60 pt-3 mt-2 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">IST DAILY TRIGGER TIMES</span>
+                  <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">LONDON DAILY TRIGGER TIMES</span>
                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
                     <input 
                       type="checkbox" 
@@ -6432,7 +6463,7 @@ export default function RootDashboard() {
               {/* IST Scheduler section */}
               <div className="border-t border-[#1c1a2a]/60 pt-3 mt-2 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">IST DAILY TRIGGER TIMES</span>
+                  <span className="text-[9px] font-bold text-zinc-400 tracking-wider block">LONDON DAILY TRIGGER TIMES</span>
                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
                     <input 
                       type="checkbox" 
