@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, MessageFlags, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, MessageFlags, Partials, LabelBuilder, FileUploadBuilder } = require('discord.js');
 
 const isProduction = () => {
   return process.env.NODE_ENV === 'production' || process.env.USE_FIRESTORE === 'true';
@@ -649,16 +649,17 @@ const botService = {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
-              const proofsInput = new TextInputBuilder()
-                .setCustomId('bizwar_proofs')
-                .setLabel('Proofs (screenshot link)')
-                .setPlaceholder('Paste a Discord image link, Imgur link, etc.')
-                .setStyle(TextInputStyle.Paragraph)
+              const fileUpload = new FileUploadBuilder()
+                .setCustomId('bizwar_proof_file')
                 .setRequired(false);
+
+              const proofsLabel = new LabelBuilder()
+                .setLabel('Proofs (Upload Screenshot)')
+                .setFileUploadComponent(fileUpload);
 
               modal.addComponents(
                 new ActionRowBuilder().addComponents(amtInput),
-                new ActionRowBuilder().addComponents(proofsInput)
+                new ActionRowBuilder().addComponents(proofsLabel)
               );
 
               await interaction.showModal(modal);
@@ -756,17 +757,18 @@ const botService = {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
-              const proofsInput = new TextInputBuilder()
-                .setCustomId('rp_proofs')
-                .setLabel('Proofs (screenshot link)')
-                .setPlaceholder('Paste a Discord image link, Imgur link, etc.')
-                .setStyle(TextInputStyle.Paragraph)
+              const fileUpload = new FileUploadBuilder()
+                .setCustomId('rp_proof_file')
                 .setRequired(false);
+
+              const proofsLabel = new LabelBuilder()
+                .setLabel('Proofs (Upload Screenshot)')
+                .setFileUploadComponent(fileUpload);
 
               modal.addComponents(
                 new ActionRowBuilder().addComponents(idInput),
                 new ActionRowBuilder().addComponents(countInput),
-                new ActionRowBuilder().addComponents(proofsInput)
+                new ActionRowBuilder().addComponents(proofsLabel)
               );
 
               await interaction.showModal(modal);
@@ -1467,7 +1469,16 @@ const botService = {
           if (interaction.customId === 'bizwar_collect_modal') {
             try {
               const amountStr = interaction.fields.getTextInputValue('bizwar_amount');
-              const proofsUrl = interaction.fields.getTextInputValue('bizwar_proofs') || '';
+              let proofsUrl = '';
+              try {
+                const uploadedFiles = interaction.fields.getUploadedFiles('bizwar_proof_file');
+                const firstFile = uploadedFiles?.first();
+                if (firstFile) {
+                  proofsUrl = firstFile.url;
+                }
+              } catch (err) {
+                console.warn('[Bot] Failed to read uploaded bizwar files:', err.message);
+              }
               const businessName = 'BizWar Collection';
 
               const numericAmount = parseFloat(amountStr);
@@ -1538,7 +1549,16 @@ const botService = {
 
               const value = interaction.fields.getTextInputValue('rp_member_input').trim();
               const countStr = interaction.fields.getTextInputValue('rp_count_input').trim();
-              const proofsUrl = interaction.fields.getTextInputValue('rp_proofs') || '';
+              let proofsUrl = '';
+              try {
+                const uploadedFiles = interaction.fields.getUploadedFiles('rp_proof_file');
+                const firstFile = uploadedFiles?.first();
+                if (firstFile) {
+                  proofsUrl = firstFile.url;
+                }
+              } catch (err) {
+                console.warn('[Bot] Failed to read uploaded RP files:', err.message);
+              }
 
               const numTickets = parseInt(countStr, 10);
               if (isNaN(numTickets) || numTickets <= 0) {
