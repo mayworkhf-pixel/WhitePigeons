@@ -33,6 +33,20 @@ const DEFAULT_DISCORD_CONFIG = {
 // In-memory cache to prevent Firestore daily read quota exhaustion
 let cachedConfig = null;
 const cachedSchedules = {};
+let membersCache = null;
+let membersCacheTime = 0;
+let ticketsCache = null;
+let ticketsCacheTime = 0;
+let activitiesCache = null;
+let activitiesCacheTime = 0;
+let winSubmissionsCache = null;
+let winSubmissionsCacheTime = 0;
+let ordersCache = null;
+let ordersCacheTime = 0;
+let activityTypesCache = null;
+let activityTypesCacheTime = 0;
+
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
 
 // Ensure data directory exists
@@ -1203,6 +1217,14 @@ const db = {
 
   // Members
   getMembers: async () => {
+    if (membersCache && (Date.now() - membersCacheTime < CACHE_TTL_MS)) {
+      return membersCache.map(m => ({
+        ...m,
+        weeklyBonus: m.weeklyBonus || 0,
+        payoutStatus: m.payoutStatus || 'Not Paid'
+      }));
+    }
+
     let list = [];
     if (firebaseDb) {
       try {
@@ -1224,6 +1246,10 @@ const db = {
     } else {
       list = readDb().members || [];
     }
+
+    membersCache = list;
+    membersCacheTime = Date.now();
+
     return list.map(m => ({
       ...m,
       weeklyBonus: m.weeklyBonus || 0,
@@ -1232,6 +1258,17 @@ const db = {
   },
   
   getMember: async (discordId) => {
+    if (membersCache && (Date.now() - membersCacheTime < CACHE_TTL_MS)) {
+      const cached = membersCache.find(m => m.discordId === discordId);
+      if (cached) {
+        return {
+          ...cached,
+          weeklyBonus: cached.weeklyBonus || 0,
+          payoutStatus: cached.payoutStatus || 'Not Paid'
+        };
+      }
+    }
+
     let member = null;
     if (firebaseDb) {
       try {
@@ -1253,6 +1290,9 @@ const db = {
   },
   
   updateMember: async (discordId, updateData) => {
+    membersCache = null;
+    membersCacheTime = 0;
+
     if (firebaseDb) {
       try {
         const docRef = firebaseDb.collection('members').doc(discordId);
@@ -1312,6 +1352,9 @@ const db = {
   },
 
   deleteMember: async (discordId) => {
+    membersCache = null;
+    membersCacheTime = 0;
+
     if (firebaseDb) {
       try {
         await firebaseDb.collection('members').doc(discordId).delete();
@@ -1328,18 +1371,30 @@ const db = {
 
   // Tickets
   getTickets: async () => {
+    if (ticketsCache && (Date.now() - ticketsCacheTime < CACHE_TTL_MS)) {
+      return ticketsCache;
+    }
+    let list = [];
     if (firebaseDb) {
       try {
         const snapshot = await firebaseDb.collection('tickets').orderBy('createdAt', 'desc').get();
-        return snapshot.docs.map(doc => doc.data());
+        list = snapshot.docs.map(doc => doc.data());
       } catch (err) {
         console.error('Firestore getTickets failed:', err.message);
+        list = readDb().tickets;
       }
+    } else {
+      list = readDb().tickets;
     }
-    return readDb().tickets;
+    ticketsCache = list;
+    ticketsCacheTime = Date.now();
+    return list;
   },
   
   createTicket: async (ticketData) => {
+    ticketsCache = null;
+    ticketsCacheTime = 0;
+
     const id = `tkt-${Math.floor(100 + Math.random() * 900)}`;
     const newTicket = {
       id,
@@ -1365,6 +1420,9 @@ const db = {
   },
   
   updateTicket: async (id, updateData) => {
+    ticketsCache = null;
+    ticketsCacheTime = 0;
+
     if (firebaseDb) {
       try {
         const docRef = firebaseDb.collection('tickets').doc(id);
@@ -1392,18 +1450,30 @@ const db = {
 
   // Activities
   getActivities: async () => {
+    if (activitiesCache && (Date.now() - activitiesCacheTime < CACHE_TTL_MS)) {
+      return activitiesCache;
+    }
+    let list = [];
     if (firebaseDb) {
       try {
         const snapshot = await firebaseDb.collection('activities').orderBy('createdAt', 'desc').get();
-        return snapshot.docs.map(doc => doc.data());
+        list = snapshot.docs.map(doc => doc.data());
       } catch (err) {
         console.error('Firestore getActivities failed:', err.message);
+        list = readDb().activities;
       }
+    } else {
+      list = readDb().activities;
     }
-    return readDb().activities;
+    activitiesCache = list;
+    activitiesCacheTime = Date.now();
+    return list;
   },
   
   createActivity: async (actData) => {
+    activitiesCache = null;
+    activitiesCacheTime = 0;
+
     const id = `act-${Math.floor(100 + Math.random() * 900)}`;
     const newAct = {
       id,
@@ -1430,6 +1500,9 @@ const db = {
   },
   
   updateActivity: async (id, updateData) => {
+    activitiesCache = null;
+    activitiesCacheTime = 0;
+
     if (firebaseDb) {
       try {
         const docRef = firebaseDb.collection('activities').doc(id);
@@ -1483,37 +1556,55 @@ const db = {
       { id: 'type-def-23', key: '📥 Collect RP Ticket (3 points)', emoji: '📥', name: 'Collect RP Ticket', points: '3 points', value: 3 }
     ];
 
+    if (activityTypesCache && (Date.now() - activityTypesCacheTime < CACHE_TTL_MS)) {
+      return activityTypesCache;
+    }
+
+    let list = [];
     if (firebaseDb) {
       try {
         const snapshot = await firebaseDb.collection('activityTypes').get();
         if (snapshot.size > 0) {
-          return snapshot.docs.map(doc => doc.data());
+          list = snapshot.docs.map(doc => doc.data());
         } else {
           // Seed Firestore
           for (const t of defaultTypes) {
             await firebaseDb.collection('activityTypes').doc(t.id).set(t);
           }
-          return defaultTypes;
+          list = defaultTypes;
         }
       } catch (err) {
         console.error('Firestore getActivityTypes failed, fallback to local:', err.message);
+        list = readDb().activityTypes || [];
       }
+    } else {
+      list = readDb().activityTypes || [];
     }
-    const data = readDb();
-    if (!data.activityTypes || data.activityTypes.length === 0) {
+
+    if (!list || list.length === 0) {
+      list = defaultTypes;
+      const data = readDb();
       data.activityTypes = defaultTypes;
       writeDb(data);
     } else {
-      const hasDefault = data.activityTypes.some(t => t.id && t.id.startsWith('type-def'));
+      const hasDefault = list.some(t => t.id && t.id.startsWith('type-def'));
       if (!hasDefault) {
-        data.activityTypes = [...defaultTypes, ...data.activityTypes];
+        list = [...defaultTypes, ...list];
+        const data = readDb();
+        data.activityTypes = list;
         writeDb(data);
       }
     }
-    return data.activityTypes;
+
+    activityTypesCache = list;
+    activityTypesCacheTime = Date.now();
+    return list;
   },
 
   createActivityType: async (typeData) => {
+    activityTypesCache = null;
+    activityTypesCacheTime = 0;
+
     const id = `type-${Math.floor(100 + Math.random() * 900)}`;
     const newType = {
       id,
@@ -1535,6 +1626,9 @@ const db = {
   },
 
   deleteActivityType: async (id) => {
+    activityTypesCache = null;
+    activityTypesCacheTime = 0;
+
     if (firebaseDb) {
       try {
         await firebaseDb.collection('activityTypes').doc(id).delete();
@@ -1553,18 +1647,30 @@ const db = {
 
   // Point Shop Orders
   getOrders: async () => {
+    if (ordersCache && (Date.now() - ordersCacheTime < CACHE_TTL_MS)) {
+      return ordersCache;
+    }
+    let list = [];
     if (firebaseDb) {
       try {
         const snapshot = await firebaseDb.collection('orders').orderBy('createdAt', 'desc').get();
-        return snapshot.docs.map(doc => doc.data());
+        list = snapshot.docs.map(doc => doc.data());
       } catch (err) {
         console.error('Firestore getOrders failed:', err.message);
+        list = readDb().orders;
       }
+    } else {
+      list = readDb().orders;
     }
-    return readDb().orders;
+    ordersCache = list;
+    ordersCacheTime = Date.now();
+    return list;
   },
   
   createOrder: async (orderData) => {
+    ordersCache = null;
+    ordersCacheTime = 0;
+
     const id = `ord-${Math.floor(1000 + Math.random() * 9000)}`;
     const newOrder = {
       id,
@@ -1589,6 +1695,9 @@ const db = {
   },
   
   updateOrder: async (id, updateData) => {
+    ordersCache = null;
+    ordersCacheTime = 0;
+
     if (firebaseDb) {
       try {
         const docRef = firebaseDb.collection('orders').doc(id);
@@ -2284,19 +2393,30 @@ const db = {
 
   // Win Submissions
   getWinSubmissions: async () => {
+    if (winSubmissionsCache && (Date.now() - winSubmissionsCacheTime < CACHE_TTL_MS)) {
+      return winSubmissionsCache;
+    }
+    let list = [];
     if (firebaseDb) {
       try {
         const snapshot = await firebaseDb.collection('win_submissions').orderBy('createdAt', 'desc').get();
-        return snapshot.docs.map(doc => doc.data());
+        list = snapshot.docs.map(doc => doc.data());
       } catch (err) {
         console.error('Firestore getWinSubmissions failed:', err.message);
+        list = readDb().winSubmissions || [];
       }
+    } else {
+      list = readDb().winSubmissions || [];
     }
-    const data = readDb();
-    return data.winSubmissions || [];
+    winSubmissionsCache = list;
+    winSubmissionsCacheTime = Date.now();
+    return list;
   },
 
   createWinSubmission: async (submissionData) => {
+    winSubmissionsCache = null;
+    winSubmissionsCacheTime = 0;
+
     const id = `win-sub-${Math.floor(1000 + Math.random() * 9000)}`;
     const newSubmission = {
       id,
@@ -2320,6 +2440,9 @@ const db = {
   },
 
   updateWinSubmission: async (id, updateData) => {
+    winSubmissionsCache = null;
+    winSubmissionsCacheTime = 0;
+
     if (firebaseDb) {
       try {
         await firebaseDb.collection('win_submissions').doc(id).update(updateData);
@@ -2341,6 +2464,9 @@ const db = {
   },
 
   updatePayoutStatus: async (discordId, status) => {
+    membersCache = null;
+    membersCacheTime = 0;
+
     if (firebaseDb) {
       try {
         await firebaseDb.collection('members').doc(discordId).update({ payoutStatus: status });
@@ -2360,6 +2486,9 @@ const db = {
   },
 
   archiveAndResetWeeklyLedger: async (weekId, closedByUsername) => {
+    membersCache = null;
+    membersCacheTime = 0;
+
     const members = await db.getMembers();
     const records = members.map(m => ({
       discordId: m.discordId,
@@ -2410,16 +2539,21 @@ const db = {
   },
 
   getWeeklyReports: async () => {
+    let list = [];
     if (firebaseDb) {
       try {
         const snapshot = await firebaseDb.collection('weekly_reports').orderBy('closedAt', 'desc').get();
-        return snapshot.docs.map(doc => doc.data());
+        list = snapshot.docs.map(doc => doc.data());
       } catch (err) {
         console.error('Firestore getWeeklyReports failed:', err.message);
+        const data = readDb();
+        list = data.weeklyReports || [];
       }
+    } else {
+      const data = readDb();
+      list = data.weeklyReports || [];
     }
-    const data = readDb();
-    return data.weeklyReports || [];
+    return list;
   },
 
   getWeeklyReport: async (weekId) => {
@@ -2434,6 +2568,33 @@ const db = {
     const data = readDb();
     if (!data.weeklyReports) return null;
     return data.weeklyReports.find(r => r.weekId === weekId) || null;
+  },
+
+  checkHealth: async () => {
+    const firebaseEnabled = !!firebaseDb;
+    let firestoreWorking = false;
+    let errorMsg = null;
+    let readTimeMs = null;
+
+    if (firebaseDb) {
+      try {
+        const start = Date.now();
+        const docPromise = firebaseDb.collection('settings').doc('discord').get();
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore read timeout (4s)')), 4000));
+        await Promise.race([docPromise, timeoutPromise]);
+        firestoreWorking = true;
+        readTimeMs = Date.now() - start;
+      } catch (err) {
+        errorMsg = err.message;
+      }
+    }
+
+    return {
+      firebaseEnabled,
+      firestoreWorking,
+      errorMsg,
+      readTimeMs
+    };
   }
 };
 

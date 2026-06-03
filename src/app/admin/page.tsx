@@ -131,6 +131,7 @@ export default function AdminDashboard() {
     simulatedVoice: ''
   });
   const [credsLoading, setCredsLoading] = useState(false);
+  const [dbHealth, setDbHealth] = useState<{ firebaseEnabled: boolean; firestoreWorking: boolean; errorMsg: string | null; readTimeMs: number | null } | null>(null);
 
   // Load webhooks from localStorage and try to load from backend too
   useEffect(() => {
@@ -177,6 +178,17 @@ export default function AdminDashboard() {
         }
       } catch {
         console.warn('Could not load credentials from backend on mount.');
+      }
+
+      // Fetch DB Health
+      try {
+        const healthRes = await fetch(`${API_BASE_URL}/api/db-health`);
+        if (healthRes.ok) {
+          const healthData = await healthRes.json();
+          setDbHealth(healthData);
+        }
+      } catch {
+        console.warn('Could not load DB health status on mount.');
       }
     };
 
@@ -352,6 +364,13 @@ export default function AdminDashboard() {
     setCredsLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/discord-config`);
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('wp_admin_auth');
+        localStorage.removeItem('wp_session_token');
+        addNotification('Session Expired', 'Please log in again using passcode Grand2026.', 'error');
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setCredentials({
@@ -386,6 +405,13 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify(credentials)
       });
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('wp_admin_auth');
+        localStorage.removeItem('wp_session_token');
+        addNotification('Session Expired', 'Please log in again using passcode Grand2026.', 'error');
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      }
       const data = await res.json();
       if (res.ok && data.success) {
         addNotification('Configuration Saved', 'Bot credentials updated and bot service reloaded.', 'success');
@@ -952,6 +978,20 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </div>
+            
+            {dbHealth && !dbHealth.firestoreWorking && (
+              <div className="bg-red-950/20 border border-red-500/30 rounded-xl p-4 flex flex-col gap-2 text-red-200">
+                <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-wider text-xs">
+                  <ShieldAlert className="w-4 h-4 animate-pulse" />
+                  DATABASE QUOTA EXHAUSTED (FIREBASE)
+                </div>
+                <p className="text-[11px] leading-relaxed text-zinc-400">
+                  The live Firestore database is currently offline or has exceeded its daily free-tier read/write quotas (Error: <code className="text-red-400 font-mono">{dbHealth.errorMsg || 'Quota Exceeded'}</code>). 
+                  The server has automatically fallen back to localized JSON persistence, but settings and payouts will be lost on container restarts. 
+                  <b> To resolve, please configure the new Firebase project whitepigeonslive credentials on your hosting.</b>
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSaveCredentials} className="space-y-4 font-sans text-xs">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

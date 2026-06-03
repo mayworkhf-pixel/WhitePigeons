@@ -85,6 +85,18 @@ async function requireAdmin(req, res, next) {
 }
 
 // -------------------------------------------------------------
+// DATABASE HEALTH CHECK
+// -------------------------------------------------------------
+router.get('/db-health', async (req, res) => {
+  try {
+    const health = await db.checkHealth();
+    res.json(health);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // MEMBER ROSTER
 // -------------------------------------------------------------
 router.get('/members', requireMember, async (req, res) => {
