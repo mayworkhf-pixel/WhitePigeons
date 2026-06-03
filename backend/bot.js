@@ -2253,44 +2253,39 @@ const botService = {
     const top5Ids = priorityList.top5 || [];
     const top10Ids = priorityList.top10 || [];
 
-    const mainRosterLines = confirmed.map((s, idx) => {
-      let icon = '⚔️';
+    const formatMemberLine = (s, idx) => {
+      let badge = '⚔️';
       if (top5Ids.includes(s.memberId)) {
-        icon = '👑';
+        badge = '👑';
       } else if (top10Ids.includes(s.memberId)) {
-        icon = '🥇';
+        badge = '🥇';
       }
-      return `**${idx + 1}.** ${icon} <@${s.memberId}>`;
-    });
+      const voiceIcon = s.inVoice ? ' 🔊' : '';
+      return `\`[#${(idx + 1).toString().padStart(2, '0')}]\` ${badge} <@${s.memberId}>${voiceIcon}`;
+    };
 
-    const reserveLines = reserve.map((s, idx) => {
-      let icon = '⚔️';
-      if (top5Ids.includes(s.memberId)) {
-        icon = '👑';
-      } else if (top10Ids.includes(s.memberId)) {
-        icon = '🥇';
-      }
-      return `**${idx + 1}.** ${icon} <@${s.memberId}>`;
-    });
+    const mainRosterLines = confirmed.map((s, idx) => formatMemberLine(s, idx));
+    const reserveLines = reserve.map((s, idx) => formatMemberLine(s, idx));
 
     const config = await db.getConfig();
-    const pointsText = (eventId === 'rp-signup' || eventId === 'signup-event') ? 'Points: `2` ❤️' : 'Points: `1` ❤️';
-    const statusText = isClosed ? '🔴 **Registration is closed!**' : '🔔 **Registrations are now open!**';
+    const pointsText = (eventId === 'rp-signup' || eventId === 'signup-event') ? '`2` Points' : '`1` Point';
+    const statusLabel = isClosed ? '🔴 REGISTRATION CLOSED' : '🟢 REGISTRATIONS OPEN';
     const voiceChannelText = config.factoryVoiceChannelId 
-      ? `📡 **Voice Channel:** <#${config.factoryVoiceChannelId}>`
-      : '📡 **Voice Channel:** 🔊 ⚔️ | Event VC';
+      ? `<#${config.factoryVoiceChannelId}>`
+      : '🔊 ⚔️ | Event VC';
 
-    const directivesText = description ? description : 'No directives set.';
+    const directivesText = description ? `> ${description.split('\n').join('\n> ')}` : '> *No directives set for this event.*';
 
     const embedDescription = [
-      statusText,
-      '',
-      '**Event Directives:**',
+      `──────────────────────────────`,
+      `📢 **Directives & Orders:**`,
       directivesText,
-      '',
-      pointsText,
-      '',
-      voiceChannelText
+      `──────────────────────────────`,
+      `📊 **Details:**`,
+      `• **Status:** ${statusLabel}`,
+      `• **Reward:** ${pointsText} ❤️`,
+      `• **Voice Channel:** ${voiceChannelText}`,
+      `──────────────────────────────`
     ].join('\n');
 
     const bannerImage = (config.banners && config.banners[eventId])
@@ -2301,33 +2296,37 @@ const botService = {
         ? 'https://whitepigeonslive.web.app/signup_event_banner.webp'
         : 'https://whitepigeonslive.web.app/informal_fight_banner.webp');
 
+    let displayTitle = '';
+    if (eventId === 'rp-signup') {
+      displayTitle = '🕊️ WHITE PIGEONS ➔ RP TICKET FACTORY';
+    } else if (eventId === 'signup-event') {
+      displayTitle = '🕊️ WHITE PIGEONS ➔ SIGNUP EVENT';
+    } else {
+      displayTitle = '🕊️ WHITE PIGEONS ➔ INFORMAL SIGNUP';
+    }
+
     const embed = new EmbedBuilder()
-      .setTitle(`${eventId === 'rp-signup' ? '🚀 RP Ticket' : eventId === 'signup-event' ? '🚀 Signup-Event' : '⚔️ Informal Fight'}`)
+      .setTitle(displayTitle)
       .setDescription(embedDescription)
-      .setColor(isClosed ? 0xff003c : 0x00f0ff)
+      .setColor(isClosed ? 0xef4444 : 0x10b981)
       .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
       .setImage(bannerImage)
       .setTimestamp();
 
-    // Roster Fields in a single column matching the screenshot formatting exactly
-    const mainRosterValue = [
-      `\`${confirmed.length} / 25\``,
-      '',
-      ...(mainRosterLines.length > 0 ? mainRosterLines : ['*Roster is vacant. Claim a slot!*'])
-    ].join('\n');
+    const mainRosterValue = confirmed.length > 0 
+      ? mainRosterLines.join('\n') 
+      : '*Roster is vacant. Claim a slot below!*';
 
     embed.addFields(
-      { name: 'Main Roster:', value: mainRosterValue, inline: false }
+      { name: `👤 Main Roster (${confirmed.length} / 25)`, value: mainRosterValue, inline: false }
     );
 
-    const reserveValue = [
-      `\`${reserveLines.length}/20 waiting\``,
-      '',
-      ...(reserveLines.length > 0 ? reserveLines : ['*No substitutes yet.*'])
-    ].join('\n');
+    const reserveValue = reserve.length > 0 
+      ? reserveLines.join('\n') 
+      : '*No substitutes on standby.*';
 
     embed.addFields(
-      { name: 'Subs Roster:', value: reserveValue, inline: false }
+      { name: `👥 Reserve List (${reserve.length} / 20)`, value: reserveValue, inline: false }
     );
 
     return embed;
@@ -2414,6 +2413,7 @@ const botService = {
 
   closeEvent: async (eventId) => {
     try {
+      const config = await db.getConfig();
       // 1. Set state to closed in DB
       await db.setEventState(eventId, 'closed');
 
@@ -2422,15 +2422,23 @@ const botService = {
       const confirmedQueue = signups.filter(s => s.status === 'confirmed');
       const reserveQueue = signups.filter(s => s.status === 'reserve' || s.status === 'displaced');
 
+      const priorityList = await db.getPriorityList();
+      const top5Ids = priorityList.top5 || [];
+      const top10Ids = priorityList.top10 || [];
+
       // 3. Compile lines for embed formatting
       const mainRosterLines = confirmedQueue.map((s, idx) => {
-        const icon = s.isTop10 ? '👑' : '⚔️';
-        return `${idx + 1}. ${icon} <@${s.memberId}> ✅`;
+        let badge = '⚔️';
+        if (top5Ids.includes(s.memberId)) badge = '👑';
+        else if (top10Ids.includes(s.memberId)) badge = '🥇';
+        return `\`[#${(idx + 1).toString().padStart(2, '0')}]\` ${badge} <@${s.memberId}> ✅`;
       });
 
       const subsListLines = reserveQueue.map((s, idx) => {
-        const icon = s.isTop10 ? '👑' : '⚔️';
-        return `${idx + 1}. ${icon} <@${s.memberId}>`;
+        let badge = '⚔️';
+        if (top5Ids.includes(s.memberId)) badge = '👑';
+        else if (top10Ids.includes(s.memberId)) badge = '🥇';
+        return `\`[#${(idx + 1).toString().padStart(2, '0')}]\` ${badge} <@${s.memberId}>`;
       });
 
       const bannerImage = (config.banners && config.banners[eventId])
@@ -2442,19 +2450,31 @@ const botService = {
           : 'https://whitepigeonslive.web.app/informal_fight_banner.webp');
 
       const embedDescription = [
-        `🔴 **Registration is closed!**\n`,
-        `**Participants:** ${confirmedQueue.length}/25\n`,
-        `**Main Roster:**`,
+        `──────────────────────────────`,
+        `🔴 **REGISTRATION ARCHIVED & CLOSED**`,
+        `The event registration period has ended. The final deployment roster has been locked.`,
+        `──────────────────────────────`,
+        `👤 **Main Roster (${confirmedQueue.length} / 25):**`,
         mainRosterLines.length > 0 ? mainRosterLines.join('\n') : '*No confirmed players.*',
-        `\n**Subs List:**`,
-        subsListLines.length > 0 ? subsListLines.join('\n') : '*No substitutes.*',
-        `\nHave fun! 🎉`
+        `──────────────────────────────`,
+        `👥 **Reserve Standby List (${reserveQueue.length} / 20):**`,
+        subsListLines.length > 0 ? subsListLines.join('\n') : '*No standby players.*',
+        `──────────────────────────────`
       ].join('\n');
 
+      let displayTitle = '';
+      if (eventId === 'rp-signup') {
+        displayTitle = '🕊️ WHITE PIGEONS ➔ RP TICKET FACTORY [CLOSED]';
+      } else if (eventId === 'signup-event') {
+        displayTitle = '🕊️ WHITE PIGEONS ➔ SIGNUP EVENT [CLOSED]';
+      } else {
+        displayTitle = '🕊️ WHITE PIGEONS ➔ INFORMAL SIGNUP [CLOSED]';
+      }
+
       const embed = {
-        title: `🚀 ${eventId === 'rp-signup' ? 'RP Ticket' : eventId === 'signup-event' ? 'Signup-Event' : 'Informal Fight'} - CLOSED ✅`,
+        title: displayTitle,
         description: embedDescription,
-        color: 0xff003c, // Vibrant red-pink
+        color: 0xef4444,
         image: bannerImage
       };
 
@@ -2497,26 +2517,28 @@ const botService = {
       : '*None selected yet*';
 
     const embedColor = req.status === 'approved'
-      ? 0x00ff00
+      ? 0x10b981
       : req.status === 'rejected'
-        ? 0xff0000
-        : 0x00f0ff;
+        ? 0xef4444
+        : 0x3b82f6;
 
     const embed = new EmbedBuilder()
-      .setTitle(`📋 ${req.status === 'approved' ? 'ROLE REQUEST APPROVED' : req.status === 'rejected' ? 'ROLE REQUEST REJECTED' : 'New Role Request'}`)
-      .setDescription(req.status === 'pending' ? 'Select roles below and click Approve or Reject.' : `Status: **${req.status.toUpperCase()}** | Reviewed by: @${req.reviewer || 'Admin'}`)
+      .setTitle(`🕊️ WHITE PIGEONS ➔ ROLE REQUEST`)
+      .setDescription(req.status === 'pending' 
+        ? 'A new member registration request is awaiting review.' 
+        : `Status: **${req.status.toUpperCase()}**\nReviewed by: **@${req.reviewer || 'Admin'}**`)
       .setColor(embedColor)
       .addFields(
         { name: '👤 Applicant', value: `<@${req.discordId}>`, inline: true },
-        { name: '🏷️ Username', value: req.username, inline: true },
-        { name: '✍️ Name', value: req.inGameName, inline: true },
-        { name: 'ID', value: req.characterId, inline: true },
-        { name: 'Level in City', value: req.level, inline: true },
-        { name: 'Rank in Family', value: req.rank, inline: true },
-        { name: 'Forum Account Link', value: req.forumLink, inline: false },
-        { name: '✅ Selected Roles to Give', value: formattedRoles, inline: false }
+        { name: '🏷️ Username', value: `\`${req.username}\``, inline: true },
+        { name: '✍️ Character Name', value: `\`${req.inGameName}\``, inline: true },
+        { name: '🆔 Character ID', value: `\`${req.characterId}\``, inline: true },
+        { name: '📊 Level in City', value: `\`Level ${req.level}\``, inline: true },
+        { name: '🎖️ Family Rank', value: `\`Rank ${req.rank}\``, inline: true },
+        { name: '🔗 Forum Account', value: req.forumLink && req.forumLink !== 'N/A' ? `[View Account](${req.forumLink})` : '*Not provided*', inline: false },
+        { name: '✅ Roles to Grant', value: formattedRoles, inline: false }
       )
-      .setFooter({ text: `Request ID: ${req.id}` })
+      .setFooter({ text: `Request ID: ${req.id} • White Pigeons Security Node` })
       .setTimestamp(new Date(req.requestedAt));
 
     return embed;
@@ -2674,19 +2696,20 @@ const botService = {
           const rolePing = guild.roles.cache.find(r => r.name.includes('Activity Manager')) || '@Activity Manager';
           
           const embed = new EmbedBuilder()
-            .setTitle('New Activity Log Submitted')
-            .setDescription(`Activity logged by **${act.username}** for review.`)
+            .setTitle('🕊️ WHITE PIGEONS ➔ ACTIVITY SUBMISSION')
+            .setDescription(`A new activity log has been logged by **${act.username}** and is pending review.`)
             .addFields([
-              { name: '👤 User', value: `<@${act.memberId}>`, inline: true },
-              { name: '📂 Category', value: act.activityType, inline: false },
-              { name: '📝 Details', value: act.description || 'N/A', inline: false }
+              { name: '👤 Submitter', value: `<@${act.memberId}>`, inline: true },
+              { name: '📂 Category', value: `\`${act.activityType}\``, inline: true },
+              { name: '📝 Details', value: act.description ? `> ${act.description}` : '*No comments provided*', inline: false }
             ])
-            .setColor(0x00d4ff)
+            .setColor(0x3b82f6)
+            .setFooter({ text: `Activity ID: ${act.id} • Roster Ledger` })
             .setTimestamp();
 
           if (act.mediaUrl) {
             embed.setImage(act.mediaUrl);
-            embed.addFields([{ name: '🖼️ Proof', value: act.mediaUrl, inline: false }]);
+            embed.addFields([{ name: '🖼️ Proof Attachment', value: `[View Raw Media](${act.mediaUrl})`, inline: false }]);
           }
 
           const approveBtn = new ButtonBuilder()
@@ -2728,18 +2751,18 @@ const botService = {
 
   sendActivityResult: async (act, status, points, reviewerName) => {
     const isApproved = status === 'approved';
-    const embedColor = isApproved ? 0x23a55a : 0xf23f43;
+    const embedColor = isApproved ? 0x10b981 : 0xef4444;
 
     // A. Webhook result embed
     const resultEmbed = {
-      title: isApproved ? '💯 ACTIVITY APPROVED' : '❌ ACTIVITY REJECTED',
-      description: `Activity review completed by **${reviewerName}**.`,
+      title: isApproved ? '🕊️ WHITE PIGEONS ➔ ACTIVITY APPROVED' : '🕊️ WHITE PIGEONS ➔ ACTIVITY REJECTED',
+      description: `Activity log has been reviewed by **${reviewerName}**.`,
       color: embedColor,
       fields: [
-        { name: 'Activity ID', value: act.id, inline: true },
+        { name: 'Activity ID', value: `\`${act.id}\``, inline: true },
         { name: 'Submitter', value: `<@${act.memberId}>`, inline: true },
-        { name: 'Awarded Points', value: `${points} Points`, inline: true },
-        { name: 'Review Notes', value: isApproved ? 'Approved' : 'Rejected' }
+        { name: 'Awarded Points', value: `\`+${points} Points\` ❤️`, inline: true },
+        { name: 'Review Notes', value: isApproved ? '> The submitted activity has been verified and points have been credited.' : '> The submission did not meet the validation requirements.' }
       ]
     };
 
@@ -2751,13 +2774,13 @@ const botService = {
     if (isApproved && points > 0) {
       const currentPoints = (await db.getMember(act.memberId))?.points || 0;
       const leaderEmbed = {
-        title: '📈 ACTIVITY POINTS UPDATE',
-        description: `Points granted to **${act.username}**!`,
-        color: 0x00ff00,
+        title: '🕊️ WHITE PIGEONS ➔ LEDGER UPDATE',
+        description: `Points successfully credited to roster ledger!`,
+        color: 0x10b981,
         fields: [
           { name: 'Player', value: `<@${act.memberId}>`, inline: true },
-          { name: 'Earned Points', value: `+${points} Points`, inline: true },
-          { name: 'New Total', value: `${currentPoints} Points`, inline: true }
+          { name: 'Earned Points', value: `\`+${points} Points\` ❤️`, inline: true },
+          { name: 'New Total', value: `\`${currentPoints} Points\` 🏆`, inline: true }
         ]
       };
       await botService.sendWebhook('activity-points-leaderboard', leaderEmbed);
@@ -2779,9 +2802,15 @@ const botService = {
             }
             if (resultChannel) {
               const discordEmbed = new EmbedBuilder()
-                .setTitle(isApproved ? '✅ Activity Approved' : '❌ Activity Rejected')
-                .setDescription(`**User:** <@${act.memberId}>\n**Category:** ${act.activityType}\n**Points:** ${isApproved ? `+${points}` : '0'}\n**Reviewer:** ${reviewerName}`)
+                .setTitle(isApproved ? '🕊️ WHITE PIGEONS ➔ ACTIVITY APPROVED' : '🕊️ WHITE PIGEONS ➔ ACTIVITY REJECTED')
+                .setDescription(`The activity submitted by <@${act.memberId}> has been processed by **${reviewerName}**.`)
                 .setColor(embedColor)
+                .addFields(
+                  { name: 'Submitter', value: `<@${act.memberId}>`, inline: true },
+                  { name: 'Activity Type', value: `\`${act.activityType}\``, inline: true },
+                  { name: 'Point Delta', value: isApproved ? `\`+${points} Points\` ❤️` : '`0`', inline: true }
+                )
+                .setFooter({ text: `Activity ID: ${act.id}` })
                 .setTimestamp();
               await resultChannel.send({ embeds: [discordEmbed] });
             }
@@ -2829,9 +2858,9 @@ const botService = {
     const logs = await db.getBizWarLogs();
     const lastLog = logs[0];
     let statusText = '🟢 Active (Available)';
-    let lastCollectorText = 'None';
-    let lastAmountText = '$0';
-    let lastTimeText = 'N/A';
+    let lastCollectorText = '*None*';
+    let lastAmountText = '*$0*';
+    let lastTimeText = '*N/A*';
 
     if (lastLog) {
       const lastTime = new Date(lastLog.timeCollected).getTime();
@@ -2844,22 +2873,33 @@ const botService = {
         statusText = `🔴 Cooldown (Available in ${hours}h ${minutes}m)`;
       }
       lastCollectorText = `<@${lastLog.memberId}>`;
-      lastAmountText = `$${parseFloat(lastLog.amount).toLocaleString()}`;
-      lastTimeText = new Date(lastLog.timeCollected).toLocaleString();
+      lastAmountText = `\`$${parseFloat(lastLog.amount).toLocaleString()}\``;
+      lastTimeText = `\`${new Date(lastLog.timeCollected).toLocaleString()}\``;
     }
 
+    const propertyGrid = [
+      `\`🏢 01. Hotel Factory   \` | \`🏢 06. Ammo Factory   \``,
+      `\`🏢 02. Oil Well 12     \` | \`🏢 07. Weed Farm 2     \``,
+      `\`🏢 03. Gun Shop 4      \` | \`🏢 08. Meth Lab 5      \``,
+      `\`🏢 04. Docks Warehouse \` | \`🏢 09. Cocaine Depot   \``,
+      `\`🏢 05. Cash Factory 3  \` | \`🏢 10. Scrap Yard      \``,
+      `\`🏢 11. Nightclub       \` | \`🏢 16. Printing Press  \``,
+      `\`🏢 12. Strip Club      \` | \`🏢 17. Chemical Plant  \``,
+      `\`🏢 13. Car Dealership  \` | \`🏢 18. Refinery        \``,
+      `\`🏢 14. Cargo Port      \` | \`🏢 19. Gold Mine       \``,
+      `\`🏢 15. Bank Vault      \` | \`🏢 20. Steel Mill      \``
+    ].join('\n');
+
     const embed = new EmbedBuilder()
-      .setTitle('💵 WHITE PIGEON BIZWAR REVENUE')
-      .setDescription('Collect the profits from our family\'s occupied business sites.\n\n**🏢 Our 20 Family Business Sites:**\n' + 
-        '1. Hotel Factory • 2. Oil Well 12 • 3. Gun Shop 4 • 4. Docks Warehouse • 5. Cash Factory 3\n' +
-        '6. Ammo Factory • 7. Weed Farm 2 • 8. Meth Lab 5 • 9. Cocaine Depot • 10. Scrap Yard\n' +
-        '11. Nightclub • 12. Strip Club • 13. Car Dealership • 14. Cargo Port • 15. Bank Vault\n' +
-        '16. Printing Press • 17. Chemical Plant • 18. Refinery • 19. Gold Mine • 20. Steel Mill'
+      .setTitle('🕊️ WHITE PIGEONS ➔ BIZWAR REVENUE')
+      .setDescription(
+        `Collect the daily business profits from our occupied family sites.\n\n` +
+        `**🏢 Active Family Properties:**\n${propertyGrid}`
       )
       .addFields(
-        { name: 'Collection Status', value: statusText, inline: false },
+        { name: 'Collection Status', value: `\`${statusText}\``, inline: false },
         { name: 'Last Collector', value: lastCollectorText, inline: true },
-        { name: 'Amount', value: lastAmountText, inline: true },
+        { name: 'Amount Secured', value: lastAmountText, inline: true },
         { name: 'Collected At', value: lastTimeText, inline: true }
       )
       .setColor(0x8a2be2)
@@ -2951,21 +2991,25 @@ const botService = {
     }
 
     // Collection list formatting
-    let collectionListText = '*No collections registered yet.*';
+    let collectionListText = '*No active collections registered for this shift.*';
     if (state.collectionsList && state.collectionsList.length > 0) {
       collectionListText = state.collectionsList.map((c, idx) => {
         const timeFormatted = c.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
-        const charIdText = c.characterId ? ` (ID: ${c.characterId})` : '';
-        return `${idx + 1}. 🎫 **x${c.ticketsCollected || 5}** tickets collected by <@${c.discordId}>${charIdText} at ${timeFormatted}`;
+        const charIdText = c.characterId ? ` \`(ID: ${c.characterId})\`` : '';
+        const numText = `[ ${(idx + 1).toString().padStart(2, '0')} ]`;
+        return `\`${numText}\` 🎫 **x${c.ticketsCollected || 5}** tickets by <@${c.discordId}>${charIdText} at \`${timeFormatted}\``;
       }).join('\n');
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('🎫 RP TICKET FACTORY COLLECTION')
-      .setDescription(`Track and log RP Ticket factory collection status.\n\n**📋 Active Shifts:**\n${collectionListText}`)
+      .setTitle('🕊️ WHITE PIGEONS ➔ RP TICKET ROTATION')
+      .setDescription(
+        `Track and log RP Ticket factory collection status.\n\n` +
+        `**📋 Current Shift Log:**\n${collectionListText}`
+      )
       .addFields(
-        { name: 'Collection Status', value: statusText, inline: true },
-        { name: 'Total Collected', value: `${count * 5} Tickets`, inline: true }
+        { name: 'Collection Status', value: `\`${statusText}\``, inline: true },
+        { name: 'Total Tickets Logged', value: `\`${count * 5} Tickets\` 💎`, inline: true }
       )
       .setColor(0x00f0ff)
       .setThumbnail('https://whitepigeonslive.web.app/logo.webp')
@@ -3537,7 +3581,7 @@ const botService = {
     if (!messageId || !channelId || !client) return;
 
     try {
-      const channel = await client.channels.fetch(channelId);
+      const channel = await activeClient.channels.fetch(channelId);
       if (channel) {
         const message = await channel.messages.fetch(messageId);
         if (message) {
@@ -3593,7 +3637,7 @@ const botService = {
         }
       }
     } catch (err) {
-      console.error('[Bot] Failed to sync Weekly Event Leaderboard message:', err.message);
+      console.error('[Bot] Failed to sync Weekly Event Leaderboard:', err.message);
     }
   },
 
@@ -4172,32 +4216,33 @@ const botService = {
 
       const member = members.find(m => 
         m.username.toLowerCase() === username.toLowerCase() || 
-        m.nickname.toLowerCase().includes(username.toLowerCase())
+        (m.nickname && m.nickname.toLowerCase().includes(username.toLowerCase()))
       );
 
       const netAmount = kills * baseAmount;
-      const mention = member ? `<@${member.discordId}>` : `Not in DB`;
-      details.push(`**${username}** ➔ ${mention} | 💀 **${kills}** kills | 💰 **$${netAmount.toLocaleString()}**`);
+      const mention = member ? `<@${member.discordId}>` : `*Not in DB*`;
+      details.push(`• **${username}** ➔ ${mention} | 💀 \`${kills} Kills\` | 💰 \`$${netAmount.toLocaleString()}\``);
     }
 
     const totalBonus = totalKills * baseAmount;
 
     const embed = new EmbedBuilder()
-      .setTitle('📋 Bonus Request - Select Details')
+      .setTitle('🕊️ WHITE PIGEONS ➔ PAYOUT AUTHORIZATION')
+      .setDescription('Verify the event details below and authorize the bonus payout.')
       .addFields(
-        { name: '🎯 Event', value: submission.eventName || 'Bizwar', inline: true },
-        { name: '💰 Price', value: `$${baseAmount.toLocaleString()}/kill`, inline: true },
-        { name: '📊 Total Kills', value: String(totalKills), inline: true },
-        { name: '💵 Total Bonus', value: `$${totalBonus.toLocaleString()}`, inline: true },
-        { name: '📅 Date', value: submission.dateTimeStr || 'N/A', inline: true },
-        { name: '⏰ Time', value: submission.timeStr || 'N/A', inline: true },
-        { name: '👥 Participants:', value: details.length > 0 ? details.join('\n') : 'None', inline: false }
+        { name: '🎯 Event Type', value: `\`${submission.eventName || 'Bizwar'}\``, inline: true },
+        { name: '💰 Rate Per Kill', value: `\`$${baseAmount.toLocaleString()}\``, inline: true },
+        { name: '📊 Total Kills', value: `\`${totalKills} Kills\``, inline: true },
+        { name: '💵 Combined Payroll', value: `\`$${totalBonus.toLocaleString()}\``, inline: true },
+        { name: '📅 Date Scheduled', value: `\`${submission.dateTimeStr || 'N/A'}\``, inline: true },
+        { name: '⏰ Time Slot', value: `\`${submission.timeStr || 'N/A'}\``, inline: true },
+        { name: '👥 Claimant Breakdown', value: details.length > 0 ? details.join('\n') : '*No participants logged*', inline: false }
       )
       .setColor(0xffaa00)
       .setTimestamp(new Date(submission.createdAt));
 
     if (submission.guildId && submission.channelId && submission.discordMessageId) {
-      embed.addFields({ name: '🔗 Source', value: `[Click Here](https://discord.com/channels/${submission.guildId}/${submission.channelId}/${submission.discordMessageId})`, inline: false });
+      embed.addFields({ name: '🔗 Roster Thread Source', value: `[Jump to Original Post](https://discord.com/channels/${submission.guildId}/${submission.channelId}/${submission.discordMessageId})`, inline: false });
     }
 
     if (submission.mediaUrl) {
@@ -4388,6 +4433,7 @@ const botService = {
   },
 
   buildBonusAdminPanelEmbed: async () => {
+    const config = await db.getConfig();
     const members = await db.getMembers();
     const activeMembers = [...members]
       .filter(m => (m.weeklyBonus || 0) > 0)
@@ -4398,7 +4444,8 @@ const botService = {
 
     const top50 = activeMembers.slice(0, 50);
     const entries = top50.map((m, idx) => {
-      return `${idx + 1}. <@${m.discordId}> | ${m.characterId || 'N/A'} - **$${m.weeklyBonus.toLocaleString()}**`;
+      const idxStr = `[ ${(idx + 1).toString().padStart(2, '0')} ]`;
+      return `\`${idxStr}\` <@${m.discordId}> | ID: \`${m.characterId || 'N/A'}\` ➔ **$${m.weeklyBonus.toLocaleString()}**`;
     });
 
     let desc = entries.join('\n');
@@ -4406,19 +4453,24 @@ const botService = {
       desc += `\n\n... and ${activeMembers.length - 50} more`;
     }
     if (!desc) {
-      desc = '*No active bonuses accumulated for this week yet.*';
+      desc = '*No active weekly payouts accumulated yet.*';
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('💰 BONUS SYSTEM - ADMIN VIEW 💰')
+      .setTitle('🕊️ WHITE PIGEONS ➔ WEEKLY PAYOUT LEDGER')
       .setDescription(desc)
       .addFields(
-        { name: '💰 Total:', value: `$${totalBonus.toLocaleString()}`, inline: true },
-        { name: '👥 Members:', value: String(totalMembers), inline: true }
+        { name: '💰 Total Payroll', value: `\`$${totalBonus.toLocaleString()}\``, inline: true },
+        { name: '👥 Active Claimants', value: `\`${totalMembers} Members\``, inline: true }
       )
-      .setColor(0x00ff00)
-      .setImage((config.banners && config.banners['bonus-admin-panel']) ? config.banners['bonus-admin-panel'] : 'https://images.unsplash.com/photo-1554672408-730436b60dde?w=500')
+      .setColor(0x10b981)
       .setTimestamp();
+
+    if (config.banners && config.banners['bonus-admin-panel']) {
+      embed.setImage(config.banners['bonus-admin-panel']);
+    } else {
+      embed.setImage('https://images.unsplash.com/photo-1554672408-730436b60dde?w=500');
+    }
 
     return embed;
   }
