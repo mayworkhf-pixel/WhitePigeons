@@ -1781,17 +1781,6 @@ export default function RootDashboard() {
               <span className="bg-gradient-to-r from-purple-500/10 to-amber-500/5 border border-purple-500/20 text-purple-750 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans select-none shrink-0">
                 WHO WE ARE
               </span>
-              
-              <div className="flex items-center gap-3 bg-[#0a0a14]/65 border border-[#1c1a2a] px-3 py-1.5 rounded-xl backdrop-blur-md shadow-lg shrink-0">
-                <div className="text-left border-r border-[#1c1a2a]/60 pr-3 select-none">
-                  <div className="text-[6.5px] text-zinc-550 font-extrabold uppercase tracking-widest leading-none">LONDON (IN-GAME)</div>
-                  <div className="text-xs font-mono font-black text-purple-400 leading-none mt-1">{getLondonTime()}</div>
-                </div>
-                <div className="text-left select-none">
-                  <div className="text-[6.5px] text-zinc-555 font-extrabold uppercase tracking-widest leading-none">INDIA (IST)</div>
-                  <div className="text-xs font-mono font-black text-amber-500 leading-none mt-1">{getIndiaTime()}</div>
-                </div>
-              </div>
             </div>
             
             <div className="flex items-center gap-3.5">
@@ -1815,21 +1804,34 @@ export default function RootDashboard() {
               and synchronized operations, we remain #TOP1. We stand undivided—a true brotherhood on top.
             </p>
 
-            <div className="flex flex-wrap items-center gap-4 text-slate-800 text-[10px] font-title font-black uppercase tracking-widest pt-1">
-              <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
-                <Shield className="w-4 h-4 text-[#cca43b] shrink-0" />
-                LOYALTY
-              </span>
-              <div className="w-[1px] h-3 bg-slate-300/40 self-center" />
-              <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
-                <RespectIcon />
-                RESPECT
-              </span>
-              <div className="w-[1px] h-3 bg-slate-300/40 self-center" />
-              <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
-                <PowerIcon />
-                POWER
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+              <div className="flex flex-wrap items-center gap-4 text-slate-800 text-[10px] font-title font-black uppercase tracking-widest">
+                <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
+                  <Shield className="w-4 h-4 text-[#cca43b] shrink-0" />
+                  LOYALTY
+                </span>
+                <div className="w-[1px] h-3 bg-slate-300/40 self-center" />
+                <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
+                  <RespectIcon />
+                  RESPECT
+                </span>
+                <div className="w-[1px] h-3 bg-slate-300/40 self-center" />
+                <span className="flex items-center gap-2 hover:text-[#7c3aed] transition-smooth cursor-default">
+                  <PowerIcon />
+                  POWER
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 bg-[#0a0a14]/65 border border-[#1c1a2a] px-3 py-1.5 rounded-xl backdrop-blur-md shadow-lg shrink-0">
+                <div className="text-left border-r border-[#1c1a2a]/60 pr-3 select-none">
+                  <div className="text-[6.5px] text-zinc-550 font-extrabold uppercase tracking-widest leading-none">LONDON (IN-GAME)</div>
+                  <div className="text-xs font-mono font-black text-purple-400 leading-none mt-1">{getLondonTime()}</div>
+                </div>
+                <div className="text-left select-none">
+                  <div className="text-[6.5px] text-zinc-555 font-extrabold uppercase tracking-widest leading-none">INDIA (IST)</div>
+                  <div className="text-xs font-mono font-black text-amber-500 leading-none mt-1">{getIndiaTime()}</div>
+                </div>
+              </div>
             </div>
           </div>
           
