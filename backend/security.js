@@ -188,6 +188,8 @@ function getAllowedOrigins() {
     .filter(Boolean);
   return [
     'http://localhost:3000',
+    'https://whitepigeonslive.web.app',
+    'https://whitepigeonslive.firebaseapp.com',
     'https://whitepigeons-35431.web.app',
     'https://whitepigeons-35431.firebaseapp.com',
     ...configured
@@ -198,6 +200,7 @@ function isAllowedOrigin(origin) {
   if (!origin) return true;
   if (getAllowedOrigins().includes(origin)) return true;
   return /^http:\/\/localhost:\d+$/.test(origin)
+    || /^https:\/\/whitepigeonslive\.(web\.app|firebaseapp\.com)$/.test(origin)
     || /^https:\/\/whitepigeons-35431\.(web\.app|firebaseapp\.com)$/.test(origin);
 }
 
