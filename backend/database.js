@@ -1776,6 +1776,30 @@ const db = {
     return newLog;
   },
 
+  updateBizWarLog: async (id, updateData) => {
+    if (firebaseDb) {
+      try {
+        const docRef = firebaseDb.collection('bizwarLogs').doc(id);
+        const doc = await docRef.get();
+        if (doc.exists) {
+          const finalData = { ...doc.data(), ...updateData };
+          await docRef.set(finalData);
+          return finalData;
+        }
+      } catch (err) {
+        console.error('Firestore updateBizWarLog failed:', err.message);
+      }
+    }
+    const data = readDb();
+    const idx = data.bizwarLogs.findIndex(l => l.id === id);
+    if (idx !== -1) {
+      data.bizwarLogs[idx] = { ...data.bizwarLogs[idx], ...updateData };
+      writeDb(data);
+      return data.bizwarLogs[idx];
+    }
+    return null;
+  },
+
   // RP Ticket Collect
   getRpTicketLogs: async () => {
     if (firebaseDb) {

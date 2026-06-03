@@ -1051,7 +1051,7 @@ export default function RootDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: bizwarDiscordForm.amount,
-          proofUrl: bizwarDiscordForm.proofUrl
+          proofUrl: ''
         })
       });
       if (res.ok) {
@@ -5900,9 +5900,16 @@ export default function RootDashboard() {
               ) : (
                 bizwarLogs.map((log, idx) => (
                   <div key={idx} className="flex justify-between items-center bg-[#13121d]/40 p-3 border border-[#1c1a2a] rounded-xl font-sans text-xs">
-                    <div>
-                      <span className="font-bold text-zinc-200">{log.businessName}</span>
-                      <span className="block text-[8px] text-zinc-500">Collected by: @{log.username} | {new Date(log.timeCollected).toLocaleTimeString()}</span>
+                    <div className="flex items-center gap-3">
+                      {log.proofUrl && (
+                        <a href={log.proofUrl} target="_blank" rel="noreferrer" className="relative group shrink-0 w-8 h-8 rounded border border-purple-500/20 overflow-hidden block">
+                          <img src={log.proofUrl} className="w-full h-full object-cover" alt="Proof" />
+                        </a>
+                      )}
+                      <div>
+                        <span className="font-bold text-zinc-200">{log.businessName}</span>
+                        <span className="block text-[8px] text-zinc-500">Collected by: @{log.username} | {new Date(log.timeCollected).toLocaleTimeString()}</span>
+                      </div>
                     </div>
                     <span className="font-bold text-green-400 font-mono">+${log.amount.toLocaleString()}</span>
                   </div>
@@ -6010,6 +6017,92 @@ export default function RootDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* If lastLog has proofUrl, simulate user pasting screenshot in channel */}
+              {lastLog && lastLog.proofUrl && (
+                <div className="flex gap-3 pt-4 border-t border-zinc-800/40">
+                  <div className="w-9 h-9 rounded-full bg-purple-600/10 border border-purple-500/20 shrink-0 flex items-center justify-center font-bold text-white uppercase text-xs">
+                    {lastLog.username.substring(0, 2)}
+                  </div>
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5 leading-none">
+                      <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">@{lastLog.username}</span>
+                      <span className="text-[9px] text-[#949ba4] font-sans">
+                        {new Date(lastLog.timeCollected).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="rounded overflow-hidden max-w-sm border border-zinc-800">
+                      <img src={lastLog.proofUrl} className="w-full max-h-48 object-cover" alt="Uploaded proof screenshot" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Discord Chat Input Box */}
+            <div className="p-4 bg-[#313338] border-t border-[#2b2d31]/50">
+              <div 
+                tabIndex={0}
+                onPaste={(e) => {
+                  handlePaste(e, async (updater) => {
+                    const dummyState = { proofUrl: '' };
+                    const temp = typeof updater === 'function' ? updater(dummyState) : updater;
+                    if (temp && temp.proofUrl) {
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/api/economy/bizwar-screenshot`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ proofUrl: temp.proofUrl })
+                        });
+                        if (res.ok) {
+                          addNotification('Screenshot Linked', 'Proof screenshot attached to your latest collection.', 'success');
+                          loadDashboardData();
+                        } else {
+                          const err = await res.json();
+                          addNotification('Failed to Link Screenshot', err.error || 'Failed to attach.', 'error');
+                        }
+                      } catch {
+                        addNotification('Error', 'Network connection failure.', 'error');
+                      }
+                    }
+                  });
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  handleDrop(e, async (updater) => {
+                    const dummyState = { proofUrl: '' };
+                    const temp = typeof updater === 'function' ? updater(dummyState) : updater;
+                    if (temp && temp.proofUrl) {
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/api/economy/bizwar-screenshot`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ proofUrl: temp.proofUrl })
+                        });
+                        if (res.ok) {
+                          addNotification('Screenshot Linked', 'Proof screenshot attached to your latest collection.', 'success');
+                          loadDashboardData();
+                        } else {
+                          const err = await res.json();
+                          addNotification('Failed to Link Screenshot', err.error || 'Failed to attach.', 'error');
+                        }
+                      } catch {
+                        addNotification('Error', 'Network connection failure.', 'error');
+                      }
+                    }
+                  });
+                }}
+                className="flex items-center gap-3 bg-[#383a40] px-4 py-2.5 rounded-lg text-zinc-400 text-xs hover:bg-[#3f4147] focus:outline-none focus:ring-1 focus:ring-purple-600/50 cursor-text select-none border border-transparent"
+              >
+                <div className="bg-[#4e5058] hover:bg-[#6d6f78] p-1 rounded-full text-[#dbdee1] cursor-pointer shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"></path>
+                  </svg>
+                </div>
+                <span className="text-[11px] text-zinc-500 font-sans font-medium">
+                  Message #bizwar-collect (Click here & press Ctrl+V to paste proof screenshot)
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -6043,49 +6136,6 @@ export default function RootDashboard() {
                     placeholder="e.g. 450000"
                     className="w-full bg-[#1e1f22] border border-[#1c1a2a] text-white rounded p-2 focus:outline-none focus:border-purple-600/40 text-xs font-sans"
                   />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] text-[#949ba4] font-bold uppercase tracking-wider block">Proof Screenshot *</label>
-                  {bizwarDiscordForm.proofUrl ? (
-                    <div className="relative bg-[#1e1f22] border border-purple-600/30 rounded-lg p-2.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <img src={bizwarDiscordForm.proofUrl} className="w-10 h-10 object-cover rounded border border-purple-500/30 shrink-0" alt="Proof screenshot" />
-                        <span className="text-[10px] text-[#949ba4] truncate">screenshot.png</span>
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={() => setBizwarDiscordForm(prev => ({ ...prev, proofUrl: '' }))}
-                        className="text-red-400 hover:text-red-300 font-bold text-xs px-2 py-1 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <div 
-                      tabIndex={0}
-                      onPaste={(e) => handlePaste(e, setBizwarDiscordForm)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => handleDrop(e, setBizwarDiscordForm)}
-                      onClick={() => fileInputRef2.current?.click()}
-                      className="w-full bg-[#1e1f22] hover:bg-[#232428] border-2 border-dashed border-[#1c1a2a] hover:border-purple-600/40 rounded-lg p-4 text-center cursor-pointer transition-all focus:outline-none focus:border-purple-600/50"
-                    >
-                      <input 
-                        type="file" 
-                        ref={fileInputRef2}
-                        onChange={(e) => handleFileChange(e, setBizwarDiscordForm)}
-                        accept="image/*"
-                        className="hidden" 
-                      />
-                      <div className="flex flex-col items-center justify-center gap-1 select-none">
-                        <svg className="w-6 h-6 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-[10px] text-zinc-400 font-bold">CLICK TO UPLOAD / DRAG HERE</span>
-                        <span className="text-[9px] text-[#949ba4]">OR CLICK THIS BOX & PRESS CTRL+V TO PASTE</span>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 select-none">

@@ -510,6 +510,53 @@ router.post('/economy/bizwar-collect', requireMember, async (req, res) => {
   return res.json(log);
 });
 
+router.post('/economy/bizwar-screenshot', requireMember, async (req, res) => {
+  const { proofUrl } = req.body;
+  const user = req.user;
+
+  if (!proofUrl) {
+    return res.status(400).json({ error: 'Screenshot data/url is required.' });
+  }
+
+  const logs = await db.getBizWarLogs();
+  const userLogs = logs.filter(l => l.memberId === user.discordId);
+  if (userLogs.length === 0) {
+    return res.status(400).json({ error: 'No Bizwar Collection log found to attach screenshot to.' });
+  }
+
+  const lastLog = userLogs[0];
+  const diffMs = Date.now() - new Date(lastLog.timeCollected).getTime();
+  if (diffMs > 15 * 60 * 1000) {
+    return res.status(400).json({ error: 'Last collection log is too old (max 15 minutes).' });
+  }
+
+  const updatedLog = await db.updateBizWarLog(lastLog.id, { proofUrl });
+
+  // Resend webhook or update embed with screenshot if available
+  const embed = {
+    title: '🕊️ WHITE PIGEONS ➔ BIZWAR PROOF ATTACHED',
+    description: `Screenshot proof attached to collection.`,
+    color: 0x10b981,
+    fields: [
+      { name: 'Collector', value: `@${user.username}`, inline: true },
+      { name: 'Collected Amount', value: `$${lastLog.amount.toLocaleString()}`, inline: true }
+    ]
+  };
+
+  if (proofUrl && proofUrl.startsWith('http')) {
+    embed.image = { url: proofUrl };
+  }
+
+  await botService.sendWebhook('bizwar-collect', embed);
+  try {
+    await botService.syncBizwarCollectionMessage();
+  } catch (err) {
+    console.error('Failed to sync Bizwar Collection embed on Discord:', err.message);
+  }
+
+  return res.json(updatedLog);
+});
+
 // RP Ticket tracker
 router.get('/economy/rp-collect', requireMember, async (req, res) => {
   const stats = await db.getRpTicketStats();

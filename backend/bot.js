@@ -254,7 +254,7 @@ const botService = {
         botService.logSimulated(`Bot Connection Error: ${err.message}`);
       });
 
-      client.on('messageCreate', async (message) => {
+      const handleMessageCreate = async (message) => {
         if (message.author.bot) return;
         botService.logSimulated(`Message in #${message.channel?.name || 'unknown'} by @${message.author.username}: "${message.content}"`);
 
@@ -265,6 +265,40 @@ const botService = {
         const chanName = cleanName(message.channel?.name || '');
         const isWinChannel = message.channel.id === winChannelId || chanName.includes('win-log') || chanName.includes('winlog');
         const isInformalChannel = message.channel.id === informalChannelId || chanName.includes('informal-log') || chanName.includes('informallog');
+        const isBizwarChannel = chanName.includes('bizwar') && (chanName.includes('collect') || chanName.includes('log') || chanName.includes('profit'));
+
+        if (isBizwarChannel && message.attachments.size > 0) {
+          try {
+            const attachment = message.attachments.first();
+            if (attachment && attachment.contentType && attachment.contentType.startsWith('image/')) {
+              // Find last Bizwar log for this member created in the last 15 minutes
+              const logs = await db.getBizWarLogs();
+              const userLogs = logs.filter(l => l.memberId === message.author.id);
+              if (userLogs.length > 0) {
+                const lastLog = userLogs[0];
+                const diffMs = Date.now() - new Date(lastLog.timeCollected).getTime();
+                if (diffMs < 15 * 60 * 1000) { // 15 mins window
+                  // Update log with proofUrl
+                  await db.updateBizWarLog(lastLog.id, { proofUrl: attachment.url });
+                  botService.logSimulated(`Linked pasted screenshot to Bizwar collection log ${lastLog.id} for @${message.author.username}`);
+                  
+                  // Sync the Discord embed message
+                  await botService.syncBizwarCollectionMessage();
+                  
+                  // React to confirm
+                  await message.react('✅');
+                  
+                  // Also notify the socket clients
+                  botService.broadcastSocket('leaderboard_update', await db.getMembers());
+                  botService.broadcastSocket('bizwar_update', await db.getBizWarLogs());
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error handling bizwar screenshot upload:', err.message);
+          }
+          return;
+        }
 
         if (isWinChannel || isInformalChannel) {
           try {
@@ -366,7 +400,7 @@ const botService = {
               await message.react('⏳');
             } catch {}
 
-            // Send standard reminder template
+            // Send reminder template
             try {
               await message.channel.send({
                 content: `ℹ️ **White Pigeons REG** APP\n**Please Follow New Format on Logs**\n\`\`\`\nEvent Name | Bonus Price | Date & Time\nKill List:\n@user 1k\n@user 5k\n\`\`\`\n*"You must send the photo in the same message of the kills"*\n\n**Note:**\n⏳ This means reviewing\n❌ It is rejected\n✅ It is approved\n⚠️ There is an error, send logs again`
@@ -378,7 +412,9 @@ const botService = {
             console.error('[Bot] Win log ingestion failed:', err.message);
           }
         }
-      });
+      };
+
+      client.on('messageCreate', handleMessageCreate);
 
       client.on('messageReactionAdd', async (reaction, user) => {
         if (reaction.partial) {
@@ -1927,6 +1963,7 @@ const botService = {
             botService.logSimulated(`Bizwar Bot Connection Error: ${err.message}`);
           });
           bizwarClient.on('interactionCreate', handleInteraction);
+          bizwarClient.on('messageCreate', handleMessageCreate);
           await bizwarClient.login(config.bizwarBotToken);
         } catch (err) {
           console.error('[Bizwar Bot] Failed to login:', err.message);
