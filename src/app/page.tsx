@@ -1781,6 +1781,12 @@ export default function RootDashboard() {
               <span className="bg-gradient-to-r from-purple-500/10 to-amber-500/5 border border-purple-500/20 text-purple-750 text-[9px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider font-sans select-none shrink-0">
                 WHO WE ARE
               </span>
+              
+              <div className="flex items-center gap-2 bg-[#0a0a14]/50 border border-[#1c1a2a]/40 px-2.5 py-1 rounded-lg backdrop-blur-md shadow-sm text-[9px] font-mono select-none shrink-0">
+                <span className="text-purple-400 font-bold">LON: <span className="font-black">{getLondonTime()}</span></span>
+                <span className="text-zinc-500 font-bold px-0.5">|</span>
+                <span className="text-amber-500 font-bold">IND: <span className="font-black">{getIndiaTime()}</span></span>
+              </div>
             </div>
             
             <div className="flex items-center gap-3.5">
