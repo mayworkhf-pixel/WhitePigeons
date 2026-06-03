@@ -42,7 +42,8 @@ import {
   Home,
   CreditCard,
   Target,
-  Crown
+  Crown,
+  Clock
 } from 'lucide-react';
 
 interface NavigationWrapperProps {
@@ -83,6 +84,35 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
   const [registeredInGameId, setRegisteredInGameId] = useState<string | null>(null);
   const [registrationStatus, setRegistrationStatus] = useState<'pending' | 'approved' | 'none'>('none');
   const canUseLocalPreview = mounted && ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+
+  const [nowTime, setNowTime] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getLondonTime = () => {
+    return new Date(nowTime).toLocaleTimeString('en-GB', {
+      timeZone: 'Europe/London',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  };
+
+  const getIndiaTime = () => {
+    return new Date(nowTime).toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  };
 
   const checkRegistrationStatus = React.useCallback(async (id: string) => {
     try {
@@ -646,7 +676,16 @@ export default function NavigationWrapper({ children }: NavigationWrapperProps) 
             </div>
 
             {/* Profile widget */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <div className="hidden sm:flex items-center gap-1.5 border border-purple-500/15 bg-purple-500/5 px-2.5 py-1.5 font-tech text-[9px] uppercase text-purple-200 rounded-lg select-none">
+                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                <span>LON: {getLondonTime()}</span>
+              </div>
+              <div className="hidden sm:flex items-center gap-1.5 border border-purple-500/15 bg-purple-500/5 px-2.5 py-1.5 font-tech text-[9px] uppercase text-purple-200 rounded-lg select-none">
+                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                <span>IND: {getIndiaTime()}</span>
+              </div>
+              
               <div className="hidden md:flex items-center gap-1.5 border border-purple-500/15 bg-purple-500/5 px-2.5 py-1.5 font-tech text-[9px] uppercase text-purple-200 rounded-lg">
                 {connectionState === 'connected' ? <Wifi className="w-3.5 h-3.5 text-emerald-400" /> : <WifiOff className="w-3.5 h-3.5 text-amber-400" />}
                 <span>{latencyMs === null ? '--' : `${latencyMs}ms`}</span>

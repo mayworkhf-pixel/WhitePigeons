@@ -60,6 +60,7 @@ router.get('/discord-config', requireAdmin, async (req, res) => {
     rpTicketTimes: config.rpTicketTimes || ["08:30", "15:00", "20:00", "22:30"],
     factoryVoiceChannelId: config.factoryVoiceChannelId || '',
     simulatedVoice: config.simulatedVoice || [],
+    banners: config.banners || {},
     webhooks: {}
   };
 
@@ -79,7 +80,7 @@ router.get('/discord-config', requireAdmin, async (req, res) => {
 
 // POST save config
 router.post('/discord-config', requireAdmin, async (req, res) => {
-  const { botToken, guildId, clientId, clientSecret, adminPassword, webhooks, rpTicketTimes, factoryVoiceChannelId, simulatedVoice } = req.body;
+  const { botToken, guildId, clientId, clientSecret, adminPassword, webhooks, rpTicketTimes, factoryVoiceChannelId, simulatedVoice, banners } = req.body;
   const currentConfig = await db.getConfig();
 
   // If a field is sent as masked (i.e. '••••••••••••••••'), do not overwrite, keep the current value
@@ -130,6 +131,8 @@ router.post('/discord-config', requireAdmin, async (req, res) => {
     }
   }
 
+  const finalBanners = banners === undefined ? (currentConfig.banners || {}) : (banners || {});
+
   const newConfig = {
     botToken: finalBotToken,
     guildId: finalGuildId,
@@ -139,7 +142,8 @@ router.post('/discord-config', requireAdmin, async (req, res) => {
     webhooks: finalWebhooks,
     rpTicketTimes: finalRpTicketTimes,
     factoryVoiceChannelId: finalFactoryVoiceChannelId,
-    simulatedVoice: finalSimulatedVoice
+    simulatedVoice: finalSimulatedVoice,
+    banners: finalBanners
   };
 
   try {

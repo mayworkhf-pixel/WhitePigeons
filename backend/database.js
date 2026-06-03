@@ -1195,7 +1195,8 @@ const db = {
       webhooks: newConfig.webhooks || {},
       factoryVoiceChannelId: newConfig.factoryVoiceChannelId || '',
       simulatedVoice: newConfig.simulatedVoice || [],
-      rpTicketTimes: newConfig.rpTicketTimes || ["08:30", "15:00", "20:00", "22:30"]
+      rpTicketTimes: newConfig.rpTicketTimes || ["08:30", "15:00", "20:00", "22:30"],
+      banners: newConfig.banners || {}
     };
 
     // Invalidate local in-memory cache
@@ -1469,6 +1470,11 @@ const db = {
     activitiesCache = list;
     activitiesCacheTime = Date.now();
     return list;
+  },
+  
+  getActivity: async (id) => {
+    const list = await db.getActivities();
+    return list.find(a => a.id === id);
   },
   
   createActivity: async (actData) => {

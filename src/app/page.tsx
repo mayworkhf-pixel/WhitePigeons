@@ -65,6 +65,7 @@ interface ActivityModel {
   status: string;
   reason: string;
   reviewedBy?: string;
+  activityType?: string;
   createdAt: string;
 }
 
@@ -137,6 +138,23 @@ export default function RootDashboard() {
   const [rpOpenedAt, setRpOpenedAt] = useState<number | null>(null);
   const [informalOpenedAt, setInformalOpenedAt] = useState<number | null>(null);
   const [signupEventOpenedAt, setSignupEventOpenedAt] = useState<number | null>(null);
+  
+  // File Explorer and Banners states
+  const [selectedWinLogId, setSelectedWinLogId] = useState<string | null>(null);
+  const [activeWinLogFolder, setActiveWinLogFolder] = useState<string>('all');
+  const [selectedInformalLogId, setSelectedInformalLogId] = useState<string | null>(null);
+  const [activeInformalLogFolder, setActiveInformalLogFolder] = useState<string>('all');
+  const [isNewWinLogModalOpen, setIsNewWinLogModalOpen] = useState<boolean>(false);
+  const [isNewInformalLogModalOpen, setIsNewInformalLogModalOpen] = useState<boolean>(false);
+  const [winLogSearchQuery, setWinLogSearchQuery] = useState<string>('');
+  const [informalLogSearchQuery, setInformalLogSearchQuery] = useState<string>('');
+  const [banners, setBanners] = useState<Record<string, string>>({
+    'rp-signup': '/rp_ticket_banner.webp',
+    'signup-event': '/signup_event_banner.webp',
+    'informal-signup': '/informal_fight_banner.webp',
+    'strike-system': 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
+    'bonus-admin-panel': 'https://images.unsplash.com/photo-1554672408-730436b60dde?w=500'
+  });
   const [nowTime, setNowTime] = useState<number>(Date.now());
   
   const formatRemainingTime = (openedAt: number | null) => {
@@ -320,7 +338,8 @@ export default function RootDashboard() {
       const publicFetches = [
         fetch(`${API_BASE_URL}/api/members`).then(r => r.ok ? r.json() : null).then(data => data && setMembers(data)),
         fetch(`${API_BASE_URL}/api/wins`).then(r => r.ok ? r.json() : null).then(data => data && setWins(data)),
-        fetch(`${API_BASE_URL}/api/priority-list`).then(r => r.ok ? r.json() : null).then(data => data && setPriorityList(data))
+        fetch(`${API_BASE_URL}/api/priority-list`).then(r => r.ok ? r.json() : null).then(data => data && setPriorityList(data)),
+        fetch(`${API_BASE_URL}/api/discord/banners`).then(r => r.ok ? r.json() : null).then(data => data && setBanners(data))
       ];
 
       await Promise.all(publicFetches);
@@ -2842,8 +2861,8 @@ export default function RootDashboard() {
             </div>
           </div>
 
-          <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5 p-4 sm:p-5">
-            <div className="border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-5">
+            <div className="lg:col-span-5 xl:col-span-6 border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
               <div className="hidden md:grid grid-cols-[72px_minmax(0,1.3fr)_130px_130px_130px] gap-3 border-b border-cyan-400/15 bg-cyan-400/5 px-4 py-2 font-tech text-[9px] uppercase tracking-[0.14em] text-zinc-500">
                 <span>Rank</span>
                 <span>Member Name</span>
@@ -2911,7 +2930,7 @@ export default function RootDashboard() {
               </div>
             </div>
 
-            <aside className="space-y-4">
+            <aside className="lg:col-span-3 xl:col-span-2 space-y-4">
               <div className="border border-cyan-400/15 bg-[#090f16]/88 p-4">
                 <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Data Source</div>
                 <div className="mt-3 flex items-center justify-between border border-cyan-400/15 bg-cyan-400/5 px-3 py-2">
@@ -2957,11 +2976,109 @@ export default function RootDashboard() {
                 </button>
               )}
             </aside>
+
+            <div className="lg:col-span-4 xl:col-span-4 space-y-4">
+              <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+                🤖 DISCORD CHANNEL INTEGRATION PREVIEW
+              </div>
+              <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+                {/* Discord Server HUD Header */}
+                <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                    <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                      activity-leaderboard
+                    </span>
+                  </div>
+                  <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+                </div>
+
+                {/* Discord Chat Area */}
+                <div className="p-4 space-y-4 bg-[#313338]">
+                  <div className="flex gap-3">
+                    {/* Bot Avatar */}
+                    <div className="w-9 h-9 rounded-full bg-[#111118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
+                      <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                    </div>
+
+                    {/* Message Body */}
+                    <div className="flex-1 space-y-2 min-w-0">
+                      <div className="flex items-center gap-1.5 leading-none">
+                        <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                        <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                        <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
+                      </div>
+
+                      {/* Bot Embed Box */}
+                      <div className="border-l-4 border-[#ff003c] bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3.5 shadow-md relative select-text">
+                        <img 
+                          src="/logo.webp" 
+                          alt="Pigeon Thumbnail" 
+                          className="absolute top-4 right-4 w-12 h-12 object-contain rounded opacity-85 hidden sm:block pointer-events-none" 
+                        />
+
+                        <div className="space-y-1.5 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                          <h4 className="text-sm font-extrabold text-white">
+                            📊 WEEKLY EVENT LEADERBOARD 🎯
+                          </h4>
+                          <p className="text-[#dbdee1] font-normal">
+                            🔥 Top Event Participants This Week 🔥
+                          </p>
+                          
+                          {/* Dynamic leaderboard entries */}
+                          <div className="space-y-1 mt-3 font-mono text-[11px] leading-relaxed max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-900/30">
+                            {leaderboardMembers.slice(0, 20).map((m, idx) => {
+                              let rankIcon = `#${idx + 1}`;
+                              let specIcon = '⚔️';
+                              
+                              if (idx === 0) {
+                                rankIcon = '👑 #1';
+                              } else if (idx === 1) {
+                                rankIcon = '⭐ #2';
+                              } else if (idx === 2) {
+                                rankIcon = '⚡ #3';
+                              }
+                              
+                              if (m.username.toLowerCase() === 'anvy') {
+                                specIcon = '🏆';
+                              }
+                              
+                              return (
+                                <div key={m.discordId} className="truncate py-0.5">
+                                  • {rankIcon} {specIcon} <span className="bg-[#5865f2]/10 text-[#c9cdfb] px-1 py-0.5 rounded font-sans hover:underline cursor-pointer select-none">@{m.username}</span> 💰 <strong>{formatPoints(m.weeklyPoints)}</strong> points
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="text-[11px] text-[#dbdee1] font-sans mt-3 pt-3 border-t border-[#151618]/25 space-y-1 select-text">
+                            <div>📊 Total Points: <strong>{formatPoints(totalPoints)}</strong></div>
+                            <div>👥 Total Players: <strong>{totalPlayers}</strong></div>
+                            <div>🔄 Next Reset: <strong>in 4 days</strong></div>
+                          </div>
+
+                          <div className="text-[11px] text-[#dbdee1] font-sans mt-3 pt-3 border-t border-[#151618]/25 select-text">
+                            <div className="font-bold text-white mb-1">💰 Point System:</div>
+                            <div className="pl-2 space-y-0.5">
+                              <div>• Harbor: 1 point</div>
+                              <div>• Weapons Factory: 2 points</div>
+                              <div>• RP Ticket: 2 points</div>
+                              <div>• Foundry: 3 points</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </div>
     );
   };
+
 
   const renderLongTimeKillList = () => {
     type KillLeaderboardEntry = {
@@ -3061,8 +3178,8 @@ export default function RootDashboard() {
             </div>
           </div>
 
-          <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5 p-4 sm:p-5">
-            <div className="border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-5">
+            <div className="lg:col-span-5 xl:col-span-6 border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
               <div className="hidden md:grid grid-cols-[72px_minmax(0,1.3fr)_130px_130px_130px] gap-3 border-b border-cyan-400/15 bg-cyan-400/5 px-4 py-2 font-tech text-[9px] uppercase tracking-[0.14em] text-zinc-500">
                 <span>Rank</span>
                 <span>Marksman</span>
@@ -3131,7 +3248,7 @@ export default function RootDashboard() {
               </div>
             </div>
 
-            <aside className="space-y-4">
+            <aside className="lg:col-span-3 xl:col-span-2 space-y-4">
               <div className="border border-cyan-400/15 bg-[#090f16]/88 p-4">
                 <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Data Source</div>
                 <div className="mt-3 flex items-center justify-between border border-cyan-400/15 bg-cyan-400/5 px-3 py-2">
@@ -3179,6 +3296,77 @@ export default function RootDashboard() {
                 </button>
               )}
             </aside>
+
+            <div className="lg:col-span-4 xl:col-span-4 space-y-4">
+              <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+                🤖 DISCORD CHANNEL INTEGRATION PREVIEW
+              </div>
+              <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+                {/* Discord Server HUD Header */}
+                <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                    <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                      long-time-kill-list
+                    </span>
+                  </div>
+                  <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+                </div>
+
+                {/* Discord Chat Area */}
+                <div className="p-4 space-y-4 bg-[#313338]">
+                  <div className="flex gap-3">
+                    {/* Bot Avatar */}
+                    <div className="w-9 h-9 rounded-full bg-[#111118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
+                      <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                    </div>
+
+                    {/* Message Body */}
+                    <div className="flex-1 space-y-2 min-w-0">
+                      <div className="flex items-center gap-1.5 leading-none">
+                        <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                        <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                        <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
+                      </div>
+
+                      {/* Bot Embed Box */}
+                      <div className="border-l-4 border-[#ff0000] bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3.5 shadow-md relative select-text">
+                        <img 
+                          src="/logo.webp" 
+                          alt="Pigeon Thumbnail" 
+                          className="absolute top-4 right-4 w-12 h-12 object-contain rounded opacity-85 hidden sm:block pointer-events-none" 
+                        />
+
+                        <div className="space-y-1.5 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                          <h4 className="text-sm font-extrabold text-white">
+                            💀 ALL TIME KILLS LEADERBOARD 💀
+                          </h4>
+                          <p className="text-[#dbdee1] font-normal">
+                            🔥 Elite Marksmen of White Pigeons 🔥
+                          </p>
+                          
+                          {/* Dynamic leaderboard entries */}
+                          <div className="space-y-1 mt-3 font-mono text-[11px] leading-relaxed max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-900/30">
+                            {list.slice(0, 30).map((m, idx) => {
+                              let rankIcon = `#${idx + 1}`;
+                              if (idx === 0) rankIcon = '👑 #1';
+                              else if (idx === 1) rankIcon = '⭐ #2';
+                              else if (idx === 2) rankIcon = '⚡ #3';
+                              
+                              return (
+                                <div key={m.discordId} className="truncate py-0.5">
+                                  • {rankIcon} <span className="bg-[#5865f2]/10 text-[#c9cdfb] px-1 py-0.5 rounded font-sans hover:underline cursor-pointer select-none">@{m.username}</span> 💀 <strong>{m.kills}</strong> kills
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -3281,8 +3469,8 @@ export default function RootDashboard() {
             </div>
           </div>
 
-          <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5 p-4 sm:p-5">
-            <div className="border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-5">
+            <div className="lg:col-span-5 xl:col-span-6 border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
               <div className="hidden md:grid grid-cols-[72px_minmax(0,1.3fr)_130px_130px_130px] gap-3 border-b border-cyan-400/15 bg-cyan-400/5 px-4 py-2 font-tech text-[9px] uppercase tracking-[0.14em] text-zinc-500">
                 <span>Rank</span>
                 <span>Shooter</span>
@@ -3351,7 +3539,7 @@ export default function RootDashboard() {
               </div>
             </div>
 
-            <aside className="space-y-4">
+            <aside className="lg:col-span-3 xl:col-span-2 space-y-4">
               <div className="border border-cyan-400/15 bg-[#090f16]/88 p-4">
                 <div className="font-tech text-[9px] uppercase tracking-[0.16em] text-zinc-500">Data Source</div>
                 <div className="mt-3 flex items-center justify-between border border-cyan-400/15 bg-cyan-400/5 px-3 py-2">
@@ -3428,6 +3616,77 @@ export default function RootDashboard() {
                 </div>
               )}
             </aside>
+
+            <div className="lg:col-span-4 xl:col-span-4 space-y-4">
+              <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+                🤖 DISCORD CHANNEL INTEGRATION PREVIEW
+              </div>
+              <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+                {/* Discord Server HUD Header */}
+                <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                    <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                      weekly-kill-list
+                    </span>
+                  </div>
+                  <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+                </div>
+
+                {/* Discord Chat Area */}
+                <div className="p-4 space-y-4 bg-[#313338]">
+                  <div className="flex gap-3">
+                    {/* Bot Avatar */}
+                    <div className="w-9 h-9 rounded-full bg-[#111118] border border-purple-500/20 shrink-0 overflow-hidden select-none">
+                      <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                    </div>
+
+                    {/* Message Body */}
+                    <div className="flex-1 space-y-2 min-w-0">
+                      <div className="flex items-center gap-1.5 leading-none">
+                        <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                        <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                        <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
+                      </div>
+
+                      {/* Bot Embed Box */}
+                      <div className="border-l-4 border-[#ff003c] bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3.5 shadow-md relative select-text">
+                        <img 
+                          src="/logo.webp" 
+                          alt="Pigeon Thumbnail" 
+                          className="absolute top-4 right-4 w-12 h-12 object-contain rounded opacity-85 hidden sm:block pointer-events-none" 
+                        />
+
+                        <div className="space-y-1.5 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                          <h4 className="text-sm font-extrabold text-white">
+                            📊 WEEKLY KILLS LEADERBOARD 📊
+                          </h4>
+                          <p className="text-[#dbdee1] font-normal">
+                            🔥 Top Marksmen This Week 🔥
+                          </p>
+                          
+                          {/* Dynamic leaderboard entries */}
+                          <div className="space-y-1 mt-3 font-mono text-[11px] leading-relaxed max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-900/30">
+                            {list.slice(0, 25).map((m, idx) => {
+                              let rankIcon = `#${idx + 1}`;
+                              if (idx === 0) rankIcon = '🥇 #1';
+                              else if (idx === 1) rankIcon = '🥈 #2';
+                              else if (idx === 2) rankIcon = '🥉 #3';
+                              
+                              return (
+                                <div key={m.discordId} className="truncate py-0.5">
+                                  • {rankIcon} - <span className="bg-[#5865f2]/10 text-[#c9cdfb] px-1 py-0.5 rounded font-sans hover:underline cursor-pointer select-none">@{m.username}</span> - 💀 <strong>{m.weeklyKills}</strong> kills
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -3956,86 +4215,271 @@ export default function RootDashboard() {
   const renderActivityResults = () => {
     if (!checkAccess('member')) return renderAccessDenied('Roster authentication required');
 
+    const reviewedActivities = activities.filter(a => a.status !== 'pending');
+
     return (
-      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2 flex items-center gap-2">
-          💯︱𝝖ctivity-𝗥esults RECORD
-        </h2>
-
-        <div className="space-y-4">
-          {activities.filter(a => a.status !== 'pending').length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 italic">
-              NO ACTIVITY RESULTS REVIEWED YET.
+      <div className="space-y-5 font-sans stagger-child animate-fade-in">
+        <section className="border border-cyan-400/18 bg-[#0d1117]/92 shadow-[0_0_34px_rgba(0,212,255,0.08)]">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-cyan-400/15 px-4 sm:px-5 py-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="h-2 w-2 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
+                <h2 className="font-title text-2xl font-black uppercase text-[#f0f6ff] leading-none">
+                  Activity Results Record
+                </h2>
+              </div>
+              <p className="mt-1 font-tech text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                Verified operations logs // channel relay
+              </p>
             </div>
-          ) : (
-            activities.filter(a => a.status !== 'pending').map((a) => {
-              const isApproved = a.status === 'approved';
-              
-              return (
-                <div key={a.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col sm:flex-row justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-zinc-200">@{a.username}</span>
-                      <span className="text-[9px] bg-[#0a0a14] px-1.5 py-0.5 rounded font-mono">ID: {a.id}</span>
-                      <span className="text-[9px] text-zinc-500">{new Date(a.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] mt-2">&quot;{a.description}&quot;</p>
-                    
-                    {a.reason && (
-                      <p className="text-[10px] text-zinc-500 mt-2 border-t border-[#1c1a2a] pt-2 font-mono">
-                        Remarks: &quot;{a.reason}&quot; - Reviewed by: @{a.reviewedBy || 'Admin'}
-                      </p>
-                    )}
-                  </div>
+          </div>
 
-                  <div className="flex sm:flex-col justify-center items-end gap-2 shrink-0">
-                    <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${isApproved ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-                      {a.status.toUpperCase()}
-                    </span>
-                    {isApproved && (
-                      <span className="text-purple-400 font-bold font-mono text-[11px]">+{a.pointsAwarded} FP</span>
-                    )}
-                  </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-5">
+            <div className="lg:col-span-7 xl:col-span-8 border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden p-4 space-y-4 max-h-[600px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-900/40">
+              {reviewedActivities.length === 0 ? (
+                <div className="text-center py-12 text-zinc-500 italic text-xs">
+                  NO ACTIVITY RESULTS REVIEWED YET.
                 </div>
-              );
-            })
-          )}
-        </div>
+              ) : (
+                reviewedActivities.map((a) => {
+                  const isApproved = a.status === 'approved';
+                  return (
+                    <div key={a.id} className="bg-[#13121d]/40 border border-cyan-400/15 p-4 rounded-xl flex flex-col sm:flex-row justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-zinc-200 text-xs">@{a.username}</span>
+                          <span className="text-[9px] bg-[#0a0a14] px-1.5 py-0.5 rounded font-mono text-zinc-450 border border-cyan-400/10">ID: {a.id}</span>
+                          <span className="text-[9px] text-zinc-500">{new Date(a.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="text-[11px] text-zinc-300 font-semibold mt-1">
+                          {a.activityType}
+                        </div>
+                        <p className="text-zinc-400 text-xs italic bg-[#0a0a14] p-2.5 rounded-lg border border-cyan-400/10 mt-2 font-sans">&quot;{a.description}&quot;</p>
+                        {a.reason && (
+                          <p className="text-[10px] text-zinc-500 mt-2 border-t border-cyan-400/10 pt-2 font-mono">
+                            Remarks: &quot;{a.reason}&quot; - Reviewed by: @{a.reviewedBy || 'Admin'}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex sm:flex-col justify-center items-end gap-2 shrink-0">
+                        <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${isApproved ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                          {a.status.toUpperCase()}
+                        </span>
+                        {isApproved && (
+                          <span className="text-purple-400 font-bold font-mono text-[11px]">+{a.pointsAwarded} FP</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+              <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+                🤖 DISCORD CHANNEL INTEGRATION PREVIEW
+              </div>
+              <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+                <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                    <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                      activity-results
+                    </span>
+                  </div>
+                  <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+                </div>
+
+                <div className="p-4 space-y-4 bg-[#313338] max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-900/30">
+                  {reviewedActivities.length === 0 ? (
+                    <div className="text-center py-12 text-[#949ba4] italic text-xs">
+                      No reviewed activity logs found.
+                    </div>
+                  ) : (
+                    reviewedActivities.slice(0, 10).map((a) => {
+                      const isApproved = a.status === 'approved';
+                      const colorBorder = isApproved ? 'border-[#23a55a]' : 'border-[#f23f43]';
+                      
+                      return (
+                        <div key={a.id} className="flex gap-3 border-b border-[#2b2d31] pb-3 last:border-b-0 last:pb-0">
+                          <div className="w-9 h-9 rounded-full bg-[#111118] shrink-0 overflow-hidden select-none">
+                            <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1 space-y-2 min-w-0">
+                            <div className="flex items-center gap-1.5 leading-none">
+                              <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                              <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                              <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
+                            </div>
+
+                            <div className={`border-l-4 ${colorBorder} bg-[#2b2d31] p-3 rounded-r-lg max-w-xl space-y-2.5 shadow-md relative select-text`}>
+                              <div className="space-y-1.5 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                                <h4 className="text-xs font-extrabold text-white">
+                                  {isApproved ? '✅ Activity Approved' : '❌ Activity Rejected'}
+                                </h4>
+                                <div className="space-y-1 text-[11px] pt-1">
+                                  <div><strong>User:</strong> <span className="bg-[#5865f2]/10 text-[#c9cdfb] px-1 py-0.5 rounded font-sans hover:underline cursor-pointer select-none">@{a.username}</span></div>
+                                  <div className="pt-0.5"><strong>Category:</strong> {a.activityType}</div>
+                                  <div className="pt-0.5"><strong>Points:</strong> {isApproved ? `+${a.pointsAwarded}` : '0'}</div>
+                                  {a.reason && <div className="pt-0.5"><strong>Reason:</strong> {a.reason}</div>}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     );
   };
 
   const renderActivityPointsLeaderboard = () => {
     const list = [...members].sort((a, b) => b.points - a.points);
+    const rankTone = (rank: number) => {
+      if (rank === 1) return 'border-[#ff9f1c]/55 bg-[#ff9f1c]/12 text-[#ffbf5c]';
+      if (rank === 2) return 'border-cyan-300/45 bg-cyan-300/10 text-cyan-100';
+      if (rank === 3) return 'border-emerald-300/40 bg-emerald-300/10 text-emerald-200';
+      return 'border-cyan-400/18 bg-cyan-400/5 text-zinc-300';
+    };
 
     return (
-      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2 flex items-center gap-2">
-          💯╰𝝖ctivity-📍oints-𝗟eader𝗕oard
-        </h2>
+      <div className="space-y-5 font-sans stagger-child animate-fade-in">
+        <section className="border border-cyan-400/18 bg-[#0d1117]/92 shadow-[0_0_34px_rgba(0,212,255,0.08)]">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-cyan-400/15 px-4 sm:px-5 py-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="h-2 w-2 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
+                <h2 className="font-title text-2xl font-black uppercase text-[#f0f6ff] leading-none">
+                  Activity Points Leaderboard
+                </h2>
+              </div>
+              <p className="mt-1 font-tech text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                Lifetime point standings // channel relay
+              </p>
+            </div>
+          </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-sans">
-            <thead>
-              <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
-                <th className="py-2.5 px-3">#</th>
-                <th className="py-2.5 px-3">Syndicate Member</th>
-                <th className="py-2.5 px-3">Combat Nickname</th>
-                <th className="py-2.5 px-3 text-right">Points Earned</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((m, idx) => (
-                <tr key={m.discordId} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
-                  <td className="py-3 px-3 font-bold text-zinc-500 italic">#{idx + 1}</td>
-                  <td className="py-3 px-3 text-zinc-200 font-bold">@{m.username}</td>
-                  <td className="py-3 px-3 text-zinc-400 font-mono">{m.nickname}</td>
-                  <td className="py-3 px-3 text-right font-bold text-purple-400 font-mono">{m.points || 0} FP</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-5">
+            <div className="lg:col-span-7 xl:col-span-8 border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden">
+              <div className="hidden md:grid grid-cols-[72px_minmax(0,1.3fr)_180px_130px] gap-3 border-b border-cyan-400/15 bg-cyan-400/5 px-4 py-2 font-tech text-[9px] uppercase tracking-[0.14em] text-zinc-500">
+                <span>Rank</span>
+                <span>Syndicate Member</span>
+                <span>Combat Nickname</span>
+                <span className="text-right">Points Earned</span>
+              </div>
+
+              <div className="divide-y divide-cyan-400/10 max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-900/40">
+                {list.map((m, idx) => {
+                  const rank = idx + 1;
+                  return (
+                    <div key={m.discordId} className="grid md:grid-cols-[72px_minmax(0,1.3fr)_180px_130px] gap-3 items-center px-4 py-3 hover:bg-cyan-400/5 transition-smooth">
+                      <div>
+                        <span className={`inline-flex min-w-11 items-center justify-center border px-2 py-1 font-tech text-[11px] font-bold ${rankTone(rank)}`}>
+                          #{rank}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-title text-[15px] font-bold uppercase text-[#f0f6ff]">
+                          {m.username}
+                        </span>
+                      </div>
+                      <div className="font-mono text-zinc-400 text-xs truncate">
+                        {m.nickname}
+                      </div>
+                      <div className="text-right font-bold text-purple-400 font-mono text-xs pr-4">
+                        {m.points || 0} FP
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+              <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+                🤖 DISCORD CHANNEL INTEGRATION PREVIEW
+              </div>
+              <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+                <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                    <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                      leaderboard
+                    </span>
+                  </div>
+                  <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+                </div>
+
+                <div className="p-4 space-y-4 bg-[#313338] min-h-[400px]">
+                  <div className="flex gap-3">
+                    <div className="w-9 h-9 rounded-full bg-[#111118] shrink-0 overflow-hidden select-none">
+                      <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 space-y-2 min-w-0">
+                      <div className="flex items-center gap-1.5 leading-none">
+                        <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                        <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                        <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
+                      </div>
+
+                      <div className="border-l-4 border-[#ffbf5c] bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3.5 shadow-md relative select-text">
+                        <img 
+                          src="/logo.webp" 
+                          alt="Pigeon Thumbnail" 
+                          className="absolute top-4 right-4 w-12 h-12 object-contain rounded opacity-80 hidden sm:block pointer-events-none" 
+                        />
+
+                        <div className="space-y-1.5 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                          <h4 className="text-xs font-extrabold text-white uppercase">
+                            White Pigeons #TOP1 Activity Points Leaderboard
+                          </h4>
+                          
+                          <div className="space-y-1.5 mt-3 font-mono text-[11px] leading-relaxed max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-900/30">
+                            {list.slice(0, 30).map((m, idx) => {
+                              let rankIcon = `**${idx + 1}.**`;
+                              if (idx === 0) rankIcon = '👑 #1';
+                              else if (idx === 1) rankIcon = '⭐ #2';
+                              else if (idx === 2) rankIcon = '⚡ #3';
+                              
+                              return (
+                                <div key={m.discordId} className="truncate py-0.5">
+                                  {rankIcon} <span className="bg-[#5865f2]/10 text-[#c9cdfb] px-1 py-0.5 rounded font-sans hover:underline cursor-pointer select-none">@{m.username}</span> — <strong>{m.points || 0} pts</strong>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-1 select-none">
+                        <button
+                          onClick={() => {
+                            if (user) {
+                              addNotification(
+                                'Activity Points Status',
+                                `You currently have ${user.points || 0} Activity Points. Keep it up!`,
+                                'info'
+                              );
+                            }
+                          }}
+                          className="bg-[#5865f2] hover:bg-[#4752c4] text-white px-4 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          My Points
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     );
   };
@@ -4088,77 +4532,173 @@ export default function RootDashboard() {
   const renderActivityReview = () => {
     if (!checkAccess('admin')) return renderAccessDenied('Higher authority authorization required');
 
+    const pendingActivities = activities.filter(a => a.status === 'pending');
+    const firstPending = pendingActivities[0] || null;
+
     return (
-      <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl space-y-4 max-w-4xl mx-auto font-sans shadow-xl">
-        <h2 className="font-title font-black text-xl italic text-purple-400 text-glow-magenta border-b border-[#1c1a2a]/50 pb-2">
-          💪︱𝐀𝐜𝐭𝐢𝐯𝐢𝐭𝐲-𝐑𝐞𝐯𝐢𝐞𝐰 BOARD
-        </h2>
-
-        <div className="space-y-4">
-          {activities.filter(a => a.status === 'pending').length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 italic">
-              NO PENDING COMPLETED OPERATIONS IN PIPELINE.
+      <div className="space-y-5 font-sans stagger-child animate-fade-in">
+        <section className="border border-cyan-400/18 bg-[#0d1117]/92 shadow-[0_0_34px_rgba(0,212,255,0.08)]">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-cyan-400/15 px-4 sm:px-5 py-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="h-2 w-2 bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.9)]" />
+                <h2 className="font-title text-2xl font-black uppercase text-[#f0f6ff] leading-none">
+                  Activity Review Board
+                </h2>
+              </div>
+              <p className="mt-1 font-tech text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                Pending operational ledger reviews // control panel
+              </p>
             </div>
-          ) : (
-            activities.filter(a => a.status === 'pending').map((act) => {
-              const fields = activityReviewForm[act.id] || { points: '150', reason: '' };
-              
-              return (
-                <div key={act.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between animate-fade-in">
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-zinc-200">@{act.username}</span>
-                      <span className="text-[9px] bg-[#0a0a14] text-zinc-450 px-1.5 py-0.5 rounded font-mono">ACT: {act.id}</span>
-                      <span className="text-[9px] text-zinc-500">{new Date(act.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] leading-relaxed">&quot;{act.description}&quot;</p>
-                    <a href={act.mediaUrl} target="_blank" rel="noreferrer" className="inline-flex text-[10px] text-purple-400 hover:text-white font-bold underline">
-                      📸 VIEW VERIFICATION MEDIA FILE
-                    </a>
-                  </div>
+          </div>
 
-                  <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1c1a2a] pt-4 md:pt-0 md:pl-4">
-                    <div>
-                      <label className="text-[9px] text-zinc-500 font-bold block mb-1">AWARD REWARDS POINTS</label>
-                      <input 
-                        type="number"
-                        value={fields.points}
-                        onChange={(e) => setActivityReviewForm(prev => ({
-                          ...prev,
-                          [act.id]: { ...(prev[act.id] || { points: '150', reason: '' }), points: e.target.value }
-                        }))}
-                        placeholder="e.g. 150"
-                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-zinc-500 font-bold block mb-1">FEEDBACK COMMENT</label>
-                      <input 
-                        type="text"
-                        value={fields.reason}
-                        onChange={(e) => setActivityReviewForm(prev => ({
-                          ...prev,
-                          [act.id]: { ...(prev[act.id] || { points: '150', reason: '' }), reason: e.target.value }
-                        }))}
-                        placeholder="Valid run..."
-                        className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      <button onClick={() => handleReviewActivity(act.id, 'approved')} className="bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
-                        ACCEPT
-                      </button>
-                      <button onClick={() => handleReviewActivity(act.id, 'rejected')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
-                        REJECT
-                      </button>
-                    </div>
-                  </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-5">
+            <div className="lg:col-span-7 xl:col-span-8 border border-cyan-400/15 bg-[#090f16]/88 overflow-hidden p-4 space-y-4 max-h-[600px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-900/40">
+              {pendingActivities.length === 0 ? (
+                <div className="text-center py-12 text-zinc-500 italic text-xs">
+                  NO PENDING COMPLETED OPERATIONS IN PIPELINE.
                 </div>
-              );
-            })
-          )}
-        </div>
+              ) : (
+                pendingActivities.map((act) => {
+                  const fields = activityReviewForm[act.id] || { points: '150', reason: '' };
+                  return (
+                    <div key={act.id} className="bg-[#13121d]/40 border border-cyan-400/15 p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between animate-fade-in">
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-zinc-200 text-xs">@{act.username}</span>
+                          <span className="text-[9px] bg-[#0a0a14] text-zinc-450 px-1.5 py-0.5 rounded font-mono border border-cyan-400/10">ACT: {act.id}</span>
+                          <span className="text-[9px] text-zinc-500">{new Date(act.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="text-[11px] text-zinc-300 font-semibold">{act.activityType}</div>
+                        <p className="text-zinc-400 text-xs italic bg-[#0a0a14] p-2.5 rounded-lg border border-cyan-400/10 leading-relaxed font-sans">&quot;{act.description}&quot;</p>
+                        {act.mediaUrl && (
+                          <a href={act.mediaUrl} target="_blank" rel="noreferrer" className="inline-flex text-[10px] text-purple-400 hover:text-white font-bold underline">
+                            📸 VIEW VERIFICATION MEDIA FILE
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-cyan-400/10 pt-4 md:pt-0 md:pl-4">
+                        <div>
+                          <label className="text-[8px] text-zinc-500 font-bold block mb-1">AWARD REWARDS POINTS</label>
+                          <input 
+                            type="number"
+                            value={fields.points}
+                            onChange={(e) => setActivityReviewForm(prev => ({
+                              ...prev,
+                              [act.id]: { ...(prev[act.id] || { points: '150', reason: '' }), points: e.target.value }
+                            }))}
+                            placeholder="e.g. 150"
+                            className="w-full bg-[#0a0a14] border border-cyan-400/20 rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none focus:border-cyan-300"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] text-zinc-500 font-bold block mb-1">FEEDBACK COMMENT</label>
+                          <input 
+                            type="text"
+                            value={fields.reason}
+                            onChange={(e) => setActivityReviewForm(prev => ({
+                              ...prev,
+                              [act.id]: { ...(prev[act.id] || { points: '150', reason: '' }), reason: e.target.value }
+                            }))}
+                            placeholder="Valid run..."
+                            className="w-full bg-[#0a0a14] border border-cyan-400/20 rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans focus:border-cyan-300"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          <button onClick={() => handleReviewActivity(act.id, 'approved')} className="bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
+                            ACCEPT
+                          </button>
+                          <button onClick={() => handleReviewActivity(act.id, 'rejected')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
+                            REJECT
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+              <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+                🤖 DISCORD CHANNEL INTEGRATION PREVIEW
+              </div>
+              <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+                <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                    <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                      activity-review
+                    </span>
+                  </div>
+                  <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+                </div>
+
+                <div className="p-4 space-y-4 bg-[#313338] min-h-[350px]">
+                  {firstPending ? (
+                    <div className="flex gap-3">
+                      <div className="w-9 h-9 rounded-full bg-[#111118] shrink-0 overflow-hidden select-none">
+                        <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 space-y-2 min-w-0">
+                        <div className="flex items-center gap-1.5 leading-none">
+                          <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                          <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                          <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
+                        </div>
+
+                        <div className="text-[11px] text-[#949ba4] font-semibold leading-none select-none pl-1">
+                          @🦩 | Activity Manager
+                        </div>
+
+                        <div className="border-l-4 border-[#00d4ff] bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3 shadow-md relative select-text">
+                          <div className="space-y-2 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                            <h4 className="text-xs font-extrabold text-white uppercase">
+                              New Activity Log Submitted
+                            </h4>
+                            <div className="space-y-1 text-[11px] pt-1">
+                              <div>👤 <strong>User:</strong> <span className="bg-[#5865f2]/10 text-[#c9cdfb] px-1 py-0.5 rounded font-sans hover:underline cursor-pointer select-none">@{firstPending.username}</span></div>
+                              <div className="pt-0.5">📂 <strong>Category:</strong> {firstPending.activityType}</div>
+                              <div className="pt-0.5">📝 <strong>Details:</strong> {firstPending.description || 'N/A'}</div>
+                              {firstPending.mediaUrl && (
+                                <div className="pt-1">
+                                  🖼️ <strong>Proof:</strong> <a href={firstPending.mediaUrl} target="_blank" rel="noreferrer" className="text-[#00b0f4] hover:underline">{firstPending.mediaUrl}</a>
+                                  <img src={firstPending.mediaUrl} alt="Proof" className="mt-2 w-full max-h-36 object-contain rounded border border-[#1e1f22]/50" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Interactive Buttons */}
+                        <div className="flex gap-2 pt-1 select-none">
+                          <button
+                            onClick={() => handleReviewActivity(firstPending.id, 'approved')}
+                            className="bg-[#248046] hover:bg-[#1a6535] text-white px-4 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            ✅ Approve
+                          </button>
+                          <button
+                            onClick={() => handleReviewActivity(firstPending.id, 'rejected')}
+                            className="bg-[#da373c] hover:bg-[#a92b2f] text-white px-4 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            ❌ Reject
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-20 text-[#949ba4] italic text-xs">
+                      No pending activities in queue.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     );
   };
@@ -4234,21 +4774,21 @@ export default function RootDashboard() {
     };
 
     return (
-      <div className="space-y-6 max-w-6xl mx-auto font-sans text-xs pb-12">
+      <div className="space-y-6 max-w-7xl mx-auto font-sans text-xs pb-12">
         {/* Header Title */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1c1a2a]/50 pb-4">
           <div>
             <h2 className="font-title font-black text-2xl italic text-purple-400 text-glow-magenta flex items-center gap-2.5">
               <Sliders className="w-6 h-6" /> 𝐁𝐎𝐍𝐔𝐒 𝐀𝐃𝐌𝐈𝐍 𝐏𝐀𝐍𝐄𝐋
             </h2>
-            <p className="text-zinc-550 mt-1">Disburse High Command-approved event payouts, audit manual claims, manage calculations ledger, and close weekly operations.</p>
+            <p className="text-zinc-555 mt-1">Disburse High Command-approved event payouts, audit manual claims, manage calculations ledger, and close weekly operations.</p>
           </div>
           
           {/* Quick Action Buttons for Payouts */}
           <div className="flex gap-2.5">
             <button
               onClick={handleExportPDF}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-title font-black italic tracking-wide py-2 px-4 rounded-xl border border-purple-500/30 flex items-center gap-2 transition-all cursor-pointer shadow-lg hover:shadow-purple-500/10 text-xs"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-title font-black italic tracking-wide py-2 px-4 rounded-xl border border-purple-500/30 flex items-center gap-2 transition-all cursor-pointer shadow-lg hover:shadow-purple-500/10 text-xs animate-pulse-hover"
             >
               <Download className="w-4 h-4" /> EXPORT PDF SHEET
             </button>
@@ -4273,7 +4813,7 @@ export default function RootDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex items-center justify-between shadow-xl">
             <div className="space-y-1">
-              <span className="text-[10px] text-zinc-550 font-bold block uppercase tracking-wider">HC-APPROVED WIN LOGS</span>
+              <span className="text-[10px] text-zinc-555 font-bold block uppercase tracking-wider">HC-APPROVED WIN LOGS</span>
               <span className="text-3xl font-title font-black text-amber-400 text-glow-amber">{hcApprovedCount}</span>
             </div>
             <div className="p-3 bg-amber-500/5 rounded-xl border border-amber-500/10 text-amber-400">
@@ -4292,7 +4832,7 @@ export default function RootDashboard() {
           </div>
 
           <div className="bg-[#111118] border border-[#1c1a2a] p-5 rounded-2xl flex flex-col justify-center gap-2 shadow-xl">
-            <span className="text-[10px] text-zinc-550 font-bold uppercase tracking-wider">PAYMENT STATUS SUMMARY</span>
+            <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider">PAYMENT STATUS SUMMARY</span>
             <div className="grid grid-cols-4 gap-1.5 text-[10px] text-center font-bold">
               <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg py-1 text-emerald-400">
                 Paid: {statusCounts['Paid'] || 0}
@@ -4310,513 +4850,528 @@ export default function RootDashboard() {
           </div>
         </div>
 
-        {/* Sub-Tab Navigation Switcher */}
-        <div className="flex border-b border-[#1c1a2a] pb-px gap-1">
-          <button
-            onClick={() => setBonusAdminSubTab('payouts')}
-            className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
-              bonusAdminSubTab === 'payouts'
-                ? 'border-purple-500 text-purple-400 font-black'
-                : 'border-transparent text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            📥 Confirm Payouts ({hcApprovedCount})
-          </button>
-          <button
-            onClick={() => setBonusAdminSubTab('ledger')}
-            className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
-              bonusAdminSubTab === 'ledger'
-                ? 'border-purple-500 text-purple-400 font-black'
-                : 'border-transparent text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            📊 Master Ledger
-          </button>
-          <button
-            onClick={() => setBonusAdminSubTab('tickets')}
-            className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
-              bonusAdminSubTab === 'tickets'
-                ? 'border-purple-500 text-purple-400 font-black'
-                : 'border-transparent text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            🎟️ Manual Claims ({bonusTickets.length})
-          </button>
-          <button
-            onClick={() => setBonusAdminSubTab('history')}
-            className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
-              bonusAdminSubTab === 'history'
-                ? 'border-purple-500 text-purple-400 font-black'
-                : 'border-transparent text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            📂 Statements Archives
-          </button>
-        </div>
+        {/* 3-Column Layout: Main Controls on left, Discord preview on right */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+            {/* Sub-Tab Navigation Switcher */}
+            <div className="flex border-b border-[#1c1a2a] pb-px gap-1 select-none">
+              <button
+                onClick={() => setBonusAdminSubTab('payouts')}
+                className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
+                  bonusAdminSubTab === 'payouts'
+                    ? 'border-purple-500 text-purple-400 font-black'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                📥 Confirm Payouts ({hcApprovedCount})
+              </button>
+              <button
+                onClick={() => setBonusAdminSubTab('ledger')}
+                className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
+                  bonusAdminSubTab === 'ledger'
+                    ? 'border-purple-500 text-purple-400 font-black'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                📊 Master Ledger
+              </button>
+              <button
+                onClick={() => setBonusAdminSubTab('tickets')}
+                className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
+                  bonusAdminSubTab === 'tickets'
+                    ? 'border-purple-500 text-purple-400 font-black'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                🎟️ Manual Claims ({bonusTickets.length})
+              </button>
+              <button
+                onClick={() => setBonusAdminSubTab('history')}
+                className={`py-2 px-4 font-title font-bold text-xs uppercase border-b-2 transition-all cursor-pointer ${
+                  bonusAdminSubTab === 'history'
+                    ? 'border-purple-500 text-purple-400 font-black'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                📂 Statements Archives
+              </button>
+            </div>
 
-        {/* Content Views */}
-        {bonusAdminSubTab === 'payouts' && (
-          <div className="space-y-6">
-            {hcApprovedSubmissions.length === 0 ? (
-              <div className="text-center py-20 text-zinc-550 bg-[#111118] border border-[#1c1a2a] rounded-2xl space-y-3 shadow-xl max-w-lg mx-auto">
-                <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500/30" />
-                <p className="font-title font-black text-sm tracking-wide text-zinc-400 uppercase italic">ALL DISBURSEMENTS COMPLETED</p>
-                <p className="text-[10px] text-zinc-650">No High Command-approved payouts are waiting for final confirm & disburse operations.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {hcApprovedSubmissions.map((s) => {
-                  return (
-                    <div key={s.id} className="bg-[#111118] border border-[#1c1a2a] rounded-2xl overflow-hidden flex flex-col justify-between hover:border-purple-550/30 transition-all duration-300 shadow-xl max-w-lg mx-auto w-full">
-                      <div>
-                        {s.mediaUrl ? (
-                          <div className="relative h-36 w-full bg-zinc-950/80 border-b border-[#1c1a2a] group overflow-hidden">
-                            <img 
-                              src={s.mediaUrl} 
-                              alt="Win proof screenshot" 
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            />
-                            <a 
-                              href={s.mediaUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="absolute top-2 right-2 bg-black/60 hover:bg-black/85 text-zinc-300 p-1.5 rounded border border-white/10 transition-all"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
-                          </div>
-                        ) : (
-                          <div className="h-20 w-full bg-zinc-950/40 border-b border-[#1c1a2a] flex flex-col items-center justify-center text-zinc-650 gap-1 italic">
-                            <FileText className="w-5 h-5 text-zinc-700" />
-                            <span className="text-[10px]">No Proof Screenshot Attached</span>
-                          </div>
-                        )}
-
-                        <div className="p-4 space-y-3 font-sans text-xs">
-                          <div className="flex justify-between items-start gap-2">
-                            <div>
-                              <span className="font-title font-black text-sm text-zinc-200 italic line-clamp-1">{s.eventName || s.title}</span>
-                              <span className="text-[9px] text-zinc-500 block mt-0.5">
-                                Submitted by: @{s.submitterName} | {new Date(s.createdAt).toLocaleDateString()}
-                              </span>
-                            </div>
-                            <span className="font-mono text-[8px] text-zinc-500 bg-[#0a0a14] px-1.5 py-0.5 border border-[#1c1a2a] rounded shrink-0">
-                              HC AUDITED
-                            </span>
-                          </div>
-
-                          <div className="bg-[#0a0a14]/60 p-3 rounded-xl border border-[#1c1a2a]/60 space-y-2.5">
-                            <div className="grid grid-cols-2 gap-2 text-[10px]">
-                              <div>
-                                <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold">HC Auditor</span>
-                                <span className="text-purple-400 font-bold">@{s.reviewedBy || 'High Command'}</span>
+            {/* Content Views */}
+            {bonusAdminSubTab === 'payouts' && (
+              <div className="space-y-6">
+                {hcApprovedSubmissions.length === 0 ? (
+                  <div className="text-center py-20 text-zinc-550 bg-[#111118] border border-[#1c1a2a] rounded-2xl space-y-3 shadow-xl max-w-lg mx-auto">
+                    <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500/30" />
+                    <p className="font-title font-black text-sm tracking-wide text-zinc-400 uppercase italic">ALL DISBURSEMENTS COMPLETED</p>
+                    <p className="text-[10px] text-zinc-650">No High Command-approved payouts are waiting for final confirm & disburse operations.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    {hcApprovedSubmissions.map((s) => {
+                      return (
+                        <div key={s.id} className="bg-[#111118] border border-[#1c1a2a] rounded-2xl overflow-hidden flex flex-col justify-between hover:border-purple-550/30 transition-all duration-300 shadow-xl w-full">
+                          <div>
+                            {s.mediaUrl ? (
+                              <div className="relative h-36 w-full bg-zinc-950/80 border-b border-[#1c1a2a] group overflow-hidden">
+                                <img 
+                                  src={s.mediaUrl} 
+                                  alt="Win proof screenshot" 
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                />
+                                <a 
+                                  href={s.mediaUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="absolute top-2 right-2 bg-black/60 hover:bg-black/85 text-zinc-300 p-1.5 rounded border border-white/10 transition-all"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
                               </div>
-                              <div>
-                                <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold">Base Reward</span>
-                                <span className="text-zinc-300 font-mono font-bold">${(s.baseAmount || 200000).toLocaleString()}</span>
+                            ) : (
+                              <div className="h-20 w-full bg-zinc-950/40 border-b border-[#1c1a2a] flex flex-col items-center justify-center text-zinc-650 gap-1 italic">
+                                <FileText className="w-5 h-5 text-zinc-700" />
+                                <span className="text-[10px]">No Proof Screenshot Attached</span>
                               </div>
-                            </div>
+                            )}
 
-                            <div>
-                              <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold">Auditor Comment</span>
-                              <p className="text-zinc-400 italic mt-0.5 bg-[#111118]/80 p-2 rounded border border-[#1c1a2a]/40 text-[10px]">
-                                &quot;{s.comment || 'Verified and ready for final disbursement.'}&quot;
-                              </p>
-                            </div>
+                            <div className="p-4 space-y-3 font-sans text-xs">
+                              <div className="flex justify-between items-start gap-2">
+                                <div>
+                                  <span className="font-title font-black text-sm text-zinc-200 italic line-clamp-1">{s.eventName || s.title}</span>
+                                  <span className="text-[9px] text-zinc-500 block mt-0.5">
+                                    Submitted by: @{s.submitterName} | {new Date(s.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <span className="font-mono text-[8px] text-zinc-500 bg-[#0a0a14] px-1.5 py-0.5 border border-[#1c1a2a] rounded shrink-0">
+                                  HC AUDITED
+                                </span>
+                              </div>
 
-                            <div>
-                              <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold mb-1">Strike-Adjusted Payout Distribution</span>
-                              <div className="overflow-x-auto mt-2">
-                                <table className="w-full text-left border-collapse text-[10px]">
-                                  <thead>
-                                    <tr className="border-b border-[#1c1a2a]/40 text-zinc-500 uppercase tracking-widest text-[8px]">
-                                      <th className="py-1 px-1">Member</th>
-                                      <th className="py-1 px-1">Active Strikes</th>
-                                      <th className="py-1 px-1 text-right">Cut (%)</th>
-                                      <th className="py-1 px-1 text-right">Net Payout</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {s.participants.map((pIdentifier: string, pIdx: number) => {
-                                      let kills = 1;
-                                      let pName = pIdentifier;
-                                      if (typeof pIdentifier === 'object' && pIdentifier !== null) {
-                                        kills = (pIdentifier as any).kills || 1;
-                                        pName = (pIdentifier as any).username || 'unknown';
-                                      } else if (pIdentifier.includes('|')) {
-                                        const parts = pIdentifier.split('|');
-                                        pName = parts[0].trim();
-                                        kills = parseInt(parts[1], 10) || 1;
-                                      }
+                              <div className="bg-[#0a0a14]/60 p-3 rounded-xl border border-[#1c1a2a]/60 space-y-2.5">
+                                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                  <div>
+                                    <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold">HC Auditor</span>
+                                    <span className="text-purple-400 font-bold">@{s.reviewedBy || 'High Command'}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold">Base Reward</span>
+                                    <span className="text-zinc-300 font-mono font-bold">${(s.baseAmount || 200000).toLocaleString()}</span>
+                                  </div>
+                                </div>
 
-                                      const m = matchLedger(pName);
-                                      const strikesCount = m ? (m.strikes || 0) : 0;
-                                      let cutPercent = 0;
-                                      if (strikesCount === 1) cutPercent = 25;
-                                      else if (strikesCount === 2) cutPercent = 50;
-                                      else if (strikesCount >= 3) cutPercent = 100;
+                                <div>
+                                  <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold">Auditor Comment</span>
+                                  <p className="text-zinc-400 italic mt-0.5 bg-[#111118]/80 p-2 rounded border border-[#1c1a2a]/40 text-[10px]">
+                                    &quot;{s.comment || 'Verified and ready for final disbursement.'}&quot;
+                                  </p>
+                                </div>
 
-                                      const rawBonus = kills * (s.baseAmount || 200000);
-                                      const cutAmount = (rawBonus * cutPercent) / 100;
-                                      const netAmount = rawBonus - cutAmount;
-
-                                      let strikeBadge = "text-zinc-500";
-                                      if (strikesCount === 1) strikeBadge = "text-yellow-500 font-bold";
-                                      else if (strikesCount === 2) strikeBadge = "text-orange-500 font-bold";
-                                      else if (strikesCount >= 3) strikeBadge = "text-red-500 font-bold";
-
-                                      return (
-                                        <tr key={pIdx} className="border-b border-[#181622]/40">
-                                          <td className="py-1.5 px-1 font-bold text-zinc-350">
-                                            {m ? (m.nickname || m.username) : pName}
-                                            {!m && <span className="text-red-400 text-[8px] ml-1">⚠️ Out-of-DB</span>}
-                                          </td>
-                                          <td className={`py-1.5 px-1 ${strikeBadge}`}>{strikesCount} Strike{strikesCount !== 1 ? 's' : ''}</td>
-                                          <td className="py-1.5 px-1 text-right font-mono text-zinc-500">
-                                            {cutPercent > 0 ? `-${cutPercent}%` : '0%'}
-                                          </td>
-                                          <td className="py-1.5 px-1 text-right font-mono font-bold text-emerald-400">
-                                            ${netAmount.toLocaleString()}
-                                          </td>
+                                <div>
+                                  <span className="text-zinc-550 block text-[9px] uppercase tracking-wider font-bold mb-1">Strike-Adjusted Payout Distribution</span>
+                                  <div className="overflow-x-auto mt-2">
+                                    <table className="w-full text-left border-collapse text-[10px]">
+                                      <thead>
+                                        <tr className="border-b border-[#1c1a2a]/40 text-zinc-500 uppercase tracking-widest text-[8px]">
+                                          <th className="py-1 px-1">Member</th>
+                                          <th className="py-1 px-1">Active Strikes</th>
+                                          <th className="py-1 px-1 text-right">Net Payout</th>
                                         </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
+                                      </thead>
+                                      <tbody className="divide-y divide-[#1c1a2a]/30">
+                                        {(s.participants || []).map((p: string, pIdx: number) => {
+                                          const member = matchLedger(p);
+                                          const strikes = member ? (member.strikes || 0) : 0;
+                                          const kills = s.killsData?.[p] ?? 1;
+                                          const rawBonus = kills * (s.baseAmount || 200000);
+                                          const cutPercent = strikes === 1 ? 25 : strikes === 2 ? 50 : strikes >= 3 ? 100 : 0;
+                                          const netPayout = rawBonus - (rawBonus * cutPercent) / 100;
+
+                                          return (
+                                            <tr key={pIdx} className="text-[#dbdee1]">
+                                              <td className="py-1.5 px-1 font-semibold">@{p}</td>
+                                              <td className="py-1.5 px-1">
+                                                {strikes > 0 ? (
+                                                  <span className="text-red-400 font-bold font-mono">⚠️ {strikes} Strike{strikes > 1 ? 's':''} (-{cutPercent}%)</span>
+                                                ) : (
+                                                  <span className="text-emerald-400 font-bold font-mono">None</span>
+                                                )}
+                                              </td>
+                                              <td className="py-1.5 px-1 text-right font-mono font-bold text-emerald-400">
+                                                ${netPayout.toLocaleString()}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
                               </div>
                             </div>
+                          </div>
+
+                          <div className="p-4 pt-0 border-t border-[#1c1a2a]/40 mt-2 bg-[#0a0a14]/25">
+                            <button
+                              onClick={() => handleAdminApproveWinSubmission(s.id)}
+                              className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-title font-black italic tracking-wider py-2 px-4 rounded-xl border border-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.015] text-xs shadow-md mt-4 animate-pulse-hover"
+                            >
+                              <Coins className="w-4 h-4" /> DISBURSE WEEKLY PAYOUTS
+                            </button>
                           </div>
                         </div>
-                      </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
-                      <div className="p-4 border-t border-[#1c1a2a] bg-[#0c0b12]/30 grid grid-cols-2 gap-3.5">
-                        <button 
-                          onClick={() => handleRejectWinSubmission(s.id)}
-                          className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] text-[11px] uppercase tracking-wider"
-                        >
-                          DECLINE PAYOUT
-                        </button>
-                        <button 
-                          onClick={() => handleAdminApproveWinSubmission(s.id)}
-                          disabled={isSubmittingApproval[s.id]}
-                          className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/25 rounded-xl py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none text-[11px] uppercase tracking-wider"
-                        >
-                          {isSubmittingApproval[s.id] ? (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" /> DISBURSING...
-                            </>
-                          ) : (
-                            <>
-                              <Coins className="w-3.5 h-3.5" /> CONFIRM & DISBURSE
-                            </>
-                          )}
-                        </button>
-                      </div>
+            {bonusAdminSubTab === 'ledger' && (
+              <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl space-y-4">
+                <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
+                  {isLoadingLedger ? (
+                    <div className="text-center py-20 text-zinc-550 italic space-y-3">
+                      <RefreshCw className="w-8 h-8 animate-spin mx-auto text-purple-500" />
+                      <p className="font-mono text-[10px]">RECOMPILING CALCULATIONS...</p>
                     </div>
-                  );
-                })}
+                  ) : weeklyLedger.length === 0 ? (
+                    <div className="text-center py-16 text-zinc-555 italic">
+                      NO REGISTERED MEMBERS IN ECO LEDGER.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse font-sans text-xs">
+                      <thead>
+                        <tr className="border-b border-[#1c1a2a] text-zinc-550 uppercase tracking-widest text-[9px] sticky top-0 bg-[#111118] z-10 select-none">
+                          <th className="py-3 px-3">Name / Alias</th>
+                          <th className="py-3 px-3">Active Strikes</th>
+                          <th className="py-3 px-3 text-right">Deduction Cut (%)</th>
+                          <th className="py-3 px-3 text-right">Net Bonus Earned</th>
+                          <th className="py-3 px-3 text-center">Payout Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weeklyLedger.map((m, idx) => {
+                          const strikeCount = m.strikes || 0;
+                          let cutPercent = 0;
+                          if (strikeCount === 1) cutPercent = 25;
+                          else if (strikeCount === 2) cutPercent = 50;
+                          else if (strikeCount >= 3) cutPercent = 100;
+
+                          let strikeBadge = "bg-zinc-550/10 border-zinc-555/25 text-zinc-400";
+                          if (strikeCount === 1) strikeBadge = "bg-yellow-500/10 border-yellow-550/20 text-yellow-455";
+                          else if (strikeCount === 2) strikeBadge = "bg-orange-500/10 border-orange-550/20 text-orange-455";
+                          else if (strikeCount >= 3) strikeBadge = "bg-red-500/10 border-red-550/20 text-red-400";
+
+                          return (
+                            <tr key={idx} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20 transition-all">
+                              <td className="py-3 px-3">
+                                <div>
+                                  <span className="font-bold text-zinc-200">{m.nickname || m.username}</span>
+                                  <span className="block text-[8px] text-zinc-550 font-mono">@{m.username}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${strikeBadge}`}>
+                                  {strikeCount} Strike{strikeCount !== 1 ? 's' : ''}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono font-bold text-zinc-455">
+                                {cutPercent > 0 ? (
+                                  <span className="text-red-400 font-bold">-{cutPercent}%</span>
+                                ) : (
+                                  <span className="text-zinc-550">0%</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono font-bold">
+                                {m.weeklyBonus > 0 ? (
+                                  <span className="text-emerald-400 font-bold">+${m.weeklyBonus.toLocaleString()}</span>
+                                ) : (
+                                  <span className="text-zinc-650">$0</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="flex justify-center">
+                                  <select
+                                    value={m.payoutStatus || 'Not Paid'}
+                                    onChange={(e) => handleUpdatePayoutStatus(m.discordId, e.target.value)}
+                                    className={`bg-[#0a0a14] border rounded-lg text-[10px] font-bold px-2 py-1 outline-none text-center cursor-pointer transition-colors duration-150 ${
+                                      m.payoutStatus === 'Paid' ? 'border-green-500/30 text-green-400 hover:bg-green-550/5' :
+                                      m.payoutStatus === 'Pending' ? 'border-amber-500/30 text-amber-400 hover:bg-amber-550/5' :
+                                      m.payoutStatus === 'Left Fam' ? 'border-zinc-500/30 text-zinc-450 hover:bg-zinc-550/5' :
+                                      'border-red-500/30 text-red-400 hover:bg-red-550/5'
+                                    }`}
+                                  >
+                                    <option value="Not Paid">🔴 Not Paid</option>
+                                    <option value="Pending">🟡 Pending</option>
+                                    <option value="Paid">🟢 Paid</option>
+                                    <option value="Left Fam">⚫ Left Fam</option>
+                                  </select>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {bonusAdminSubTab === 'tickets' && (
+              <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl space-y-6">
+                <div className="space-y-4 font-sans text-xs">
+                  <h3 className="font-title font-bold text-xs text-purple-400 uppercase tracking-wider pb-2 border-b border-[#1c1a2a]/30">🎟️ Pending Manual Claims Queue</h3>
+                  {bonusTickets.length === 0 ? (
+                    <div className="text-center py-12 text-zinc-555 italic bg-[#0f0e16]/30 border border-[#1c1a2a]/50 rounded-xl">
+                      NO PENDING MANUAL TICKET CLAIMS IN QUEUE.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {bonusTickets.map((t) => {
+                        const fields = bonusApprovalForm[t.id] || { finalAmount: '500000', comment: '' };
+                        
+                        return (
+                          <div key={t.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between hover:border-purple-550/30 transition-all duration-300 animate-fade-in">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-zinc-200">@{t.username}</span>
+                                <span className="text-[9px] bg-[#0a0a14] text-zinc-450 px-1.5 py-0.5 rounded border border-[#1c1a2a]">TKT: {t.id.toUpperCase()}</span>
+                                <span className="text-[9px] text-zinc-550">{new Date(t.createdAt).toLocaleDateString()}</span>
+                              </div>
+                              <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] mt-2 font-sans">&quot;{t.description}&quot;</p>
+                            </div>
+
+                            <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1c1a2a] pt-4 md:pt-0 md:pl-4">
+                              <div>
+                                <label className="text-[9px] text-zinc-500 font-bold block mb-1">CALCULATED PAYOUT SUM ($)</label>
+                                <input 
+                                  type="number"
+                                  value={fields.finalAmount}
+                                  onChange={(e) => setBonusApprovalForm(prev => ({
+                                    ...prev,
+                                    [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), finalAmount: e.target.value }
+                                  }))}
+                                  placeholder="e.g. 500000"
+                                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-350 font-mono outline-none focus:border-purple-550"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] text-zinc-555 font-bold block mb-1">PAYOUT REMARKS</label>
+                                <input 
+                                  type="text"
+                                  value={fields.comment}
+                                  onChange={(e) => setBonusApprovalForm(prev => ({
+                                    ...prev,
+                                    [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), comment: e.target.value }
+                                  }))}
+                                  placeholder="Approved payout formula..."
+                                  className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-[#dbdee1] outline-none font-sans focus:border-purple-550"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 mt-1">
+                                <button onClick={() => handleBonusApproval(t.id, 'approved')} className="bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
+                                  APPROVE
+                                </button>
+                                <button onClick={() => handleBonusApproval(t.id, 'rejected')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
+                                  REJECT
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Audit Register log section */}
+                <div className="space-y-4 pt-4 border-t border-[#1c1a2a]/60">
+                  <h3 className="font-title font-bold text-xs text-purple-400 uppercase tracking-wider pb-2 border-b border-[#1c1a2a]/30">📜 Complete Ticket Audit Register</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs font-sans">
+                      <thead>
+                        <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px] select-none">
+                          <th className="py-2.5 px-3">Ticket ID</th>
+                          <th className="py-2.5 px-3">Applicant</th>
+                          <th className="py-2.5 px-3">Calculation Details</th>
+                          <th className="py-2.5 px-3">Audit Response</th>
+                          <th className="py-2.5 px-3 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tickets.filter(t => t.type === 'bonus' || t.type === 'request').map((t) => (
+                          <tr key={t.id} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
+                            <td className="py-3 px-3 font-mono font-bold text-zinc-400">[{t.id.toUpperCase()}]</td>
+                            <td className="py-3 px-3 font-bold text-zinc-200">@{t.username}</td>
+                            <td className="py-3 px-3 text-zinc-400 font-sans">{t.description}</td>
+                            <td className="py-3 px-3 text-zinc-550 italic">{t.response || 'Pending Audit Review'}</td>
+                            <td className="py-3 px-3 text-right">
+                              <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${
+                                t.status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
+                              }`}>
+                                {t.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {bonusAdminSubTab === 'history' && (
+              <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl space-y-4">
+                <div className="overflow-x-auto">
+                  {weeklyReports.length === 0 ? (
+                    <div className="text-center py-16 text-zinc-555 italic">
+                      NO CLOSED WEEKS SAVED IN SYSTEM ARCHIVE.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse font-sans text-xs">
+                      <thead>
+                        <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px] select-none">
+                          <th className="py-3 px-3">Week ID</th>
+                          <th className="py-3 px-3">Ended On</th>
+                          <th className="py-3 px-3 text-right">Total Net Pool</th>
+                          <th className="py-3 px-3 text-right">Members</th>
+                          <th className="py-3 px-3 text-center">Export</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weeklyReports.map((r, idx) => (
+                          <tr key={idx} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
+                            <td className="py-3 px-3 font-mono font-bold text-[#cca43b]">{r.weekId}</td>
+                            <td className="py-3 px-3 text-zinc-350">{new Date(r.closedAt).toLocaleString()}</td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-emerald-450">${r.totalPool.toLocaleString()}</td>
+                            <td className="py-3 px-3 text-right font-mono text-zinc-400">{r.membersCount} active</td>
+                            <td className="py-3 px-3">
+                              <div className="flex justify-center">
+                                <button
+                                  onClick={() => handleExportArchivedReportPDF(r)}
+                                  className="border border-[#cca43b]/45 bg-[#cca43b]/10 px-3 py-1 font-title text-[9px] font-black uppercase text-[#cca43b] hover:bg-[#cca43b]/20 active:scale-95 transition-all cursor-pointer"
+                                >
+                                  DOWNLOAD PDF
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             )}
           </div>
-        )}
 
-        {bonusAdminSubTab === 'ledger' && (
-          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl space-y-4">
-            <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
-              {isLoadingLedger ? (
-                <div className="text-center py-20 text-zinc-550 italic space-y-3">
-                  <RefreshCw className="w-8 h-8 animate-spin mx-auto text-purple-500" />
-                  <p className="font-mono text-[10px]">RECOMPILING CALCULATIONS...</p>
-                </div>
-              ) : weeklyLedger.length === 0 ? (
-                <div className="text-center py-16 text-zinc-555 italic">
-                  NO REGISTERED MEMBERS IN ECO LEDGER.
-                </div>
-              ) : (
-                <table className="w-full text-left border-collapse font-sans text-xs">
-                  <thead>
-                    <tr className="border-b border-[#1c1a2a] text-zinc-550 uppercase tracking-widest text-[9px] sticky top-0 bg-[#111118] z-10">
-                      <th className="py-3 px-3">Name / Alias</th>
-                      <th className="py-3 px-3">Active Strikes</th>
-                      <th className="py-3 px-3 text-right">Deduction Cut (%)</th>
-                      <th className="py-3 px-3 text-right">Net Bonus Earned</th>
-                      <th className="py-3 px-3 text-center">Payout Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklyLedger.map((m, idx) => {
-                      const strikeCount = m.strikes || 0;
-                      let cutPercent = 0;
-                      if (strikeCount === 1) cutPercent = 25;
-                      else if (strikeCount === 2) cutPercent = 50;
-                      else if (strikeCount >= 3) cutPercent = 100;
-
-                      let strikeBadge = "bg-zinc-550/10 border-zinc-555/25 text-zinc-400";
-                      if (strikeCount === 1) strikeBadge = "bg-yellow-500/10 border-yellow-550/20 text-yellow-455";
-                      else if (strikeCount === 2) strikeBadge = "bg-orange-500/10 border-orange-550/20 text-orange-455";
-                      else if (strikeCount >= 3) strikeBadge = "bg-red-500/10 border-red-550/20 text-red-400";
-
-                      return (
-                        <tr key={idx} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20 transition-all">
-                          <td className="py-3 px-3">
-                            <div>
-                              <span className="font-bold text-zinc-200">{m.nickname || m.username}</span>
-                              <span className="block text-[8px] text-zinc-550 font-mono">@{m.username}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3">
-                            <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${strikeBadge}`}>
-                              {strikeCount} Strike{strikeCount !== 1 ? 's' : ''}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-zinc-450">
-                            {cutPercent > 0 ? (
-                              <span className="text-red-400 font-bold">-{cutPercent}%</span>
-                            ) : (
-                              <span className="text-zinc-550">0%</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono font-bold">
-                            {m.weeklyBonus > 0 ? (
-                              <span className="text-emerald-400">+${m.weeklyBonus.toLocaleString()}</span>
-                            ) : (
-                              <span className="text-zinc-650">$0</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-3">
-                            <div className="flex justify-center">
-                              <select
-                                value={m.payoutStatus || 'Not Paid'}
-                                onChange={(e) => handleUpdatePayoutStatus(m.discordId, e.target.value)}
-                                className={`bg-[#0a0a14] border rounded-lg text-[10px] font-bold px-2 py-1 outline-none text-center cursor-pointer transition-colors duration-150 ${
-                                  m.payoutStatus === 'Paid' ? 'border-green-500/30 text-green-400 hover:bg-green-550/5' :
-                                  m.payoutStatus === 'Pending' ? 'border-amber-500/30 text-amber-400 hover:bg-amber-550/5' :
-                                  m.payoutStatus === 'Left Fam' ? 'border-zinc-500/30 text-zinc-450 hover:bg-zinc-550/5' :
-                                  'border-red-500/30 text-red-400 hover:bg-red-550/5'
-                                }`}
-                              >
-                                <option value="Not Paid">🔴 Not Paid</option>
-                                <option value="Pending">🟡 Pending</option>
-                                <option value="Paid">🟢 Paid</option>
-                                <option value="Left Fam">⚫ Left Fam</option>
-                              </select>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
+          {/* Right Column: Simulated Discord Feed */}
+          <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+            <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+              🤖 DISCORD CHANNEL INTEGRATION PREVIEW
             </div>
-          </div>
-        )}
-
-        {bonusAdminSubTab === 'tickets' && (
-          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl space-y-6">
-            {/* Pending Tickets section */}
-            <div className="space-y-4 font-sans text-xs">
-              <h3 className="font-title font-bold text-xs text-purple-400 uppercase tracking-wider pb-2 border-b border-[#1c1a2a]/30">🎟️ Pending Manual Claims Queue</h3>
-              {bonusTickets.length === 0 ? (
-                <div className="text-center py-12 text-zinc-500 italic bg-[#0f0e16]/30 border border-[#1c1a2a]/50 rounded-xl">
-                  NO PENDING MANUAL TICKET CLAIMS IN QUEUE.
+            <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+              {/* Discord Header */}
+              <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                  <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                    {bonusAdminSubTab === 'tickets' ? 'tickets' : 'bonus-admin-panel'}
+                  </span>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {bonusTickets.map((t) => {
-                    const fields = bonusApprovalForm[t.id] || { finalAmount: '500000', comment: '' };
-                    
-                    return (
-                      <div key={t.id} className="bg-[#13121d]/40 border border-[#1c1a2a] p-4 rounded-xl flex flex-col md:flex-row gap-6 justify-between hover:border-purple-550/30 transition-all duration-300">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-zinc-200">@{t.username}</span>
-                            <span className="text-[9px] bg-[#0a0a14] text-zinc-450 px-1.5 py-0.5 rounded border border-[#1c1a2a]">TKT: {t.id.toUpperCase()}</span>
-                            <span className="text-[9px] text-zinc-550">{new Date(t.createdAt).toLocaleDateString()}</span>
-                          </div>
-                          <p className="text-zinc-400 italic bg-[#0a0a14] p-2.5 rounded-lg border border-[#1c1a2a] mt-2">&quot;{t.description}&quot;</p>
+                <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+              </div>
+
+              {/* Discord Chat Area */}
+              <div className="p-4 space-y-4 bg-[#313338] min-h-[450px] max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-900/30">
+                {bonusAdminSubTab === 'tickets' ? (
+                  /* Tickets Feed */
+                  bonusTickets.length === 0 ? (
+                    <div className="text-center py-20 text-[#949ba4] italic text-xs">
+                      No active support tickets in #tickets.
+                    </div>
+                  ) : (
+                    bonusTickets.slice(0, 10).map((t) => (
+                      <div key={t.id} className="flex gap-3 border-b border-[#2b2d31] pb-3 last:border-b-0 last:pb-0 animate-fade-in">
+                        <div className="w-9 h-9 rounded-full bg-[#111118] shrink-0 overflow-hidden select-none">
+                          <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
                         </div>
-
-                        <div className="w-full md:w-56 flex flex-col gap-3 border-t md:border-t-0 md:border-l border-[#1c1a2a] pt-4 md:pt-0 md:pl-4">
-                          <div>
-                            <label className="text-[9px] text-zinc-500 font-bold block mb-1">CALCULATED PAYOUT SUM ($)</label>
-                            <input 
-                              type="number"
-                              value={fields.finalAmount}
-                              onChange={(e) => setBonusApprovalForm(prev => ({
-                                ...prev,
-                                [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), finalAmount: e.target.value }
-                              }))}
-                              placeholder="e.g. 500000"
-                              className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 font-mono outline-none focus:border-purple-550"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-zinc-550 font-bold block mb-1">PAYOUT REMARKS</label>
-                            <input 
-                              type="text"
-                              value={fields.comment}
-                              onChange={(e) => setBonusApprovalForm(prev => ({
-                                ...prev,
-                                [t.id]: { ...(prev[t.id] || { finalAmount: '0', comment: '' }), comment: e.target.value }
-                              }))}
-                              placeholder="Approved payout formula..."
-                              className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-1.5 text-xs text-zinc-300 outline-none font-sans focus:border-purple-550"
-                            />
+                        <div className="flex-1 space-y-2 min-w-0">
+                          <div className="flex items-center gap-1.5 leading-none">
+                            <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                            <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                            <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 mt-1">
-                            <button onClick={() => handleBonusApproval(t.id, 'approved')} className="bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
-                              APPROVE
-                            </button>
-                            <button onClick={() => handleBonusApproval(t.id, 'rejected')} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg py-1.5 font-bold cursor-pointer text-[10px]">
-                              REJECT
+                          <div className="border-l-4 border-[#3a86ff] bg-[#2b2d31] p-3 rounded-r-lg max-w-xl space-y-2 shadow-md relative select-text">
+                            <div className="space-y-1 text-xs text-[#dbdee1] font-sans">
+                              <h4 className="text-xs font-extrabold text-white">
+                                🎟️ Ticket #{t.id.toUpperCase()} Ingested
+                              </h4>
+                              <div className="space-y-1 text-[11px] pt-1">
+                                <div>👤 <strong>User:</strong> <span className="bg-[#5865f2]/10 text-[#c9cdfb] px-1 py-0.5 rounded font-sans hover:underline cursor-pointer select-none">@{t.username}</span></div>
+                                <div className="pt-0.5">📂 <strong>Topic:</strong> {t.subject}</div>
+                                <div className="pt-0.5 italic text-zinc-400">&quot;{t.description}&quot;</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 select-none">
+                            <button
+                              onClick={() => handleBonusApproval(t.id, 'approved')}
+                              className="bg-[#248046] hover:bg-[#1a6535] text-white px-3 py-1 rounded text-[10px] font-semibold transition-colors cursor-pointer"
+                            >
+                              Resolve Claim
                             </button>
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    ))
+                  )
+                ) : (
+                  /* Disbursed Payouts Feed */
+                  winSubmissions.filter(s => s.status === 'disbursed').length === 0 ? (
+                    <div className="text-center py-20 text-[#949ba4] italic text-xs">
+                      No disbursed payouts recorded in #bonus-admin-panel.
+                    </div>
+                  ) : (
+                    winSubmissions.filter(s => s.status === 'disbursed').slice(0, 10).map((s) => (
+                      <div key={s.id} className="flex gap-3 border-b border-[#2b2d31] pb-3 last:border-b-0 last:pb-0">
+                        <div className="w-9 h-9 rounded-full bg-[#111118] shrink-0 overflow-hidden select-none">
+                          <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 space-y-2 min-w-0">
+                          <div className="flex items-center gap-1.5 leading-none">
+                            <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                            <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                            <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
+                          </div>
 
-            {/* Audit Register log section */}
-            <div className="space-y-4 pt-4 border-t border-[#1c1a2a]/60">
-              <h3 className="font-title font-bold text-xs text-purple-400 uppercase tracking-wider pb-2 border-b border-[#1c1a2a]/30">📜 Complete Ticket Audit Register</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs font-sans">
-                  <thead>
-                    <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
-                      <th className="py-2.5 px-3">Ticket ID</th>
-                      <th className="py-2.5 px-3">Applicant</th>
-                      <th className="py-2.5 px-3">Calculation Details</th>
-                      <th className="py-2.5 px-3">Audit Response</th>
-                      <th className="py-2.5 px-3 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tickets.filter(t => t.type === 'bonus' || t.type === 'request').map((t) => (
-                      <tr key={t.id} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20">
-                        <td className="py-3 px-3 font-mono font-bold text-zinc-400">[{t.id.toUpperCase()}]</td>
-                        <td className="py-3 px-3 font-bold text-zinc-200">@{t.username}</td>
-                        <td className="py-3 px-3 text-zinc-400 font-sans">{t.description}</td>
-                        <td className="py-3 px-3 text-zinc-550 italic">{t.response || 'Pending Audit Review'}</td>
-                        <td className="py-3 px-3 text-right">
-                          <span className={`px-2 py-0.5 border text-[9px] font-bold rounded uppercase ${
-                            t.status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
-                          }`}>
-                            {t.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <div className="border-l-4 border-[#23a55a] bg-[#2b2d31] p-3 rounded-r-lg max-w-xl space-y-2 shadow-md relative select-text">
+                            <div className="space-y-1 text-xs text-[#dbdee1] font-sans">
+                              <h4 className="text-xs font-extrabold text-white">
+                                🏆 EVENT WIN BONUS DISBURSED
+                              </h4>
+                              <div className="space-y-1 text-[11px] pt-1">
+                                <div>📂 <strong>Event:</strong> {s.eventName || s.title}</div>
+                                <div className="pt-0.5">💰 <strong>Base Pool:</strong> ${(s.baseAmount || 200000).toLocaleString()}</div>
+                                <div>👤 <strong>Audited By:</strong> @{s.reviewedBy || 'Admin'}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )
+                )}
               </div>
             </div>
           </div>
-        )}
-
-        {bonusAdminSubTab === 'history' && (
-          <div className="bg-[#111118] border border-[#1c1a2a] p-6 rounded-2xl shadow-xl space-y-4">
-            <div className="overflow-x-auto">
-              {weeklyReports.length === 0 ? (
-                <div className="text-center py-16 text-zinc-555 italic">
-                  NO CLOSED WEEKS SAVED IN SYSTEM ARCHIVE.
-                </div>
-              ) : (
-                <table className="w-full text-left border-collapse font-sans text-xs">
-                  <thead>
-                    <tr className="border-b border-[#1c1a2a] text-zinc-500 uppercase tracking-widest text-[9px]">
-                      <th className="py-2.5 px-3">Week ID</th>
-                      <th className="py-2.5 px-3">Closed Date</th>
-                      <th className="py-2.5 px-3 text-right">Total Net Payout</th>
-                      <th className="py-2.5 px-3">Archived By</th>
-                      <th className="py-2.5 px-3 text-right">Statements</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklyReports.map((report, idx) => (
-                      <tr key={idx} className="border-b border-[#181622]/40 hover:bg-[#13121d]/20 transition-all">
-                        <td className="py-3 px-3 font-mono font-bold text-purple-400">[{report.weekId}]</td>
-                        <td className="py-3 px-3 text-zinc-450">{new Date(report.closedAt).toLocaleString()}</td>
-                        <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">${(report.totalNet || 0).toLocaleString()}</td>
-                        <td className="py-3 px-3 text-zinc-450">@{report.closedBy || 'Admin'}</td>
-                        <td className="py-3 px-3 text-right">
-                          <button
-                            onClick={() => handleExportArchivedReportPDF(report)}
-                            className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 p-1.5 rounded-lg cursor-pointer transition-colors"
-                            title="Download Statement PDF"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Closing Confirm Wizard Modal */}
-        {isResetModalOpen && (
-          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-[#111118] border border-[#1c1a2a] w-full max-w-md p-6 rounded-2xl space-y-6 shadow-2xl animate-fade-in font-sans text-xs">
-              <div className="flex items-center gap-3 border-b border-[#1c1a2a]/50 pb-3 text-red-400">
-                <AlertTriangle className="w-6 h-6" />
-                <h4 className="font-title font-black text-lg italic tracking-wide">RESET WEEK RESET PROTOCOL</h4>
-              </div>
-
-              <div className="space-y-3 text-zinc-400 leading-relaxed font-sans">
-                <p>This action represents a destructive ledger transaction.</p>
-                <div className="bg-red-500/5 border border-red-500/15 p-3.5 rounded-xl space-y-2 text-red-300">
-                  <p className="font-bold uppercase tracking-wider text-[9px]">The system will execute the following:</p>
-                  <ul className="list-disc list-inside space-y-1 text-[10px]">
-                    <li>Archive the current calculations layout to databases.</li>
-                    <li>Compile a backup registry history index record.</li>
-                    <li>Reset all players' weekly bonuses to <strong>$0</strong>.</li>
-                    <li>Revert all active payouts status states to <strong>Not Paid</strong>.</li>
-                  </ul>
-                </div>
-                <p>To finalize, verify or adjust the unique week identifier code below (e.g. <code>week-ending-YYYY-MM-DD</code>) and type it into the confirmation field:</p>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[9px] text-zinc-550 font-bold block mb-1 uppercase">TARGET WEEK ID</label>
-                  <input
-                    type="text"
-                    value={weekIdInput}
-                    onChange={(e) => setWeekIdInput(e.target.value)}
-                    placeholder="e.g. week-ending-2026-06-05"
-                    className="w-full bg-[#0a0a14] border border-[#1c1a2a] rounded-lg p-2.5 text-xs text-zinc-300 font-mono focus:border-red-500/40 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => {
-                    setIsResetModalOpen(false);
-                    setWeekIdInput('');
-                  }}
-                  className="bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-400 border border-[#1c1a2a] rounded-xl py-2.5 font-bold cursor-pointer"
-                >
-                  CANCEL
-                </button>
-                <button
-                  onClick={() => handleCloseWeeklyLedger(weekIdInput)}
-                  className="bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/25 rounded-xl py-2.5 font-bold cursor-pointer transition-all"
-                >
-                  CONFIRM ARCHIVE & RESET
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     );
   };
@@ -4827,7 +5382,7 @@ export default function RootDashboard() {
     const pendingSubmissions = winSubmissions.filter(s => s.status === 'pending');
 
     return (
-      <div className="space-y-6 max-w-6xl mx-auto font-sans text-xs pb-12">
+      <div className="space-y-6 max-w-7xl mx-auto font-sans text-xs pb-12 animate-fade-in">
         {/* Header Title */}
         <div className="border-b border-[#1c1a2a]/50 pb-4">
           <h2 className="font-title font-black text-2xl italic text-purple-400 text-glow-magenta flex items-center gap-2.5">
@@ -4836,181 +5391,280 @@ export default function RootDashboard() {
           <p className="text-zinc-550 mt-1">Review event wins and manual claims submitted from Discord public channels, adjust payouts, and transmit to Admin confirmation ledger.</p>
         </div>
 
-        {/* Pending Submissions Queue */}
-        <div className="space-y-6">
-          {pendingSubmissions.length === 0 ? (
-            <div className="text-center py-20 text-zinc-550 bg-[#111118] border border-[#1c1a2a] rounded-2xl space-y-3 shadow-xl max-w-lg mx-auto">
-              <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500/30" />
-              <p className="font-title font-black text-sm tracking-wide text-zinc-400 uppercase italic">ALL PENDING LOGS REVIEWED</p>
-              <p className="text-[10px] text-zinc-650">No win logs are waiting in the `#public-winlog` or `#public-informallog` queues.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 justify-center">
-              {pendingSubmissions.map((s) => {
-                const isInformal = s.type === 'public-informallog';
-                const defaultBase = isInformal ? 70000 : 200000;
-                const currentBaseStr = customBaseAmounts[s.id] ?? String(defaultBase);
-                const currentBase = parseFloat(currentBaseStr) || defaultBase;
-                
-                const origPartStr = (s.participants || []).join(', ');
-                const currentPartStr = editingParticipants[s.id] ?? origPartStr;
-                const currentParticipants = currentPartStr.split(',').map((p: string) => p.trim()).filter(Boolean);
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Main approvals list */}
+          <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+            {pendingSubmissions.length === 0 ? (
+              <div className="text-center py-20 text-zinc-550 bg-[#111118] border border-[#1c1a2a] rounded-2xl space-y-3 shadow-xl max-w-lg mx-auto">
+                <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500/30" />
+                <p className="font-title font-black text-sm tracking-wide text-zinc-400 uppercase italic">ALL PENDING LOGS REVIEWED</p>
+                <p className="text-[10px] text-zinc-650">No win logs are waiting in the `#public-winlog` or `#public-informallog` queues.</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {pendingSubmissions.map((s) => {
+                  const isInformal = s.type === 'public-informallog';
+                  const defaultBase = isInformal ? 70000 : 200000;
+                  const currentBaseStr = customBaseAmounts[s.id] ?? String(defaultBase);
+                  const currentBase = parseFloat(currentBaseStr) || defaultBase;
+                  
+                  const origPartStr = (s.participants || []).join(', ');
+                  const currentPartStr = editingParticipants[s.id] ?? origPartStr;
+                  const currentParticipants = currentPartStr.split(',').map((p: string) => p.trim()).filter(Boolean);
 
-                return (
-                  <div key={s.id} className="bg-[#313338] border border-[#202225] text-[#dbdee1] rounded-lg overflow-hidden flex flex-col justify-between max-w-[480px] w-full mx-auto shadow-2xl relative font-sans">
-                    {/* Discord Message Header */}
-                    <div className="p-4 pb-0 flex gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#5865f2] flex items-center justify-center font-bold text-white shrink-0 shadow-inner">
-                        🤖
+                  return (
+                    <div key={s.id} className="bg-[#313338] border border-[#202225] text-[#dbdee1] rounded-lg overflow-hidden flex flex-col justify-between w-full shadow-2xl relative font-sans">
+                      {/* Discord Message Header */}
+                      <div className="p-4 pb-0 flex gap-3 select-none">
+                        <div className="w-10 h-10 rounded-full bg-[#5865f2] flex items-center justify-center font-bold text-white shrink-0 shadow-inner">
+                          🤖
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-white text-[13px] hover:underline cursor-pointer">White Pigeon Bot</span>
+                            <span className="bg-[#5865f2] text-[9px] text-white font-bold px-1.5 py-0.5 rounded uppercase tracking-wider scale-90">BOT</span>
+                            <span className="text-[10px] text-zinc-400 font-mono ml-2">MSG: {s.discordMessageId?.slice(-6) || 'WEB'}</span>
+                          </div>
+                          <p className="text-[10px] text-zinc-400 mt-0.5">Submitted by: @{s.submitterName} | {new Date(s.createdAt).toLocaleString()}</p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-white text-[13px] hover:underline cursor-pointer">White Pigeon Bot</span>
-                          <span className="bg-[#5865f2] text-[9px] text-white font-bold px-1.5 py-0.5 rounded uppercase tracking-wider scale-90">BOT</span>
-                          <span className="text-[10px] text-zinc-400 font-mono ml-2">MSG: {s.discordMessageId?.slice(-6) || 'WEB'}</span>
-                        </div>
-                        <p className="text-[10px] text-zinc-400 mt-0.5">Submitted by: @{s.submitterName} | {new Date(s.createdAt).toLocaleString()}</p>
-                      </div>
-                    </div>
 
-                    {/* Discord Embed Container */}
-                    <div className="p-4 pt-3 flex">
-                      {/* Left border stripe of Discord Embed */}
-                      <div className={`w-[4px] rounded-l shrink-0 ${isInformal ? 'bg-amber-500' : 'bg-[#5865F2]'}`} />
-                      
-                      {/* Embed Content */}
-                      <div className="bg-[#2b2d31] p-3.5 rounded-r flex-1 space-y-3 border border-l-0 border-[#202225] text-xs">
-                        <div>
-                          <h4 className="text-white text-sm font-semibold tracking-wide">🏆 EVENT WIN LOG INGESTED</h4>
-                          <span className="text-[9px] text-zinc-400 mt-0.5 block">Status: <span className="text-amber-400 font-bold uppercase">⏳ Pending HC Audit</span></span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 text-[11px] leading-relaxed">
-                          <div>
-                            <span className="text-zinc-400 block text-[9px] uppercase tracking-wider font-bold">Event Title</span>
-                            <span className="text-zinc-200 font-bold">{s.eventName || s.title}</span>
-                          </div>
-                          <div>
-                            <span className="text-zinc-400 block text-[9px] uppercase tracking-wider font-bold">Estimated Pool</span>
-                            <span className="text-emerald-400 font-bold">${currentBase.toLocaleString()} / kill</span>
-                          </div>
-                        </div>
-
-                        <div>
-                          <span className="text-zinc-400 block text-[9px] uppercase tracking-wider font-bold mb-1">Roster ({currentParticipants.length} detected)</span>
-                          <div className="flex flex-wrap gap-1 bg-[#1e1f22] p-2 rounded border border-[#1a1b1e]">
-                            {currentParticipants.length === 0 ? (
-                              <span className="text-zinc-500 italic text-[10px]">No members specified</span>
-                            ) : (
-                              currentParticipants.map((p, pIdx) => (
-                                <span key={pIdx} className="bg-[#2b2d31] border border-[#202225] text-zinc-300 rounded px-1.5 py-0.5 text-[9px] font-mono">
-                                  @{p}
-                                </span>
-                              ))
-                            )}
-                          </div>
-                        </div>
-
-                        {s.mediaUrl && (
-                          <div className="relative rounded overflow-hidden border border-[#202225]">
-                            <img src={s.mediaUrl} alt="Log Proof" className="w-full object-cover max-h-48" />
-                            <a 
-                              href={s.mediaUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="absolute top-2 right-2 bg-black/60 hover:bg-black/85 text-zinc-300 p-1.5 rounded border border-white/10 transition-colors"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* HC Audit Adjustment Form */}
-                    <div className="px-4 pb-4 space-y-3 font-sans border-t border-[#202225] pt-3 bg-[#2e3035]/50">
-                      <div className="bg-[#1e1f22] border border-[#202225] p-3 rounded-lg space-y-3 text-[11px]">
-                        <h5 className="font-bold text-zinc-300 uppercase text-[9px] tracking-wider border-b border-[#202225]/40 pb-1.5 flex items-center gap-1.5">
-                          ⚙️ HIGH COMMAND AUDIT OVERRIDES
-                        </h5>
+                      {/* Discord Embed Container */}
+                      <div className="p-4 pt-3 flex">
+                        {/* Left border stripe of Discord Embed */}
+                        <div className={`w-[4px] rounded-l shrink-0 ${isInformal ? 'bg-amber-500' : 'bg-[#5865F2]'}`} />
                         
-                        <div className="grid grid-cols-2 gap-2.5">
+                        {/* Embed Content */}
+                        <div className="bg-[#2b2d31] p-3.5 rounded-r flex-1 space-y-3 border border-l-0 border-[#202225] text-xs">
                           <div>
-                            <label className="text-[9px] text-zinc-450 font-bold block mb-1">BASE REWARD AMOUNT ($)</label>
-                            <select 
-                              value={currentBaseStr}
-                              onChange={(e) => setCustomBaseAmounts(prev => ({ ...prev, [s.id]: e.target.value }))}
-                              className="bg-[#2b2d31] border border-[#202225] rounded-md px-2 py-1 text-zinc-300 outline-none w-full text-[11px]"
-                            >
-                              <option value="200000">$200,000 (BizWar)</option>
-                              <option value="70000">$70,000 (Informal)</option>
-                              <option value="custom">Custom...</option>
-                            </select>
-                            { (currentBaseStr === 'custom' || !['200000', '70000'].includes(currentBaseStr)) && (
-                              <input 
-                                type="number"
-                                value={currentBaseStr === 'custom' ? '' : currentBaseStr}
-                                onChange={(e) => setCustomBaseAmounts(prev => ({ ...prev, [s.id]: e.target.value }))}
-                                placeholder="Custom amount..."
-                                className="mt-1 bg-[#2b2d31] border border-[#202225] rounded-md px-2 py-1 text-zinc-300 outline-none w-full text-[11px] font-mono"
-                              />
-                            )}
+                            <h4 className="text-white text-sm font-semibold tracking-wide">🏆 EVENT WIN LOG INGESTED</h4>
+                            <span className="text-[9px] text-zinc-400 mt-0.5 block">Status: <span className="text-amber-400 font-bold uppercase">⏳ Pending HC Audit</span></span>
                           </div>
-                          
+
+                          <div className="grid grid-cols-2 gap-3 text-[11px] leading-relaxed">
+                            <div>
+                              <span className="text-zinc-400 block text-[9px] uppercase tracking-wider font-bold">Event Title</span>
+                              <span className="text-zinc-200 font-bold">{s.eventName || s.title}</span>
+                            </div>
+                            <div>
+                              <span className="text-zinc-400 block text-[9px] uppercase tracking-wider font-bold">Estimated Pool</span>
+                              <span className="text-emerald-400 font-bold">${currentBase.toLocaleString()} / kill</span>
+                            </div>
+                          </div>
+
                           <div>
-                            <label className="text-[9px] text-zinc-450 font-bold block mb-1">PARTICIPANTS ROSTER</label>
-                            <textarea 
-                              rows={2}
-                              value={currentPartStr}
-                              onChange={(e) => setEditingParticipants(prev => ({ ...prev, [s.id]: e.target.value }))}
-                              placeholder="Comma separated names..."
-                              className="w-full bg-[#2b2d31] border border-[#202225] rounded-md p-1.5 text-zinc-300 font-sans outline-none text-[11px] resize-none"
+                            <span className="text-zinc-400 block text-[9px] uppercase tracking-wider font-bold mb-1">Roster ({currentParticipants.length} detected)</span>
+                            <div className="flex flex-wrap gap-1 bg-[#1e1f22] p-2 rounded border border-[#1a1b1e]">
+                              {currentParticipants.length === 0 ? (
+                                <span className="text-zinc-500 italic text-[10px]">No members specified</span>
+                              ) : (
+                                currentParticipants.map((p, pIdx) => (
+                                  <span key={pIdx} className="bg-[#2b2d31] border border-[#202225] text-zinc-300 rounded px-1.5 py-0.5 text-[9px] font-mono">
+                                    @{p}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          {s.mediaUrl && (
+                            <div className="relative rounded overflow-hidden border border-[#202225] max-h-48 select-none">
+                              <img src={s.mediaUrl} alt="Log Proof" className="w-full object-cover max-h-48" />
+                              <a 
+                                href={s.mediaUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="absolute top-2 right-2 bg-black/60 hover:bg-black/85 text-zinc-300 p-1.5 rounded border border-white/10 transition-colors"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* HC Audit Adjustment Form */}
+                      <div className="px-4 pb-4 space-y-3 font-sans border-t border-[#202225] pt-3 bg-[#2e3035]/50">
+                        <div className="bg-[#1e1f22] border border-[#202225] p-3 rounded-lg space-y-3 text-[11px]">
+                          <h5 className="font-bold text-zinc-300 uppercase text-[9px] tracking-wider border-b border-[#202225]/40 pb-1.5 flex items-center gap-1.5">
+                            ⚙️ HIGH COMMAND AUDIT OVERRIDES
+                          </h5>
+                          
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <div>
+                              <label className="text-[9px] text-zinc-450 font-bold block mb-1">BASE REWARD AMOUNT ($)</label>
+                              <select 
+                                value={currentBaseStr}
+                                onChange={(e) => setCustomBaseAmounts(prev => ({ ...prev, [s.id]: e.target.value }))}
+                                className="bg-[#2b2d31] border border-[#202225] rounded-md px-2 py-1 text-zinc-300 outline-none w-full text-[11px] cursor-pointer"
+                              >
+                                <option value="200000">$200,000 (BizWar)</option>
+                                <option value="70000">$70,000 (Informal)</option>
+                                <option value="custom">Custom...</option>
+                              </select>
+                              { (currentBaseStr === 'custom' || !['200000', '70000'].includes(currentBaseStr)) && (
+                                <input 
+                                  type="number"
+                                  value={currentBaseStr === 'custom' ? '' : currentBaseStr}
+                                  onChange={(e) => setCustomBaseAmounts(prev => ({ ...prev, [s.id]: e.target.value }))}
+                                  placeholder="Custom amount..."
+                                  className="mt-1 bg-[#2b2d31] border border-[#202225] rounded-md px-2 py-1 text-zinc-300 outline-none w-full text-[11px] font-mono"
+                                />
+                              )}
+                            </div>
+                            
+                            <div>
+                              <label className="text-[9px] text-zinc-450 font-bold block mb-1">PARTICIPANTS ROSTER</label>
+                              <textarea 
+                                rows={2}
+                                value={currentPartStr}
+                                onChange={(e) => setEditingParticipants(prev => ({ ...prev, [s.id]: e.target.value }))}
+                                placeholder="Comma separated names..."
+                                className="w-full bg-[#2b2d31] border border-[#202225] rounded-md p-1.5 text-zinc-300 font-sans outline-none text-[11px] resize-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] text-zinc-450 font-bold block mb-1">AUDIT REMARKS / COMMENT</label>
+                            <input 
+                              type="text"
+                              value={reviewComments[s.id] || ''}
+                              onChange={(e) => setReviewComments(prev => ({ ...prev, [s.id]: e.target.value }))}
+                              placeholder="Roster and event proof verified."
+                              className="w-full bg-[#2b2d31] border border-[#202225] rounded-md px-2 py-1 text-zinc-300 outline-none text-[11px]"
                             />
                           </div>
                         </div>
 
-                        <div>
-                          <label className="text-[9px] text-zinc-450 font-bold block mb-1">AUDIT REMARKS / COMMENT</label>
-                          <input 
-                            type="text"
-                            value={reviewComments[s.id] || ''}
-                            onChange={(e) => setReviewComments(prev => ({ ...prev, [s.id]: e.target.value }))}
-                            placeholder="Roster and event proof verified."
-                            className="w-full bg-[#2b2d31] border border-[#202225] rounded-md px-2 py-1 text-zinc-300 outline-none text-[11px]"
-                          />
+                        {/* Buttons */}
+                        <div className="grid grid-cols-2 gap-3.5 select-none">
+                          <button 
+                            onClick={() => handleRejectWinSubmission(s.id)}
+                            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-md py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] text-[11px] uppercase tracking-wide"
+                          >
+                            DECLINE
+                          </button>
+                          <button 
+                            onClick={() => handleHcApproveWinSubmission(s.id)}
+                            disabled={isSubmittingApproval[s.id]}
+                            className="bg-green-500/15 hover:bg-green-500/25 text-green-400 border border-green-500/25 rounded-md py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none text-[11px] uppercase tracking-wide"
+                          >
+                            {isSubmittingApproval[s.id] ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> AUDITING...
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3.5 h-3.5" /> APPROVE EVENT
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
-
-                      {/* Buttons */}
-                      <div className="grid grid-cols-2 gap-3.5">
-                        <button 
-                          onClick={() => handleRejectWinSubmission(s.id)}
-                          className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-md py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] text-[11px] uppercase tracking-wide"
-                        >
-                          DECLINE
-                        </button>
-                        <button 
-                          onClick={() => handleHcApproveWinSubmission(s.id)}
-                          disabled={isSubmittingApproval[s.id]}
-                          className="bg-green-500/15 hover:bg-green-500/25 text-green-400 border border-green-500/25 rounded-md py-2 font-bold cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none text-[11px] uppercase tracking-wide"
-                        >
-                          {isSubmittingApproval[s.id] ? (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" /> AUDITING...
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-3.5 h-3.5" /> APPROVE EVENT
-                            </>
-                          )}
-                        </button>
-                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Simulated Discord Channel Feed */}
+          <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+            <div className="text-zinc-500 text-[10px] font-black tracking-wider uppercase mb-1 flex items-center gap-1.5 pl-1 select-none">
+              🤖 DISCORD CHANNEL INTEGRATION PREVIEW
             </div>
-          )}
+            <div className="bg-[#2b2d31] border border-[#1c1a2a]/45 rounded-2xl overflow-hidden font-sans text-left shadow-2xl w-full select-none">
+              {/* Discord Header */}
+              <div className="bg-[#1e1f22] px-4 py-2.5 flex items-center justify-between border-b border-[#151618]/40 select-none">
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-400 font-black text-sm select-none">#</span>
+                  <span className="text-[11px] text-[#dbdee1] font-bold tracking-wide">
+                    {pendingSubmissions.length > 0 && pendingSubmissions[0].type === 'public-informallog' ? 'public-informallog' : 'public-winlog'}
+                  </span>
+                </div>
+                <span className="text-[8px] bg-[#313338] text-[#23a55a] px-2 py-0.5 rounded font-bold font-mono border border-[#23a55a]/20">SIMULATED BOT EMBED</span>
+              </div>
+
+              {/* Discord Chat Body */}
+              <div className="p-4 space-y-4 bg-[#313338] min-h-[400px] max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-900/30">
+                {pendingSubmissions.length > 0 ? (
+                  (() => {
+                    const firstSub = pendingSubmissions[0];
+                    const isInf = firstSub.type === 'public-informallog';
+                    const defBase = isInf ? 70000 : 200000;
+                    const cBaseStr = customBaseAmounts[firstSub.id] ?? String(defBase);
+                    const cBase = parseFloat(cBaseStr) || defBase;
+                    const cPartStr = editingParticipants[firstSub.id] ?? (firstSub.participants || []).join(', ');
+                    const cParticipants = cPartStr.split(',').map((p: string) => p.trim()).filter(Boolean);
+                    const stripeColor = isInf ? 'border-[#ff9f1c]' : 'border-[#5865f2]';
+
+                    return (
+                      <div className="flex gap-3 animate-fade-in">
+                        <div className="w-9 h-9 rounded-full bg-[#111118] shrink-0 overflow-hidden select-none">
+                          <img src="/logo.webp" alt="Bot PFP" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 space-y-2 min-w-0">
+                          <div className="flex items-center gap-1.5 leading-none select-none">
+                            <span className="text-xs font-bold text-[#f2f3f5] hover:underline cursor-pointer">White Pigeons MOD</span>
+                            <span className="bg-[#5865f2] text-white text-[7px] font-bold px-1.5 py-0.5 rounded font-sans uppercase">APP</span>
+                            <span className="text-[9px] text-[#949ba4] font-sans">Today at 9:02 AM</span>
+                          </div>
+
+                          <div className="text-[11px] text-[#949ba4] font-semibold leading-none select-none pl-1">
+                            @👑 | High Command
+                          </div>
+
+                          <div className={`border-l-4 ${stripeColor} bg-[#2b2d31] p-4 rounded-r-lg max-w-xl space-y-3.5 shadow-md relative select-text`}>
+                            <div className="space-y-2 text-xs text-[#dbdee1] font-sans leading-relaxed">
+                              <h4 className="text-xs font-extrabold text-white uppercase">
+                                🏆 Event Win Ingested for Audit
+                              </h4>
+                              <div className="space-y-1 text-[11px] pt-1">
+                                <div>📂 <strong>Event:</strong> {firstSub.eventName || firstSub.title}</div>
+                                <div className="pt-0.5">💰 <strong>Estimated Pool:</strong> ${cBase.toLocaleString()} / kill</div>
+                                <div className="pt-0.5">👥 <strong>Roster ({cParticipants.length}):</strong></div>
+                                <div className="pl-2 text-zinc-400 font-mono text-[10px] break-all max-h-24 overflow-y-auto">
+                                  {cParticipants.map(p => `@${p}`).join(', ')}
+                                </div>
+                                {firstSub.mediaUrl && (
+                                  <div className="pt-1 select-none">
+                                    🖼️ <strong>Proof:</strong> <a href={firstSub.mediaUrl} target="_blank" rel="noreferrer" className="text-[#00b0f4] hover:underline">{firstSub.mediaUrl}</a>
+                                    <img src={firstSub.mediaUrl} alt="Proof" className="mt-2 w-full max-h-36 object-contain rounded border border-[#1e1f22]/50" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Interactive Buttons */}
+                          <div className="flex gap-2 pt-1 select-none">
+                            <button
+                              onClick={() => handleHcApproveWinSubmission(firstSub.id)}
+                              disabled={isSubmittingApproval[firstSub.id]}
+                              className="bg-[#248046] hover:bg-[#1a6535] text-white px-4 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              {isSubmittingApproval[firstSub.id] ? 'Auditing...' : '✅ Approve Event'}
+                            </button>
+                            <button
+                              onClick={() => handleRejectWinSubmission(firstSub.id)}
+                              className="bg-[#da373c] hover:bg-[#a92b2f] text-white px-4 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              ❌ Decline
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="text-center py-20 text-[#949ba4] italic text-xs">
+                    No win submissions in audit queue.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -5290,11 +5944,11 @@ export default function RootDashboard() {
       ? (signupEventDescription || 'Signup Event roster limit is 25. Top 10 Priority shooters can displace.')
       : (informalDescription || 'Automated informal wars trigger every 1h 44m. The vanguard shooters will displace recruits dynamically on the confirmation grid.');
 
-    const bannerImage = eventId === 'rp-signup'
+    const bannerImage = banners[eventId] || (eventId === 'rp-signup'
       ? '/rp_ticket_banner.webp'
       : eventId === 'signup-event'
       ? '/signup_event_banner.webp'
-      : '/informal_fight_banner.webp';
+      : '/informal_fight_banner.webp');
 
     const statusBadge = isClosed ? '🔴 Registration is closed!' : '🟢 Registration is active!';
     const embedColor = isClosed ? 'border-[#ff003c]' : 'border-[#00f0ff]';

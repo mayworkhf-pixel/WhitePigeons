@@ -1260,6 +1260,7 @@ router.post('/activities', requireMember, async (req, res) => {
   }
 
   await botService.sendWebhook('submit-activity', embed);
+  await botService.sendActivityReviewNotification(act);
   botService.logSimulated(`New activity ${act.id} submitted for review by @${user.username}.`);
 
   return res.json(act);
@@ -1310,6 +1311,8 @@ router.post('/activities/:id/review', requireAdmin, async (req, res) => {
 
   await botService.sendWebhook('activity-results', resultEmbed);
   await botService.sendWebhook('activity-review', resultEmbed);
+  await botService.closeActiveActivityReview(id, status, req.user.username);
+  await botService.syncActivityPointsLeaderboardMessage();
 
   // If approved, notify activity points leaderboard channel
   if (status === 'approved' && numPoints > 0) {
@@ -1953,6 +1956,24 @@ router.post('/about/stats/broadcast', requireAdmin, async (req, res) => {
     res.json({ success: broadcastResult });
   } catch (err) {
     res.status(500).json({ error: `Failed to broadcast stats to Discord: ${err.message}` });
+  }
+});
+
+// GET bot banner images configuration
+router.get('/discord/banners', async (req, res) => {
+  try {
+    const config = await db.getConfig();
+    const defaultBanners = {
+      'rp-signup': 'https://whitepigeonslive.web.app/rp_ticket_banner.webp',
+      'signup-event': 'https://whitepigeonslive.web.app/signup_event_banner.webp',
+      'informal-signup': 'https://whitepigeonslive.web.app/informal_fight_banner.webp',
+      'strike-system': 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800',
+      'bonus-admin-panel': 'https://images.unsplash.com/photo-1554672408-730436b60dde?w=500'
+    };
+    const banners = { ...defaultBanners, ...(config.banners || {}) };
+    res.json(banners);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

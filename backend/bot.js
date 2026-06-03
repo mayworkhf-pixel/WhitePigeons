@@ -866,6 +866,107 @@ const botService = {
               await interaction.reply({ content: '⚠️ Failed to refresh panel.', flags: [MessageFlags.Ephemeral] });
             }
           }
+          else if (customId.startsWith('activity_approve:') || customId.startsWith('activity_reject:')) {
+            const isApprove = customId.startsWith('activity_approve:');
+            const activityId = customId.split(':')[1];
+
+            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+            if (!isAuthorizedAdmin(member)) {
+              return interaction.reply({ content: '❌ You do not have permission to review activities.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            const act = await db.getActivity(activityId);
+            if (!act) {
+              return interaction.reply({ content: '❌ Activity submission not found in database.', flags: [MessageFlags.Ephemeral] });
+            }
+            if (act.status !== 'pending') {
+              return interaction.reply({ content: `❌ This activity has already been processed (Status: ${act.status}).`, flags: [MessageFlags.Ephemeral] });
+            }
+
+            const points = act.pointsRequested || 0;
+            const reviewerName = member.nickname || interaction.user.username;
+
+            if (isApprove) {
+              await db.updateActivity(activityId, {
+                status: 'approved',
+                pointsAwarded: points,
+                reviewedBy: reviewerName,
+                reviewedAt: new Date().toISOString()
+              });
+
+              const targetMember = await db.getMember(act.memberId);
+              if (targetMember) {
+                await db.updateMember(act.memberId, {
+                  points: (targetMember.points || 0) + points,
+                  activityScore: Math.min(100, (targetMember.activityScore || 0) + 5)
+                });
+              }
+
+              const reviewEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+                .setColor(0x23a55a)
+                .setFooter({ text: `✅ Approved by ${reviewerName} • Today at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` });
+
+              await interaction.update({
+                content: `✅ Approved by <@${interaction.user.id}>`,
+                embeds: [reviewEmbed],
+                components: []
+              });
+
+              try {
+                let resultChannel = interaction.guild.channels.cache.find(c => {
+                  const name = cleanName(c.name);
+                  return name.includes('activity-result') || name.includes('activity-results');
+                });
+                if (!resultChannel) {
+                  resultChannel = interaction.guild.channels.cache.find(c => cleanName(c.name).includes('result'));
+                }
+                if (resultChannel) {
+                  const resultEmbed = new EmbedBuilder()
+                    .setTitle('✅ Activity Approved')
+                    .setDescription(`**User:** <@${act.memberId}>\n**Category:** ${act.activityType}\n**Points:** +${points}`)
+                    .setColor(0x23a55a)
+                    .setTimestamp();
+                  await resultChannel.send({ embeds: [resultEmbed] });
+                }
+              } catch (err) {
+                console.error('[Bot] Failed to send activity approved message:', err.message);
+              }
+
+              await botService.sendDirectMessage(
+                act.memberId,
+                `💯 Your activity submission [${act.id}] was **APPROVED**.\nPoints granted: +${points}.\nReviewer: ${reviewerName}`
+              );
+
+              await botService.syncActivityPointsLeaderboardMessage();
+              botService.logSimulated(`Activity submission ${activityId} approved by @${interaction.user.username}`);
+            } else {
+              await db.updateActivity(activityId, {
+                status: 'rejected',
+                pointsAwarded: 0,
+                reviewedBy: reviewerName,
+                reviewedAt: new Date().toISOString()
+              });
+
+              const reviewEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+                .setColor(0xf23f43)
+                .setFooter({ text: `❌ Rejected by ${reviewerName} • Today at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` });
+
+              await interaction.update({
+                content: `❌ Rejected by <@${interaction.user.id}>`,
+                embeds: [reviewEmbed],
+                components: []
+              });
+
+              await botService.sendDirectMessage(
+                act.memberId,
+                `❌ Your activity submission [${act.id}] was **REJECTED**.\nReviewer: ${reviewerName}`
+              );
+
+              botService.logSimulated(`Activity submission ${activityId} rejected by @${interaction.user.username}`);
+            }
+
+            botService.broadcastSocket('activity_logged', { ...act, status: isApprove ? 'approved' : 'rejected' });
+          }
           else if (customId.startsWith('bonus_confirm:')) {
             const submissionId = customId.split(':')[1];
             const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
@@ -1081,6 +1182,7 @@ const botService = {
             }
 
             await botService.sendWebhook('submit-activity', embed);
+            await botService.sendActivityReviewNotification(act);
             botService.logSimulated(`New activity ${act.id} submitted for review by @${interaction.user.username}.`);
 
             botService.broadcastSocket('activity_logged', act);
@@ -1737,11 +1839,13 @@ const botService = {
       voiceChannelText
     ].join('\n');
 
-    const bannerImage = eventId === 'rp-signup'
-      ? 'https://whitepigeonslive.web.app/rp_ticket_banner.webp'
-      : eventId === 'signup-event'
-      ? 'https://whitepigeonslive.web.app/signup_event_banner.webp'
-      : 'https://whitepigeonslive.web.app/informal_fight_banner.webp';
+    const bannerImage = (config.banners && config.banners[eventId])
+      ? config.banners[eventId]
+      : (eventId === 'rp-signup'
+        ? 'https://whitepigeonslive.web.app/rp_ticket_banner.webp'
+        : eventId === 'signup-event'
+        ? 'https://whitepigeonslive.web.app/signup_event_banner.webp'
+        : 'https://whitepigeonslive.web.app/informal_fight_banner.webp');
 
     const embed = new EmbedBuilder()
       .setTitle(`${eventId === 'rp-signup' ? '🚀 RP Ticket' : eventId === 'signup-event' ? '🚀 Signup-Event' : '⚔️ Informal Fight'}`)
@@ -1875,11 +1979,13 @@ const botService = {
         return `${idx + 1}. ${icon} <@${s.memberId}>`;
       });
 
-      const bannerImage = eventId === 'rp-signup'
-        ? 'https://whitepigeonslive.web.app/rp_ticket_banner.webp'
-        : eventId === 'signup-event'
-        ? 'https://whitepigeonslive.web.app/signup_event_banner.webp'
-        : 'https://whitepigeonslive.web.app/informal_fight_banner.webp';
+      const bannerImage = (config.banners && config.banners[eventId])
+        ? config.banners[eventId]
+        : (eventId === 'rp-signup'
+          ? 'https://whitepigeonslive.web.app/rp_ticket_banner.webp'
+          : eventId === 'signup-event'
+          ? 'https://whitepigeonslive.web.app/signup_event_banner.webp'
+          : 'https://whitepigeonslive.web.app/informal_fight_banner.webp');
 
       const embedDescription = [
         `🔴 **Registration is closed!**\n`,
@@ -2090,6 +2196,109 @@ const botService = {
       }
     } catch (err) {
       console.error('[Bot] Failed to close role review message in Discord:', err.message);
+    }
+  },
+
+  sendActivityReviewNotification: async (act) => {
+    const config = await db.getConfig();
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => {
+          const name = cleanName(c.name);
+          return name.includes('activity-review') || name.includes('review-activity') || name.includes('review');
+        });
+        if (!channel) {
+          channel = guild.channels.cache.find(c => {
+            const name = cleanName(c.name);
+            return name.includes('activity') && name.includes('review');
+          });
+        }
+        if (channel) {
+          const rolePing = guild.roles.cache.find(r => r.name.includes('Activity Manager')) || '@Activity Manager';
+          
+          const embed = new EmbedBuilder()
+            .setTitle('New Activity Log Submitted')
+            .setDescription(`Activity logged by **${act.username}** for review.`)
+            .addFields([
+              { name: '👤 User', value: `<@${act.memberId}>`, inline: true },
+              { name: '📂 Category', value: act.activityType, inline: false },
+              { name: '📝 Details', value: act.description || 'N/A', inline: false }
+            ])
+            .setColor(0x00d4ff)
+            .setTimestamp();
+
+          if (act.mediaUrl) {
+            embed.setImage(act.mediaUrl);
+            embed.addFields([{ name: '🖼️ Proof', value: act.mediaUrl, inline: false }]);
+          }
+
+          const approveBtn = new ButtonBuilder()
+            .setCustomId(`activity_approve:${act.id}`)
+            .setLabel('Approve')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('✅');
+
+          const rejectBtn = new ButtonBuilder()
+            .setCustomId(`activity_reject:${act.id}`)
+            .setLabel('Reject')
+            .setStyle(ButtonStyle.Danger)
+            .setEmoji('❌');
+
+          const btnRow = new ActionRowBuilder().addComponents(approveBtn, rejectBtn);
+
+          const message = await channel.send({ 
+            content: `@${rolePing}`, 
+            embeds: [embed], 
+            components: [btnRow] 
+          });
+
+          await db.updateActivity(act.id, {
+            reviewChannelId: channel.id,
+            reviewMessageId: message.id
+          });
+
+          botService.logSimulated(`Fired interactive activity review embed for @${act.username} to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to send interactive activity review:', err.message);
+      }
+    }
+
+    botService.logSimulated(`[Mock Review Notification] Fired activity review embed to #activity-review for ${act.username}.`);
+    return false;
+  },
+
+  closeActiveActivityReview: async (activityId, status, reviewerName) => {
+    try {
+      const act = await db.getActivity(activityId);
+      if (!act || !act.reviewChannelId || !act.reviewMessageId || !client) return;
+
+      const channel = await client.channels.fetch(act.reviewChannelId);
+      if (channel) {
+        const message = await channel.messages.fetch(act.reviewMessageId);
+        if (message) {
+          const isApproved = status === 'approved';
+          const embedColor = isApproved ? 0x23a55a : 0xf23f43;
+          const footerText = isApproved 
+            ? `✅ Approved by ${reviewerName} • Today at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+            : `❌ Rejected by ${reviewerName} • Today at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+
+          const reviewEmbed = EmbedBuilder.from(message.embeds[0])
+            .setColor(embedColor)
+            .setFooter({ text: footerText });
+
+          await message.edit({
+            content: isApproved ? `✅ Approved by @${reviewerName}` : `❌ Rejected by @${reviewerName}`,
+            embeds: [reviewEmbed],
+            components: []
+          });
+          botService.logSimulated(`Closed active activity review message for ID ${activityId} in Discord via Web UI.`);
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to close active activity review message:', err.message);
     }
   },
 
@@ -2308,7 +2517,7 @@ const botService = {
           const embed = new EmbedBuilder()
             .setTitle('Strike System')
             .setDescription(strikeList)
-            .setImage('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800') // purple-red warning vibe neon
+            .setImage((config.banners && config.banners['strike-system']) ? config.banners['strike-system'] : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800') // purple-red warning vibe neon
             .setColor(0xff0000)
             .setFooter({ text: `Strike System • 3 strikes max • Updated • Today at ${updatedTime}` });
 
@@ -2368,7 +2577,7 @@ const botService = {
           const embed = new EmbedBuilder()
             .setTitle('Strike System')
             .setDescription(strikeList)
-            .setImage('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800')
+            .setImage((config.banners && config.banners['strike-system']) ? config.banners['strike-system'] : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800')
             .setColor(0xff0000)
             .setFooter({ text: `Strike System • 3 strikes max • Updated • Today at ${updatedTime}` });
 
@@ -2627,6 +2836,110 @@ const botService = {
       }
     } catch (err) {
       console.error('[Bot] Failed to sync Weekly Event Leaderboard message:', err.message);
+    }
+  },
+
+  deployActivityPointsLeaderboardPrompt: async () => {
+    botService.logSimulated('Attempting to deploy Activity Points Leaderboard panel to Discord...');
+    const config = await db.getConfig();
+    if (client && config.guildId) {
+      try {
+        const guild = await client.guilds.fetch(config.guildId);
+        let channel = guild.channels.cache.find(c => {
+          const name = cleanName(c.name);
+          return name.includes('activity-points') || name.includes('points-leaderboard') || name.includes('leaderboard');
+        });
+        if (channel) {
+          const members = await db.getMembers();
+          const leaderboardList = [...members]
+            .sort((a, b) => (b.points || 0) - (a.points || 0))
+            .slice(0, 30);
+
+          const entries = leaderboardList.map((m, idx) => {
+            let rankIcon = `**${idx + 1}.**`;
+            if (idx === 0) rankIcon = '🥇';
+            else if (idx === 1) rankIcon = '🥈';
+            else if (idx === 2) rankIcon = '🥉';
+            return `${rankIcon} <@${m.discordId}> — \`${m.points || 0} pts\``;
+          }).join('\n');
+
+          const embed = new EmbedBuilder()
+            .setTitle('White Pigeons #TOP1 Activity Points Leaderboard')
+            .setDescription(entries || 'No points logs recorded yet.')
+            .setColor(0xffbf5c)
+            .setTimestamp();
+
+          const myPointsBtn = new ButtonBuilder()
+            .setCustomId('trigger_my_points')
+            .setLabel('My Points')
+            .setStyle(ButtonStyle.Primary);
+
+          const row = new ActionRowBuilder().addComponents(myPointsBtn);
+
+          const message = await channel.send({ embeds: [embed], components: [row] });
+
+          const currentWebhooks = config.webhooks || {};
+          currentWebhooks.activityPointsMessageId = message.id;
+          currentWebhooks.activityPointsChannelId = channel.id;
+          await db.saveConfig({ ...config, webhooks: currentWebhooks });
+
+          botService.logSimulated(`Successfully deployed Activity Points Leaderboard to channel #${channel.name}`);
+          return true;
+        }
+      } catch (err) {
+        console.error('[Bot] Failed to deploy Activity Points Leaderboard:', err.message);
+      }
+    }
+
+    botService.logSimulated('[Mock Leaderboard] Deployed Activity Points Leaderboard panel in #activity-points.');
+    return true;
+  },
+
+  syncActivityPointsLeaderboardMessage: async () => {
+    const config = await db.getConfig();
+    const webhooks = config.webhooks || {};
+    const messageId = webhooks.activityPointsMessageId;
+    const channelId = webhooks.activityPointsChannelId;
+
+    if (!messageId || !channelId || !client) return;
+
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (channel) {
+        const message = await channel.messages.fetch(messageId);
+        if (message) {
+          const members = await db.getMembers();
+          const leaderboardList = [...members]
+            .sort((a, b) => (b.points || 0) - (a.points || 0))
+            .slice(0, 30);
+
+          const entries = leaderboardList.map((m, idx) => {
+            let rankIcon = `**${idx + 1}.**`;
+            if (idx === 0) rankIcon = '🥇';
+            else if (idx === 1) rankIcon = '🥈';
+            else if (idx === 2) rankIcon = '🥉';
+            return `${rankIcon} <@${m.discordId}> — \`${m.points || 0} pts\``;
+          }).join('\n');
+
+          const embed = new EmbedBuilder()
+            .setTitle('White Pigeons #TOP1 Activity Points Leaderboard')
+            .setDescription(entries || 'No points logs recorded yet.')
+            .setColor(0xffbf5c)
+            .setTimestamp();
+
+          const myPointsBtn = new ButtonBuilder()
+            .setCustomId('trigger_my_points')
+            .setLabel('My Points')
+            .setStyle(ButtonStyle.Primary);
+
+          const row = new ActionRowBuilder().addComponents(myPointsBtn);
+
+          await message.edit({ embeds: [embed], components: [row] });
+          botService.logSimulated('Successfully synced Activity Points Leaderboard message.');
+        }
+      }
+    } catch (err) {
+      console.error('[Bot] Failed to sync Activity Points Leaderboard message:', err.message);
     }
   },
 
@@ -3346,7 +3659,7 @@ const botService = {
         { name: '👥 Members:', value: String(totalMembers), inline: true }
       )
       .setColor(0x00ff00)
-      .setImage('https://images.unsplash.com/photo-1554672408-730436b60dde?w=500')
+      .setImage((config.banners && config.banners['bonus-admin-panel']) ? config.banners['bonus-admin-panel'] : 'https://images.unsplash.com/photo-1554672408-730436b60dde?w=500')
       .setTimestamp();
 
     return embed;

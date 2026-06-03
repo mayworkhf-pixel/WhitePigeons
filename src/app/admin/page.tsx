@@ -138,6 +138,13 @@ export default function AdminDashboard() {
     factoryVoiceChannelId: 'mock-voice-id',
     simulatedVoice: ''
   });
+  const [banners, setBanners] = useState<Record<string, string>>({
+    'rp-signup': '',
+    'signup-event': '',
+    'informal-signup': '',
+    'strike-system': '',
+    'bonus-admin-panel': ''
+  });
   const [credsLoading, setCredsLoading] = useState(false);
   const [dbHealth, setDbHealth] = useState<{ firebaseEnabled: boolean; firestoreWorking: boolean; errorMsg: string | null; readTimeMs: number | null } | null>(null);
 
@@ -178,6 +185,16 @@ export default function AdminDashboard() {
             factoryVoiceChannelId: data.factoryVoiceChannelId || '',
             simulatedVoice: Array.isArray(data.simulatedVoice) ? data.simulatedVoice.join(', ') : (data.simulatedVoice || '')
           });
+
+          if (data.banners) {
+            setBanners({
+              'rp-signup': data.banners['rp-signup'] || '',
+              'signup-event': data.banners['signup-event'] || '',
+              'informal-signup': data.banners['informal-signup'] || '',
+              'strike-system': data.banners['strike-system'] || '',
+              'bonus-admin-panel': data.banners['bonus-admin-panel'] || ''
+            });
+          }
 
           // Sync backend webhooks if they exist
           if (data.webhooks) {
@@ -399,6 +416,15 @@ export default function AdminDashboard() {
           factoryVoiceChannelId: data.factoryVoiceChannelId || '',
           simulatedVoice: Array.isArray(data.simulatedVoice) ? data.simulatedVoice.join(', ') : (data.simulatedVoice || '')
         });
+        if (data.banners) {
+          setBanners({
+            'rp-signup': data.banners['rp-signup'] || '',
+            'signup-event': data.banners['signup-event'] || '',
+            'informal-signup': data.banners['informal-signup'] || '',
+            'strike-system': data.banners['strike-system'] || '',
+            'bonus-admin-panel': data.banners['bonus-admin-panel'] || ''
+          });
+        }
         addNotification('Sync Successful', 'Synced bot credentials from backend.', 'success');
       } else {
         throw new Error('Could not load credentials.');
@@ -419,7 +445,10 @@ export default function AdminDashboard() {
         headers: { 
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(credentials)
+        body: JSON.stringify({
+          ...credentials,
+          banners
+        })
       });
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('wp_admin_auth');
@@ -464,6 +493,13 @@ export default function AdminDashboard() {
           rpTicketTimes: '',
           factoryVoiceChannelId: '',
           simulatedVoice: ''
+        });
+        setBanners({
+          'rp-signup': '',
+          'signup-event': '',
+          'informal-signup': '',
+          'strike-system': '',
+          'bonus-admin-panel': ''
         });
       }
     } catch (err: any) {
@@ -1312,6 +1348,64 @@ export default function AdminDashboard() {
                     className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
                   />
                   <span className="text-[9px] text-zinc-500 mt-1 block">Comma-separated list of user IDs to force simulate as being inside the voice channel for testing.</span>
+                </div>
+
+                <div className="md:col-span-2 pt-4 border-t border-[#1e1b29]">
+                  <h3 className="font-title font-black text-xs text-purple-400 uppercase tracking-wider mb-3">
+                    🎨 DISCORD EMBED POST BANNERS
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[9px] text-zinc-500 font-black block mb-1">RP SIGNUP POST BANNER URL</label>
+                      <input 
+                        type="text"
+                        value={banners['rp-signup'] || ''}
+                        onChange={(e) => setBanners(prev => ({ ...prev, 'rp-signup': e.target.value }))}
+                        placeholder="https://..." 
+                        className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-zinc-500 font-black block mb-1">SIGNUP EVENT POST BANNER URL</label>
+                      <input 
+                        type="text"
+                        value={banners['signup-event'] || ''}
+                        onChange={(e) => setBanners(prev => ({ ...prev, 'signup-event': e.target.value }))}
+                        placeholder="https://..." 
+                        className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-zinc-500 font-black block mb-1">INFORMAL FIGHT POST BANNER URL</label>
+                      <input 
+                        type="text"
+                        value={banners['informal-signup'] || ''}
+                        onChange={(e) => setBanners(prev => ({ ...prev, 'informal-signup': e.target.value }))}
+                        placeholder="https://..." 
+                        className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-zinc-500 font-black block mb-1">STRIKE SYSTEM POST BANNER URL</label>
+                      <input 
+                        type="text"
+                        value={banners['strike-system'] || ''}
+                        onChange={(e) => setBanners(prev => ({ ...prev, 'strike-system': e.target.value }))}
+                        placeholder="https://..." 
+                        className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-[9px] text-zinc-500 font-black block mb-1">BONUS ADMIN PANEL POST BANNER URL</label>
+                      <input 
+                        type="text"
+                        value={banners['bonus-admin-panel'] || ''}
+                        onChange={(e) => setBanners(prev => ({ ...prev, 'bonus-admin-panel': e.target.value }))}
+                        placeholder="https://..." 
+                        className="w-full bg-[#09080d] border border-[#201d2d] rounded-xl p-3 text-xs font-mono text-zinc-350 focus:text-zinc-100 focus:border-purple-600/40 outline-none transition-smooth"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
